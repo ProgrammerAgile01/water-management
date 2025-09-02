@@ -1,0 +1,27 @@
+{
+  "name": "Tirta Bening - Water Billing Management",
+  "short_name": "Tirta Bening",
+  "description": "Progressive Web App for water billing management",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#009688",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ],
+  "categories": ["utilities", "business"],
+  "lang": "id",
+  "dir": "ltr"
+}
