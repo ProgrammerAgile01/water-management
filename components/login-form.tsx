@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,92 +10,68 @@ import { useToast } from "@/hooks/use-toast"
 
 export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false)
-  const [formData, setFormData] = useState({
-    username: "",
-    password: "",
-  })
+  const [formData, setFormData] = useState({ username: "", password: "" })
   const router = useRouter()
   const { toast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-
     try {
-      // Simulate authentication
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      })
 
-      const mockUsers = {
-        admin: { password: "admin123", role: "admin", name: "Administrator" },
-        petugas: { password: "petugas123", role: "petugas_catat", name: "Petugas Lapangan" },
-        warga: { password: "warga123", role: "warga", name: "Budi Santoso" },
-      }
+      const data = await res.json()
+      if (!res.ok || !data.ok) throw new Error(data.message || "Login gagal")
 
-      const user = mockUsers[formData.username as keyof typeof mockUsers]
+      // simpan info ringan untuk UI (cookie JWT sudah diset httpOnly oleh server)
+      localStorage.setItem("tb_user", JSON.stringify(data.user))
 
-      if (user && user.password === formData.password) {
-        // Store user session
-        localStorage.setItem(
-          "user",
-          JSON.stringify({
-            username: formData.username,
-            role: user.role,
-            name: user.name,
-            loginTime: new Date().toISOString(),
-          }),
-        )
+      toast({ title: "Login Berhasil", description: `Selamat datang, ${data.user.name}` })
 
-        toast({
-          title: "Login Berhasil",
-          description: `Selamat datang, ${user.name}`,
-        })
-
-        if (user.role === "warga") {
-          router.push("/warga-dashboard")
-        } else {
-          router.push("/dashboard")
-        }
-      } else {
-        throw new Error("Invalid credentials")
-      }
-    } catch (error) {
+      if (data.user.role === "WARGA") router.push("/warga-dashboard")
+      else router.push("/dashboard")
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Username / password salah"
       toast({
         title: "Login Gagal",
-        description: "Username atau password salah",
+        description: message,
         variant: "destructive",
       })
+     
     } finally {
       setIsLoading(false)
     }
   }
 
+  
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="username" className="text-base font-medium">
-          Username
-        </Label>
+        <Label htmlFor="username" className="text-base font-medium">Username</Label>
         <Input
           id="username"
           type="text"
           placeholder="Masukkan username"
           value={formData.username}
-          onChange={(e) => setFormData((prev) => ({ ...prev, username: e.target.value }))}
+          onChange={(e) => setFormData((p) => ({ ...p, username: e.target.value }))}
           className="h-12 text-base"
           required
         />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="password" className="text-base font-medium">
-          Password
-        </Label>
+        <Label htmlFor="password" className="text-base font-medium">Password</Label>
         <Input
           id="password"
           type="password"
           placeholder="Masukkan password"
           value={formData.password}
-          onChange={(e) => setFormData((prev) => ({ ...prev, password: e.target.value }))}
+          onChange={(e) => setFormData((p) => ({ ...p, password: e.target.value }))}
           className="h-12 text-base"
           required
         />
@@ -108,25 +83,8 @@ export function LoginForm() {
             <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             Memproses...
           </div>
-        ) : (
-          "Masuk"
-        )}
+        ) : ("Masuk")}
       </Button>
-
-      <div className="mt-6 p-4 bg-muted/50 rounded-lg">
-        <p className="text-sm font-medium text-muted-foreground mb-2">Demo Credentials:</p>
-        <div className="text-sm space-y-1">
-          <p>
-            <strong>Admin:</strong> admin / admin123
-          </p>
-          <p>
-            <strong>Petugas:</strong> petugas / petugas123
-          </p>
-          <p>
-            <strong>Warga:</strong> warga / warga123
-          </p>
-        </div>
-      </div>
     </form>
   )
 }

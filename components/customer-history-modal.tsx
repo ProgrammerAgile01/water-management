@@ -94,7 +94,7 @@ export function CustomerHistoryModal({ customer, onClose }: CustomerHistoryModal
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "lunas":
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Lunas</Badge>
+        return <Badge className="bg-teal-100 text-teal-800 hover:bg-teal-100 border-teal-200">Lunas</Badge>
       case "belum":
         return <Badge variant="destructive">Belum Bayar</Badge>
       case "sebagian":
@@ -105,38 +105,43 @@ export function CustomerHistoryModal({ customer, onClose }: CustomerHistoryModal
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-6xl max-h-[90vh] overflow-hidden">
-        <GlassCard className="p-6">
+    <div className="fixed inset-0 bg-gradient-to-br from-teal-900/40 via-cyan-900/30 to-blue-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+      <div className="w-full max-w-6xl h-[90vh] overflow-y-auto">
+        <GlassCard className="p-6 bg-gradient-to-br from-teal-50/90 via-cyan-50/80 to-blue-50/90 backdrop-blur-md border-2 border-teal-200/30 shadow-2xl">
           {/* Header */}
           <div className="flex items-start justify-between mb-6">
             <div>
-              <h2 className="text-2xl font-bold text-foreground">{customer.nama}</h2>
-              <p className="text-muted-foreground">Kode: {customer.kodeCustomer}</p>
-              <p className="text-sm text-muted-foreground mt-1">{customer.alamat}</p>
+              <h2 className="text-2xl font-bold text-teal-900">{customer.nama}</h2>
+              <p className="text-teal-700">Kode: {customer.kodeCustomer}</p>
+              <p className="text-sm text-teal-600 mt-1">{customer.alamat}</p>
             </div>
-            <Button variant="outline" size="sm" onClick={onClose} className="bg-transparent">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onClose}
+              className="bg-teal-50/50 border-teal-200 hover:bg-teal-100/70 text-teal-700"
+            >
               <X className="w-4 h-4" />
             </Button>
           </div>
 
           {/* Customer Info */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 p-4 bg-muted/20 rounded-lg">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 p-4 bg-teal-50/30 rounded-lg border border-teal-200/20">
             <div>
-              <p className="text-sm text-muted-foreground">No. WhatsApp</p>
-              <p className="font-medium text-foreground">{customer.noWA}</p>
+              <p className="text-sm text-teal-600">No. WhatsApp</p>
+              <p className="font-medium text-teal-900">{customer.noWA}</p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Meter Awal</p>
-              <p className="font-medium text-foreground">{customer.meterAwal}</p>
+              <p className="text-sm text-teal-600">Meter Awal</p>
+              <p className="font-medium text-teal-900">{customer.meterAwal}</p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Status</p>
+              <p className="text-sm text-teal-600">Status</p>
               <div className="mt-1">
                 {customer.status === "aktif" ? (
-                  <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Aktif</Badge>
+                  <Badge className="bg-teal-100 text-teal-800 hover:bg-teal-100 border-teal-200">Aktif</Badge>
                 ) : (
-                  <Badge variant="secondary">Non-aktif</Badge>
+                  <Badge className="bg-gray-100 text-gray-700 border-gray-200">Non-aktif</Badge>
                 )}
               </div>
             </div>
@@ -144,41 +149,41 @@ export function CustomerHistoryModal({ customer, onClose }: CustomerHistoryModal
 
           {/* Usage History Table */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-foreground">Histori Pemakaian</h3>
+            <h3 className="text-lg font-semibold text-teal-900">Histori Pemakaian</h3>
 
             {/* Desktop Table */}
-            <div className="hidden lg:block overflow-x-auto max-h-96 overflow-y-auto">
+            <div className="hidden lg:block overflow-x-auto">
               <table className="w-full">
-                <thead className="sticky top-0 bg-card/90 backdrop-blur-sm">
-                  <tr className="border-b border-border/20">
-                    <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">Periode</th>
-                    <th className="text-center py-3 px-2 text-sm font-medium text-muted-foreground">Meter Awal</th>
-                    <th className="text-center py-3 px-2 text-sm font-medium text-muted-foreground">Meter Akhir</th>
-                    <th className="text-center py-3 px-2 text-sm font-medium text-muted-foreground">Jml Pakai</th>
-                    <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">Tarif/m³</th>
-                    <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">Abonemen</th>
-                    <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">Denda</th>
-                    <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">Total</th>
-                    <th className="text-center py-3 px-2 text-sm font-medium text-muted-foreground">Status</th>
+                <thead className="sticky top-0 bg-teal-50/90 backdrop-blur-sm">
+                  <tr className="border-b border-teal-200/30">
+                    <th className="text-left py-3 px-2 text-sm font-medium text-teal-700">Periode</th>
+                    <th className="text-center py-3 px-2 text-sm font-medium text-teal-700">Meter Awal</th>
+                    <th className="text-center py-3 px-2 text-sm font-medium text-teal-700">Meter Akhir</th>
+                    <th className="text-center py-3 px-2 text-sm font-medium text-teal-700">Jml Pakai</th>
+                    <th className="text-right py-3 px-2 text-sm font-medium text-teal-700">Tarif/m³</th>
+                    <th className="text-right py-3 px-2 text-sm font-medium text-teal-700">Abonemen</th>
+                    <th className="text-right py-3 px-2 text-sm font-medium text-teal-700">Denda</th>
+                    <th className="text-right py-3 px-2 text-sm font-medium text-teal-700">Total</th>
+                    <th className="text-center py-3 px-2 text-sm font-medium text-teal-700">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {mockUsageHistory.map((history) => (
-                    <tr key={history.id} className="border-b border-border/10 hover:bg-muted/20">
-                      <td className="py-3 px-2 text-sm font-medium text-foreground">{history.periode}</td>
-                      <td className="py-3 px-2 text-sm text-center text-foreground">{history.meterAwal}</td>
-                      <td className="py-3 px-2 text-sm text-center text-foreground">{history.meterAkhir}</td>
-                      <td className="py-3 px-2 text-sm text-center font-medium text-primary">{history.jmlPakai} m³</td>
-                      <td className="py-3 px-2 text-sm text-right text-foreground">
+                    <tr key={history.id} className="border-b border-teal-200/20 hover:bg-teal-50/30">
+                      <td className="py-3 px-2 text-sm font-medium text-teal-900">{history.periode}</td>
+                      <td className="py-3 px-2 text-sm text-center text-teal-800">{history.meterAwal}</td>
+                      <td className="py-3 px-2 text-sm text-center text-teal-800">{history.meterAkhir}</td>
+                      <td className="py-3 px-2 text-sm text-center font-medium text-teal-600">{history.jmlPakai} m³</td>
+                      <td className="py-3 px-2 text-sm text-right text-teal-800">
                         Rp {history.tarifPerM3.toLocaleString("id-ID")}
                       </td>
-                      <td className="py-3 px-2 text-sm text-right text-foreground">
+                      <td className="py-3 px-2 text-sm text-right text-teal-800">
                         Rp {history.abonemen.toLocaleString("id-ID")}
                       </td>
-                      <td className="py-3 px-2 text-sm text-right text-foreground">
+                      <td className="py-3 px-2 text-sm text-right text-teal-800">
                         {history.denda > 0 ? `Rp ${history.denda.toLocaleString("id-ID")}` : "-"}
                       </td>
-                      <td className="py-3 px-2 text-sm text-right font-bold text-foreground">
+                      <td className="py-3 px-2 text-sm text-right font-bold text-teal-900">
                         Rp {history.total.toLocaleString("id-ID")}
                       </td>
                       <td className="py-3 px-2 text-center">{getStatusBadge(history.statusBayar)}</td>
@@ -189,39 +194,45 @@ export function CustomerHistoryModal({ customer, onClose }: CustomerHistoryModal
             </div>
 
             {/* Mobile Cards */}
-            <div className="lg:hidden space-y-4 max-h-96 overflow-y-auto">
+            <div className="lg:hidden space-y-4">
               {mockUsageHistory.map((history) => (
-                <div key={history.id} className="p-4 bg-muted/20 rounded-lg space-y-3">
+                <div key={history.id} className="p-4 bg-teal-50/30 rounded-lg border border-teal-200/20 space-y-3">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="font-medium text-foreground">{history.periode}</p>
-                      <p className="text-sm text-primary font-medium">{history.jmlPakai} m³</p>
+                      <p className="font-medium text-teal-900">{history.periode}</p>
+                      <p className="text-sm text-teal-600 font-medium">{history.jmlPakai} m³</p>
                     </div>
                     {getStatusBadge(history.statusBayar)}
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div>
-                      <span className="text-muted-foreground">Meter:</span> {history.meterAwal} → {history.meterAkhir}
+                      <span className="text-teal-600">Meter:</span>{" "}
+                      <span className="text-teal-800">
+                        {history.meterAwal} → {history.meterAkhir}
+                      </span>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">Tarif:</span> Rp{" "}
-                      {history.tarifPerM3.toLocaleString("id-ID")}/m³
+                      <span className="text-teal-600">Tarif:</span>{" "}
+                      <span className="text-teal-800">Rp {history.tarifPerM3.toLocaleString("id-ID")}/m³</span>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">Abonemen:</span> Rp{" "}
-                      {history.abonemen.toLocaleString("id-ID")}
+                      <span className="text-teal-600">Abonemen:</span>{" "}
+                      <span className="text-teal-800">Rp {history.abonemen.toLocaleString("id-ID")}</span>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">Denda:</span>{" "}
-                      {history.denda > 0 ? `Rp ${history.denda.toLocaleString("id-ID")}` : "-"}
+                      <span className="text-teal-600">Denda:</span>{" "}
+                      <span className="text-teal-800">
+                        {" "}
+                        {history.denda > 0 ? `Rp ${history.denda.toLocaleString("id-ID")}` : "-"}
+                      </span>
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-border/20">
-                    <p className="font-bold text-foreground">Total: Rp {history.total.toLocaleString("id-ID")}</p>
+                  <div className="pt-2 border-t border-teal-200/30">
+                    <p className="font-bold text-teal-900">Total: Rp {history.total.toLocaleString("id-ID")}</p>
                     {history.tanggalBayar && (
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm text-teal-600">
                         Dibayar: {new Date(history.tanggalBayar).toLocaleDateString("id-ID")}
                       </p>
                     )}
@@ -232,8 +243,8 @@ export function CustomerHistoryModal({ customer, onClose }: CustomerHistoryModal
           </div>
 
           {/* Footer */}
-          <div className="flex justify-end mt-6 pt-4 border-t border-border/20">
-            <Button onClick={onClose} className="px-8">
+          <div className="flex justify-end mt-6 pt-4 border-t border-teal-200/30">
+            <Button onClick={onClose} className="px-8 bg-teal-600 hover:bg-teal-700 text-white">
               Tutup
             </Button>
           </div>

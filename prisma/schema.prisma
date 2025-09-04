@@ -1,0 +1,169 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  PETUGAS
+  WARGA
+}
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  name         String
+  phone        String?  @db.VarChar(20)
+  role         Role     @default(WARGA)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Back-relation 1↔1 dengan Pelanggan (pemilik akun pelanggan)
+  pelanggan Pelanggan? @relation("UserPelanggan")
+
+  // Si pengguna ini pernah menghapus apa saja (soft delete audit)
+  deletedPelanggan  Pelanggan[]  @relation("DeletedByUser")
+  deletedCatat      CatatMeter[] @relation("DeletedByUserCatatMeter")
+  deletedTagihan    Tagihan[]    @relation("DeletedByUserTagihan")
+  deletedPembayaran Pembayaran[] @relation("DeletedByUserPembayaran")
+
+  // ================= Soft Delete User =================
+  deletedAt     DateTime?
+  deletedBy     String?
+  deletedByUser User?     @relation("DeletedByUserSelf", fields: [deletedBy], references: [id])
+  deletedUsers  User[]    @relation("DeletedByUserSelf")
+
+  @@index([deletedAt])   // <— tambah index ini
+  @@index([deletedBy])   // <— dan ini
+}
+
+model Pelanggan {
+  id          String   @id @default(cuid())
+  kode        String   @unique
+  nama        String
+  wa          String?  @db.VarChar(20)
+  alamat      String
+  meterAwal   Int      @default(0)
+  statusAktif Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relasi utama ke user (FK disimpan di sini)
+  userId String? @unique
+  user   User?   @relation("UserPelanggan", fields: [userId], references: [id])
+
+  // ---------- Soft delete ----------
+  deletedAt     DateTime? @db.DateTime(3)
+  deletedBy     String? // FK -> User.id yang menghapus
+  deletedByUser User?     @relation("DeletedByUser", fields: [deletedBy], references: [id])
+
+  // Back-relations agar relasi ke transaksi eksplisit (opsional tapi sehat)
+  catatans CatatMeter[]
+  tagihans Tagihan[]
+
+  @@index([deletedAt])
+  @@index([deletedBy])
+}
+
+model CatatMeter {
+  id           String   @id @default(cuid())
+  periode      String
+  tanggalCatat DateTime @default(now())
+  standAwal    Int
+  standAkhir   Int
+  pemakaianM3  Int
+
+  // FK -> Pelanggan
+  pelangganId String
+  pelanggan   Pelanggan @relation(fields: [pelangganId], references: [id])
+
+  // ---------- Soft delete ----------
+  deletedAt     DateTime? @db.DateTime(3)
+  deletedBy     String?
+  deletedByUser User?     @relation("DeletedByUserCatatMeter", fields: [deletedBy], references: [id])
+
+  // Kombinasi unik: 1 pelanggan x 1 periode = 1 catatan
+  @@unique([pelangganId, periode])
+  @@index([periode])
+  @@index([deletedAt])
+  @@index([deletedBy])
+}
+
+model Tagihan {
+  id            String   @id @default(cuid())
+  periode       String
+  tarifPerM3    Int
+  abonemen      Int      @default(0)
+  denda         Int      @default(0)
+  totalTagihan  Int
+  statusBayar   String   @default("UNPAID")
+  statusVerif   String   @default("UNVERIFIED")
+  tglJatuhTempo DateTime
+  info          String?  @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // FK -> Pelanggan
+  pelangganId String
+  pelanggan   Pelanggan @relation(fields: [pelangganId], references: [id])
+
+  pembayarans Pembayaran[]
+
+  // ---------- Soft delete ----------
+  deletedAt     DateTime? @db.DateTime(3)
+  deletedBy     String?
+  deletedByUser User?     @relation("DeletedByUserTagihan", fields: [deletedBy], references: [id])
+
+  // Unik per pelanggan & periode
+  @@unique([pelangganId, periode])
+  @@index([periode])
+  @@index([statusBayar, statusVerif])
+  @@index([deletedAt])
+  @@index([deletedBy])
+}
+
+model Pembayaran {
+  id           String   @id @default(cuid())
+  tanggalBayar DateTime @default(now())
+  jumlahBayar  Int
+  buktiUrl     String?
+  adminBayar   String?
+
+  // FK -> Tagihan
+  tagihanId String
+  tagihan   Tagihan @relation(fields: [tagihanId], references: [id])
+
+  // ---------- Soft delete ----------
+  deletedAt     DateTime? @db.DateTime(3)
+  deletedBy     String?
+  deletedByUser User?     @relation("DeletedByUserPembayaran", fields: [deletedBy], references: [id])
+
+  @@index([tanggalBayar])
+  @@index([tagihanId], map: "Pembayaran_tagihanId_fkey")
+  @@index([deletedAt])
+  @@index([deletedBy])
+}
+
+model Setting {
+  id            Int      @id @default(1)
+  tarifPerM3    Int      @default(3000)
+  abonemen      Int      @default(10000)
+  tglJatuhTempo Int      @default(15)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model WaLog {
+  id        String   @id @default(cuid())
+  tujuan    String
+  tipe      String
+  payload   String   @db.Text
+  status    String
+  createdAt DateTime @default(now())
+}

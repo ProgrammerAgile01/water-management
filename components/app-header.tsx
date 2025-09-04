@@ -20,6 +20,8 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 import { GlassCard } from "./glass-card"
+import { useToast } from "@/hooks/use-toast"
+
 
 interface AppHeaderProps {
   title: string
@@ -56,13 +58,22 @@ export function AppHeader({ title, showBackButton = true, showBreadcrumb = true 
     }
   }
 
-  const handleLogout = () => {
-    localStorage.removeItem("user")
-    router.push("/")
+  const { toast } = useToast()
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" })
+      toast({ title: "Logout berhasil", description: "Anda telah keluar dari sistem." })
+    } catch {
+      toast({ title: "Logout gagal", description: "Terjadi error, coba lagi.", variant: "destructive" })
+    } finally {
+      localStorage.removeItem("tb_user")
+      router.push("/login")
+    }
   }
 
   const getBreadcrumbItems = () => {
-    const paths = pathname.split("/").filter(Boolean)
+    //const paths = pathname.split("/").filter(Boolean)
     const items = [{ href: "/dashboard", label: "Dashboard" }]
 
     if (pathname !== "/dashboard") {
