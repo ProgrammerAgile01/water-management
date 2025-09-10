@@ -6,12 +6,12 @@ import type { ReactNode } from "react";
 
 interface AuthGuardProps {
   children: ReactNode;
-  requiredRole?: "admin" | "petugas_catat" | "warga";
+  requiredRole?: "ADMIN" | "petugas_catat" | "warga";
 }
 
 interface User {
   username: string;
-  role: "admin" | "petugas_catat" | "warga";
+  role: "ADMIN" | "petugas_catat" | "warga";
   name: string;
   loginTime: string;
 }
@@ -31,7 +31,7 @@ export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
 
           if (requiredRole) {
             // Admin can access everything
-            if (parsedUser.role === "admin") {
+            if (parsedUser.role === "ADMIN") {
               // Allow access
             }
             // Petugas can access petugas-specific pages
