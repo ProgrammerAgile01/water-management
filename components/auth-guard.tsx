@@ -1,33 +1,33 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import type { ReactNode } from "react"
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import type { ReactNode } from "react";
 
 interface AuthGuardProps {
-  children: ReactNode
-  requiredRole?: "admin" | "petugas_catat" | "warga"
+  children: ReactNode;
+  requiredRole?: "admin" | "petugas_catat" | "warga";
 }
 
 interface User {
-  username: string
-  role: "admin" | "petugas_catat" | "warga"
-  name: string
-  loginTime: string
+  username: string;
+  role: "admin" | "petugas_catat" | "warga";
+  name: string;
+  loginTime: string;
 }
 
 export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
-  const [user, setUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const router = useRouter()
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     const checkAuth = () => {
       try {
-        const userData = localStorage.getItem("user")
+        const userData = localStorage.getItem("tb_user");
         if (userData) {
-          const parsedUser = JSON.parse(userData) as User
-          setUser(parsedUser)
+          const parsedUser = JSON.parse(userData) as User;
+          setUser(parsedUser);
 
           if (requiredRole) {
             // Admin can access everything
@@ -35,7 +35,10 @@ export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
               // Allow access
             }
             // Petugas can access petugas-specific pages
-            else if (requiredRole === "petugas_catat" && parsedUser.role === "petugas_catat") {
+            else if (
+              requiredRole === "petugas_catat" &&
+              parsedUser.role === "petugas_catat"
+            ) {
               // Allow access
             }
             // Warga can only access warga-specific pages
@@ -44,24 +47,24 @@ export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
             }
             // If role doesn't match, redirect to unauthorized
             else if (parsedUser.role !== requiredRole) {
-              router.push("/unauthorized")
-              return
+              router.push("/unauthorized");
+              return;
             }
           }
         } else {
-          router.push("/login")
-          return
+          router.push("/login");
+          return;
         }
       } catch (error) {
-        console.error("Auth check failed:", error)
-        router.push("/login")
+        console.error("Auth check failed:", error);
+        router.push("/login");
       } finally {
-        setIsLoading(false)
+        setIsLoading(false);
       }
-    }
+    };
 
-    checkAuth()
-  }, [router, requiredRole])
+    checkAuth();
+  }, [router, requiredRole]);
 
   if (isLoading) {
     return (
@@ -71,12 +74,12 @@ export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
           <span className="text-lg">Memuat...</span>
         </div>
       </div>
-    )
+    );
   }
 
   if (!user) {
-    return null
+    return null;
   }
 
-  return <>{children}</>
+  return <>{children}</>;
 }
