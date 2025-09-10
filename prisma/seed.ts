@@ -1,11 +1,10 @@
 // prisma/seed.ts
 import { PrismaClient, Role } from '@prisma/client'
 import bcrypt from 'bcryptjs'
-
 const prisma = new PrismaClient()
 
 async function main() {
-  // 1) Seed user admin
+  // admin
   const adminPass = await bcrypt.hash('admin123', 10)
   await prisma.user.upsert({
     where: { username: 'admin' },
@@ -20,23 +19,39 @@ async function main() {
     },
   })
 
-  // 2) Seed Setting (tarif aktif) — id = 1 (sesuai schema)
+  // setting (id=1)
   await prisma.setting.upsert({
     where: { id: 1 },
     update: {
       tarifPerM3: 3000,
       abonemen: 10000,
+      biayaAdmin: 2500,
       tglJatuhTempo: 15,
+      dendaTelatBulanSama: 5000,
+      dendaTelatBulanBerbeda: 10000,
+      namaPerusahaan: 'Tirta Bening',
+      alamat: 'Jl. Air Bersih No. 123',
+      telepon: '(021) 123-4567',
+      email: 'info@tirtabening.com',
+      logoUrl: null,
     },
     create: {
       id: 1,
       tarifPerM3: 3000,
       abonemen: 10000,
+      biayaAdmin: 2500,
       tglJatuhTempo: 15,
+      dendaTelatBulanSama: 5000,
+      dendaTelatBulanBerbeda: 10000,
+      namaPerusahaan: 'Tirta Bening',
+      alamat: 'Jl. Air Bersih No. 123',
+      telepon: '(021) 123-4567',
+      email: 'info@tirtabening.com',
+      logoUrl: null,
     },
   })
 
-  // 3) (Opsional) Pelanggan sample biar UI kebaca
+  // contoh pelanggan (opsional)
   await prisma.pelanggan.upsert({
     where: { kode: 'TB240001' },
     update: {},
@@ -49,7 +64,6 @@ async function main() {
       statusAktif: true,
     },
   })
-
   await prisma.pelanggan.upsert({
     where: { kode: 'TB240002' },
     update: {},
@@ -64,13 +78,4 @@ async function main() {
   })
 }
 
-main()
-  .then(async () => {
-    console.log('✅ Seed selesai')
-    await prisma.$disconnect()
-  })
-  .catch(async (e) => {
-    console.error('❌ Seed gagal', e)
-    await prisma.$disconnect()
-    process.exit(1)
-  })
+main().finally(() => prisma.$disconnect())

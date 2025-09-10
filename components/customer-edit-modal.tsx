@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { useSWRConfig } from "swr"
+import { useMemo, useState } from "react"
+import useSWR, { useSWRConfig } from "swr"
 import { GlassCard } from "./glass-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { X } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+
+type ZonaLite = { id: string; nama: string; deskripsi?: string }
 
 interface Customer {
   id: string
@@ -19,13 +21,17 @@ interface Customer {
   meterAwal: number
   status: "aktif" | "nonaktif"
   tanggalDaftar: string
+  zonaId?: string | null
+  zonaNama?: string | null
 }
 
 interface CustomerEditModalProps {
   customer: Customer
   onClose: () => void
-  onSave?: (customer: Customer) => void // optional, biar gak wajib
+  onSave?: (customer: Customer) => void
 }
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 function normalizeWA(v: string) {
   const digits = v.replace(/\D/g, "")
@@ -36,9 +42,28 @@ function normalizeWA(v: string) {
 
 export function CustomerEditModal({ customer, onClose, onSave }: CustomerEditModalProps) {
   const [formData, setFormData] = useState<Customer>(customer)
+  // "" = tanpa zona; string = id zona
+  const [zonaId, setZonaId] = useState<string>(customer.zonaId ?? "")
   const [saving, setSaving] = useState(false)
   const { mutate } = useSWRConfig()
   const { toast } = useToast()
+
+  // Ambil daftar zona
+  const { data: zonaResp, isLoading: loadingZona, error: zonaErr } = useSWR<{ ok: boolean; items: ZonaLite[] }>(
+    "/api/zona?page=1&pageSize=1000",
+    fetcher,
+    { revalidateOnFocus: false }
+  )
+
+  const baseZonaOptions: ZonaLite[] = Array.isArray(zonaResp?.items) ? zonaResp!.items : []
+
+  // Jika zona existing tidak ada di list (mis. dihapus), tetap tampilkan sebagai opsi “bayangan”
+  const zonaOptions = useMemo(() => {
+    if (customer.zonaId && customer.zonaNama && !baseZonaOptions.some(z => z.id === customer.zonaId)) {
+      return [{ id: customer.zonaId, nama: customer.zonaNama, deskripsi: "" }, ...baseZonaOptions]
+    }
+    return baseZonaOptions
+  }, [baseZonaOptions, customer.zonaId, customer.zonaNama])
 
   const handleChange = (field: keyof Customer, value: string | number) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -46,16 +71,21 @@ export function CustomerEditModal({ customer, onClose, onSave }: CustomerEditMod
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    if (saving) return
     setSaving(true)
     try {
-      // payload untuk API
-      const payload = {
+      const noZona = zonaId === ""
+
+      // ⬇️ KUNCI: kalau “Tanpa Zona” kirim explicit null dan reset noUrutRumah
+      const payload: Record<string, any> = {
         nama: formData.nama.trim(),
         wa: normalizeWA(formData.noWA),
         alamat: formData.alamat.trim(),
         meterAwal: Number.isFinite(formData.meterAwal) ? Number(formData.meterAwal) : 0,
-        status: formData.status, // "aktif" | "nonaktif"
+        status: formData.status,
+        zonaId: noZona ? null : zonaId,
       }
+      if (noZona) payload.noUrutRumah = null
 
       const res = await fetch(`/api/pelanggan?id=${formData.id}`, {
         method: "PUT",
@@ -63,22 +93,26 @@ export function CustomerEditModal({ customer, onClose, onSave }: CustomerEditMod
         body: JSON.stringify(payload),
       })
       const data = await res.json()
+      if (!res.ok || !data?.ok) throw new Error(data?.message || "Gagal memperbarui pelanggan")
 
-      if (!res.ok || !data?.ok) {
-        throw new Error(data?.message || "Gagal memperbarui pelanggan")
-      }
-
-      // refresh tabel
+      // sinkronkan cache list
       await mutate("/api/pelanggan")
 
-      // callback opsional utk parent state (kalau dipakai)
+      const zonaNamaBaru =
+        (payload.zonaId ? zonaOptions.find(z => z.id === payload.zonaId)?.nama ?? null : null)
+
       onSave?.({
         ...formData,
         noWA: payload.wa,
         meterAwal: payload.meterAwal,
+        zonaId: payload.zonaId ?? undefined,
+        zonaNama: zonaNamaBaru ?? undefined,
       })
 
-      toast({ title: "Berhasil", description: "Data pelanggan telah diperbarui." })
+      toast({
+        title: "Berhasil",
+        description: data?.message ?? (noZona ? "Zona dikosongkan." : "Data pelanggan diperbarui."),
+      })
       onClose()
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Terjadi kesalahan saat menyimpan"
@@ -105,7 +139,6 @@ export function CustomerEditModal({ customer, onClose, onSave }: CustomerEditMod
             </Button>
           </div>
 
-          {/* PENTING: tombol submit harus berada DI DALAM form */}
           <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -114,7 +147,7 @@ export function CustomerEditModal({ customer, onClose, onSave }: CustomerEditMod
                   id="nama"
                   value={formData.nama}
                   onChange={(e) => handleChange("nama", e.target.value)}
-                  className="bg-card/60 border-primary/30 focus:border-primary focus:ring-primary/20"
+                  className="h-12 bg-card/60 border-primary/30 focus:border-primary focus:ring-primary/20"
                   required
                 />
               </div>
@@ -124,7 +157,7 @@ export function CustomerEditModal({ customer, onClose, onSave }: CustomerEditMod
                 <Input
                   id="kodeCustomer"
                   value={formData.kodeCustomer}
-                  className="bg-muted/50 border-primary/20 text-muted-foreground"
+                  className="h-12 bg-muted/50 border-primary/20 text-muted-foreground"
                   disabled
                 />
               </div>
@@ -135,7 +168,7 @@ export function CustomerEditModal({ customer, onClose, onSave }: CustomerEditMod
                   id="noWA"
                   value={formData.noWA}
                   onChange={(e) => handleChange("noWA", e.target.value)}
-                  className="bg-card/60 border-primary/30 focus:border-primary focus:ring-primary/20"
+                  className="h-12 bg-card/60 border-primary/30 focus:border-primary focus:ring-primary/20"
                   required
                 />
               </div>
@@ -147,9 +180,30 @@ export function CustomerEditModal({ customer, onClose, onSave }: CustomerEditMod
                   type="number"
                   value={formData.meterAwal}
                   onChange={(e) => handleChange("meterAwal", Number(e.target.value || 0))}
-                  className="bg-card/60 border-primary/30 focus:border-primary focus:ring-primary/20"
+                  className="h-12 bg-card/60 border-primary/30 focus:border-primary focus:ring-primary/20"
                   required
                 />
+              </div>
+
+              {/* Dropdown Zona */}
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="zonaId" className="text-primary font-medium">Zona</Label>
+               {/* "" => tanpa zona */}
+                <select
+                  id="zonaId"
+                  value={zonaId}
+                  onChange={(e) => setZonaId(e.target.value)}  
+                  className="w-full h-12 px-3 bg-card/60 border border-primary/30 rounded-md text-base text-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                  disabled={loadingZona || !!zonaErr}
+                >
+                  <option value="">{loadingZona ? "Memuat zona…" : "— Tanpa Zona —"}</option>
+                  {zonaOptions.map((z) => (
+                    <option key={z.id} value={z.id}>
+                      {z.nama}{z.deskripsi ? ` — ${z.deskripsi}` : ""}
+                    </option>
+                  ))}
+                </select>
+                {zonaErr ? <p className="text-xs text-destructive mt-1">Gagal memuat daftar zona.</p> : null}
               </div>
             </div>
 
@@ -170,7 +224,7 @@ export function CustomerEditModal({ customer, onClose, onSave }: CustomerEditMod
                 id="status"
                 value={formData.status}
                 onChange={(e) => handleChange("status", e.target.value as "aktif" | "nonaktif")}
-                className="w-full px-3 py-2 bg-card/60 border border-primary/30 rounded-md text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                className="w-full h-12 px-3 bg-card/60 border border-primary/30 rounded-md text-base text-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
               >
                 <option value="aktif">Aktif</option>
                 <option value="nonaktif">Non-aktif</option>

@@ -1,0 +1,352 @@
+[
+  {
+    "kode": "TBTR8752",
+    "nama": "Tri Hartanto",
+    "wa": "62813292866879",
+    "alamat": "Bhayangkara",
+    "meterAwal": 11,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:32:38.812Z",
+    "userId": "cmf92v9my000aalacs5fji5wy"
+  },
+  {
+    "kode": "TBIB4079",
+    "nama": "IBU JOKO WURYANTO",
+    "wa": "628",
+    "alamat": "Bhayangkara",
+    "meterAwal": 1,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:42:56.700Z",
+    "userId": "cmf938iet000dalac7rf3h79f"
+  },
+  {
+    "kode": "TBSU5534",
+    "nama": "SUKRI",
+    "wa": "628",
+    "alamat": "Bhayangkara",
+    "meterAwal": 1,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:43:25.817Z",
+    "userId": "cmf9394vn000galacjl34ufl8"
+  },
+  {
+    "kode": "TBAZ0973",
+    "nama": "AZIZ",
+    "wa": "628",
+    "alamat": "Bhayangkara",
+    "meterAwal": 11,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:43:45.940Z",
+    "userId": "cmf939ken000jalacp3hpdmst"
+  },
+  {
+    "kode": "TBEF6213",
+    "nama": "EFDAL NASRA",
+    "wa": "628",
+    "alamat": "By",
+    "meterAwal": 507,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:44:12.004Z",
+    "userId": "cmf93a4il000malac0atrkaqo"
+  },
+  {
+    "kode": "TBDW2056",
+    "nama": "DWI HUTANTO",
+    "wa": "628",
+    "alamat": "By",
+    "meterAwal": 2,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:44:22.029Z",
+    "userId": "cmf93ac94000palacanqkp2ey"
+  },
+  {
+    "kode": "TBSH9634",
+    "nama": "SHOLIKIN",
+    "wa": "628",
+    "alamat": "by",
+    "meterAwal": 11,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:44:34.903Z",
+    "userId": "cmf93am6p000salacjmujzp54"
+  },
+  {
+    "kode": "TBSU2294",
+    "nama": "SUTOPO",
+    "wa": "628",
+    "alamat": "by",
+    "meterAwal": 16,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:44:49.822Z",
+    "userId": "cmf93axp5000valacfcdzo5zf"
+  },
+  {
+    "kode": "TBAG6931",
+    "nama": "AGUNG PRASETYO",
+    "wa": "628",
+    "alamat": "by",
+    "meterAwal": 11,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:45:01.519Z",
+    "userId": "cmf93b6q2000yalact55ug53e"
+  },
+  {
+    "kode": "TBSU1633",
+    "nama": "SURATMIN",
+    "wa": "628",
+    "alamat": "by",
+    "meterAwal": 0,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:45:13.471Z",
+    "userId": "cmf93bfy10011alacp4bm70j3"
+  },
+  {
+    "kode": "TBMA2165",
+    "nama": "MASRUR 1",
+    "wa": "628",
+    "alamat": "By",
+    "meterAwal": 1,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:45:26.721Z",
+    "userId": "cmf93bq630014alacgaw0zyvy"
+  },
+  {
+    "kode": "TBMA8009",
+    "nama": "MASRUR 2",
+    "wa": "628",
+    "alamat": "by",
+    "meterAwal": 1,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:45:39.149Z",
+    "userId": "cmf93bzrc0017alac0ebhagll"
+  },
+  {
+    "kode": "TBMA4763",
+    "nama": "MASRUR 3",
+    "wa": "628",
+    "alamat": "by",
+    "meterAwal": 9,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:45:56.180Z",
+    "userId": "cmf93ccwe001aalac5c4djmqv"
+  },
+  {
+    "kode": "TBUS2309",
+    "nama": "USMAN",
+    "wa": "628",
+    "alamat": "by",
+    "meterAwal": 0,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:46:08.653Z",
+    "userId": "cmf93cmiv001dalac1u4mzsyi"
+  },
+  {
+    "kode": "TBDE4653",
+    "nama": "DEDY ZULKIFLI",
+    "wa": "628",
+    "alamat": "by",
+    "meterAwal": 7,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:46:20.164Z",
+    "userId": "cmf93cvem001galacaoajw6f8"
+  },
+  {
+    "kode": "TBAG1159",
+    "nama": "AGUS TRIYANTARA",
+    "wa": "628",
+    "alamat": "bb",
+    "meterAwal": 10,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:46:36.915Z",
+    "userId": "cmf93d8bw001jalacu2r4vgeg"
+  },
+  {
+    "kode": "TBIB6020",
+    "nama": "IBU WURYANTO",
+    "wa": "628",
+    "alamat": "by",
+    "meterAwal": 7,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:46:53.799Z",
+    "userId": "cmf93dlcx001malac7mz690kg"
+  },
+  {
+    "kode": "TBIB5001",
+    "nama": "IBU IDA",
+    "wa": "628",
+    "alamat": "by",
+    "meterAwal": 30,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:47:09.431Z",
+    "userId": "cmf93dxf4001palacao174vi5"
+  },
+  {
+    "kode": "TBWA8198",
+    "nama": "WAHONO",
+    "wa": "628",
+    "alamat": "by",
+    "meterAwal": 17,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:47:27.158Z",
+    "userId": "cmf93eb3l001salac8qqw45zo"
+  },
+  {
+    "kode": "TBSO8483",
+    "nama": "SOFYANI",
+    "wa": "628",
+    "alamat": "BY",
+    "meterAwal": 14,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:47:48.277Z",
+    "userId": "cmf93ere7001valacw8c099xs"
+  },
+  {
+    "kode": "TBRI2240",
+    "nama": "RIYAN",
+    "wa": "628",
+    "alamat": "BY",
+    "meterAwal": 0,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:48:03.441Z",
+    "userId": "cmf93f33h001yalacadocdq3j"
+  },
+  {
+    "kode": "TBIB9578",
+    "nama": "IBU IKE",
+    "wa": "628",
+    "alamat": "BY",
+    "meterAwal": 12,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:48:26.074Z",
+    "userId": "cmf93fkk60021alaczkrwhohu"
+  },
+  {
+    "kode": "TBKO7415",
+    "nama": "KODAR",
+    "wa": "628",
+    "alamat": "BY",
+    "meterAwal": 10,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:48:46.404Z",
+    "userId": "cmf93g08t0024alackwwrhlry"
+  },
+  {
+    "kode": "TBRO2315",
+    "nama": "ROHMADI",
+    "wa": "628",
+    "alamat": "BY",
+    "meterAwal": 22,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:49:03.713Z",
+    "userId": "cmf93gdlo0027alac70tqpzcg"
+  },
+  {
+    "kode": "TBAG2086",
+    "nama": "AGUS PRIYONO",
+    "wa": "628",
+    "alamat": "BY",
+    "meterAwal": 27,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:49:21.110Z",
+    "userId": "cmf93gr0v002aalacanm522ze"
+  },
+  {
+    "kode": "TBTO3789",
+    "nama": "TOTOK",
+    "wa": "628",
+    "alamat": "BY",
+    "meterAwal": 4,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:49:37.458Z",
+    "userId": "cmf93h3n1002dalac2mxqi8sm"
+  },
+  {
+    "kode": "TBIB6368",
+    "nama": "IBU HARYONO",
+    "wa": "628",
+    "alamat": "BY",
+    "meterAwal": 3,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:50:01.320Z",
+    "userId": "cmf93hm1v002galacuh2y9cgl"
+  },
+  {
+    "kode": "TBWA5526",
+    "nama": "WAHYU",
+    "wa": "628",
+    "alamat": "BY",
+    "meterAwal": 18,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:50:22.486Z",
+    "userId": "cmf93i2ds002jalacszmray78"
+  },
+  {
+    "kode": "TBHE6322",
+    "nama": "HERI SUSANTO",
+    "wa": "628",
+    "alamat": "BY",
+    "meterAwal": 22,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:50:42.802Z",
+    "userId": "cmf93ii24002malacldt8r07l"
+  },
+  {
+    "kode": "TBHE9707",
+    "nama": "HERLY",
+    "wa": "628",
+    "alamat": "BY",
+    "meterAwal": 30,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:51:09.292Z",
+    "userId": "cmf93j2hx002palacqi5ktcq3"
+  },
+  {
+    "kode": "TBSU4691",
+    "nama": "SUSMONO DEWO",
+    "wa": "628",
+    "alamat": "BY",
+    "meterAwal": 19,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:51:29.770Z",
+    "userId": "cmf93jias002salacubvi1k7o"
+  },
+  {
+    "kode": "TBON7392",
+    "nama": "ONY",
+    "wa": "6287739255404",
+    "alamat": "BY",
+    "meterAwal": 12,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:51:47.560Z",
+    "userId": "cmf93jw0y002valac11791ua5"
+  },
+  {
+    "kode": "TBIB9159",
+    "nama": "IBU SUKAMTO",
+    "wa": "628",
+    "alamat": "BY",
+    "meterAwal": 17,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:52:03.783Z",
+    "userId": "cmf93k8jn002yalacq13npmd4"
+  },
+  {
+    "kode": "TBIB8623",
+    "nama": "IBU SURYO",
+    "wa": "628",
+    "alamat": "BY",
+    "meterAwal": 9,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:52:20.721Z",
+    "userId": "cmf93klm50031alacg1d76vzg"
+  },
+  {
+    "kode": "TBSU3387",
+    "nama": "SUDIYONO",
+    "wa": "628",
+    "alamat": "BY",
+    "meterAwal": 18,
+    "statusAktif": true,
+    "createdAt": "2025-09-07T02:52:32.211Z",
+    "userId": "cmf93kuh90034alacj9rs08aq"
+  }
+]

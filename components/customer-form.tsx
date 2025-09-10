@@ -1,70 +1,80 @@
-"use client" // Menandakan file ini adalah komponen client di Next.js (punya state, event handler, dll)
+"use client"
 
-import { useState } from "react"                 // Hook untuk state lokal
-import { useSWRConfig } from "swr"               // Hook SWR untuk global mutate (revalidate cache)
-import { Button } from "@/components/ui/button"  // Komponen tombol
-import { Input } from "@/components/ui/input"    // Komponen input teks
-import { Label } from "@/components/ui/label"    // Komponen label input
-import { Textarea } from "@/components/ui/textarea" // Komponen textarea
-import { useToast } from "@/hooks/use-toast"     // Hook custom untuk notifikasi/toast
+import { useState } from "react"
+import useSWR from "swr"
+import { useSWRConfig } from "swr"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { useToast } from "@/hooks/use-toast"
 
-// Tipe data form pelanggan
+// ---------- Types ----------
 type CustomerData = {
   nama: string
   noWA: string
   kodeCustomer: string
   alamat: string
   meterAwal: string
+  zonaId: string // "" = tidak dipilih
 }
 
-// Fungsi untuk normalisasi nomor WA → 08xxx jadi 62xxx
+type ZonaLite = { id: string; nama: string; kode: string; deskripsi: string }
+
+const fetcher = (url: string) => fetch(url).then(r => r.json())
+
+// ---------- Helpers ----------
 function normalizeWA(v: string) {
-  const digits = v.replace(/\D/g, "")      // ambil hanya digit
+  const digits = v.replace(/\D/g, "")
   if (digits.startsWith("0")) return `62${digits.slice(1)}`
   if (digits.startsWith("62")) return digits
   return digits
 }
-
-// Fungsi untuk generate kode customer otomatis
 function genCustomerCode() {
-  const ts = Date.now().toString().slice(-6) // ambil 6 digit terakhir timestamp
-  const rnd = Math.floor(Math.random() * 100).toString().padStart(2, "0") // angka random 2 digit
-  return `TB${ts}${rnd}` // contoh hasil: TB12345678
+  const ts = Date.now().toString().slice(-6)
+  const rnd = Math.floor(Math.random() * 100).toString().padStart(2, "0")
+  return `TB${ts}${rnd}`
 }
 
 export function CustomerForm() {
-  // State loading untuk tombol submit
   const [isLoading, setIsLoading] = useState(false)
-
-  // State data form
   const [formData, setFormData] = useState<CustomerData>({
     nama: "",
     noWA: "",
     kodeCustomer: "",
     alamat: "",
     meterAwal: "",
+    zonaId: "",
   })
 
-  const { toast } = useToast()       // Hook untuk menampilkan toast
-  const { mutate } = useSWRConfig()  // SWR mutate global → bisa refresh cache
+  const { toast } = useToast()
+  const { mutate } = useSWRConfig()
 
-  // Handler saat form di-submit
+  // ---------- Load daftar zona (compact) ----------
+  // Ambil 500 item pertama; kalau perlu bisa ganti ke endpoint compact
+  const { data: zonaResp, isLoading: loadingZona, error: zonaError } = useSWR<{
+    ok: boolean
+    items: { id: string; nama: string; kode: string }[]
+  }>(`/api/zona?page=1&pageSize=500&q=`, fetcher, { revalidateOnFocus: false })
+
+  const zonaList: ZonaLite[] = Array.isArray(zonaResp?.items) ? zonaResp!.items : []
+
+  // ---------- Submit ----------
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()      // cegah reload halaman
-    if (isLoading) return   // cegah double-submit
+    e.preventDefault()
+    if (isLoading) return
     setIsLoading(true)
 
     try {
-      // Payload untuk API
-      const payload = {
+      const payload: Record<string, unknown> = {
         nama: formData.nama.trim(),
         wa: normalizeWA(formData.noWA),
         alamat: formData.alamat.trim(),
         meterAwal: Number(formData.meterAwal || 0),
         kode: formData.kodeCustomer?.trim() || undefined,
       }
+      if (formData.zonaId) payload.zonaId = formData.zonaId // kirim hanya jika dipilih
 
-      // Panggil API POST /api/pelanggan
       const res = await fetch("/api/pelanggan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -72,20 +82,16 @@ export function CustomerForm() {
       })
       const data = await res.json()
 
-      // Jika gagal, lempar error
       if (!res.ok || !data?.ok) {
         throw new Error(data?.message || "Gagal menyimpan pelanggan")
       }
 
-      // Refresh data daftar pelanggan dengan SWR
       await mutate("/api/pelanggan")
 
-      // Ambil informasi tambahan dari API response
       const kodeFix = data?.data?.pelanggan?.kode ?? payload.kode
       const username = data?.data?.user?.username
       const tempPass = data?.data?.tempPassword
 
-      // Tampilkan toast sukses
       toast({
         title: "Pelanggan berhasil ditambahkan",
         description:
@@ -94,80 +100,137 @@ export function CustomerForm() {
           (tempPass ? ` • Password: ${tempPass}` : ""),
       })
 
-      // Reset form setelah sukses
-      setFormData({ nama: "", noWA: "", kodeCustomer: "", alamat: "", meterAwal: "" })
+      setFormData({
+        nama: "",
+        noWA: "",
+        kodeCustomer: "",
+        alamat: "",
+        meterAwal: "",
+        zonaId: "",
+      })
     } catch (err) {
-      // Tampilkan toast error jika gagal
       const msg = err instanceof Error ? err.message : "Terjadi kesalahan, silakan coba lagi"
       toast({ title: "Gagal Menambahkan Pelanggan", description: msg, variant: "destructive" })
     } finally {
-      setIsLoading(false) // Matikan loading button
+      setIsLoading(false)
     }
   }
 
-  // Helper function untuk update state form secara dinamis
+  // ---------- Helper set state ----------
   const set =
     (field: keyof CustomerData) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
       setFormData((p) => ({ ...p, [field]: e.target.value }))
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Grid 2 kolom untuk input utama */}
+      {/* Grid 2 kolom */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Input Nama */}
+        {/* Nama */}
         <div className="space-y-2">
           <Label htmlFor="nama" className="text-base font-medium">Nama Lengkap *</Label>
           <Input id="nama" value={formData.nama} onChange={set("nama")} required className="h-12 text-base" />
         </div>
 
-        {/* Input No WA */}
+        {/* No WA */}
         <div className="space-y-2">
           <Label htmlFor="noWA" className="text-base font-medium">No. WhatsApp *</Label>
-          <Input id="noWA" type="tel" placeholder="08xxxxxxxxxx"
-                 value={formData.noWA} onChange={set("noWA")} required className="h-12 text-base" />
+          <Input
+            id="noWA"
+            type="tel"
+            placeholder="08xxxxxxxxxx"
+            value={formData.noWA}
+            onChange={set("noWA")}
+            required
+            className="h-12 text-base"
+          />
         </div>
 
-        {/* Input Kode Customer + tombol Generate */}
+        {/* Kode Customer + Generate */}
         <div className="space-y-2">
           <Label htmlFor="kodeCustomer" className="text-base font-medium">Kode Customer</Label>
           <div className="flex gap-2">
-            <Input id="kodeCustomer" placeholder="Auto generate jika kosong"
-                   value={formData.kodeCustomer} onChange={set("kodeCustomer")} className="h-12 text-base" />
-            <Button type="button" variant="outline"
-                    onClick={() => setFormData((p) => ({ ...p, kodeCustomer: genCustomerCode() }))}>
+            <Input
+              id="kodeCustomer"
+              placeholder="Auto generate jika kosong"
+              value={formData.kodeCustomer}
+              onChange={set("kodeCustomer")}
+              className="h-12 text-base"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setFormData((p) => ({ ...p, kodeCustomer: genCustomerCode() }))}
+            >
               Generate
             </Button>
           </div>
         </div>
 
-        {/* Input Meter Awal */}
+        {/* Meter Awal */}
         <div className="space-y-2">
           <Label htmlFor="meterAwal" className="text-base font-medium">Meter Awal *</Label>
-          <Input id="meterAwal" type="number" min={0} placeholder="0"
-                 value={formData.meterAwal} onChange={set("meterAwal")} required className="h-12 text-base" />
+          <Input
+            id="meterAwal"
+            type="number"
+            min={0}
+            placeholder="0"
+            value={formData.meterAwal}
+            onChange={set("meterAwal")}
+            required
+            className="h-12 text-base"
+          />
+        </div>
+
+        {/* Zona (dropdown) */}
+        <div className="space-y-2 md:col-span-2">
+          <Label htmlFor="zona" className="text-base font-medium">Zona</Label>
+          <select
+            id="zona"
+            value={formData.zonaId}
+            onChange={set("zonaId")}
+            className="w-full h-12 px-3 py-2 text-base bg-card/60 border border-primary/30 rounded-md text-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
+            disabled={loadingZona}
+          >
+            <option value="">{loadingZona ? "Memuat zona…" : "— Pilih zona (opsional) —"}</option>
+            {zonaList.map((z) => (
+              <option key={z.id} value={z.id}>
+              {z.nama} {z.deskripsi ? `– ${z.deskripsi}` : ""}
+            </option>
+            ))}
+          </select>
+          {zonaError ? (
+            <p className="text-xs text-destructive mt-1">Gagal memuat daftar zona.</p>
+          ) : null}
         </div>
       </div>
 
-      {/* Input Alamat */}
+      {/* Alamat */}
       <div className="space-y-2">
         <Label htmlFor="alamat" className="text-base font-medium">Alamat Lengkap *</Label>
-        <Textarea id="alamat" value={formData.alamat} onChange={set("alamat")}
-                  placeholder="Masukkan alamat lengkap" required className="min-h-[100px] text-base resize-none" />
+        <Textarea
+          id="alamat"
+          value={formData.alamat}
+          onChange={set("alamat")}
+          placeholder="Masukkan alamat lengkap"
+          required
+          className="min-h-[100px] text-base resize-none"
+        />
       </div>
 
-      {/* Tombol Submit */}
+      {/* Submit */}
       <div className="flex justify-end">
         <Button type="submit" className="px-8 h-12 text-base" disabled={isLoading}>
           {isLoading ? (
-            // Jika sedang loading, tampilkan animasi spinner
             <span className="flex items-center gap-2">
               <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               Menyimpan...
             </span>
-          ) : ("Simpan Pelanggan")}
+          ) : (
+            "Simpan Pelanggan"
+          )}
         </Button>
       </div>
     </form>
   )
-}                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
+}

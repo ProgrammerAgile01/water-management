@@ -1,0 +1,27 @@
+Cek pid port 3000
+lsof -i :3000
+
+cara kil 
+kill -9 12345
+
+Jalanin prisma
+npx prisma studio --hostname 0.0.0.0 --port 5560 --browser none
+
+akses prisma :
+http://157.15.77.118:5560/
+
+1 ; npx prisma init ; Inisialisasi Prisma, buat folder prisma/ dan schema.prisma + .env
+2 ; npx prisma generate ; Generate Prisma Client dari schema.prisma
+3 ; npx prisma migrate dev -n init ; Buat migrasi pertama, apply ke DB, generate client
+4 ; npx prisma db push ; (Opsional) Sinkronkan schema ke DB tanpa file migrasi
+5 ; npx prisma db seed ; Jalankan script seed.ts sesuai setting package.json
+6 ; npx prisma studio ; Buka Prisma Studio untuk lihat/edit data via UI
+7 ; npx prisma migrate dev -n <nama_perubahan> ; Tambah migrasi baru saat ada perubahan schema
+8 ; npx prisma migrate reset ; Reset DB: drop, apply semua migrasi ulang, jalankan seed
+9 ; npx prisma migrate deploy ; Jalankan semua migrasi yang sudah ada (untuk production)
+
+npx prisma studio --port 5555 --hostname 0.0.0.0
+
+MIGRASI DATA : 
+
+npx prisma migrate dev -n "add-petugasId-to-zona"

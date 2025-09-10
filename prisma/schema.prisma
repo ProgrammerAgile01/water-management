@@ -1,10 +1,10 @@
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client-js" // Prisma Client untuk JS/TS
 }
 
 datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
+  provider = "mysql" // pakai MySQL/MariaDB
+  url      = env("DATABASE_URL") // koneksi dari .env
 }
 
 enum Role {
@@ -14,8 +14,8 @@ enum Role {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  username     String   @unique
+  id           String   @id @default(cuid()) // PK
+  username     String   @unique // unik
   passwordHash String
   name         String
   phone        String?  @db.VarChar(20)
@@ -24,23 +24,29 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  // Back-relation 1↔1 dengan Pelanggan (pemilik akun pelanggan)
+  // Back-relation 1↔1 ke Pelanggan (User PUNYA/terkait 1 Pelanggan)
+  // Field FK-nya berada di model Pelanggan (userId), jadi di sini hanya back-relation.
   pelanggan Pelanggan? @relation("UserPelanggan")
 
-  // Si pengguna ini pernah menghapus apa saja (soft delete audit)
-  deletedPelanggan  Pelanggan[]  @relation("DeletedByUser")
-  deletedCatat      CatatMeter[] @relation("DeletedByUserCatatMeter")
-  deletedTagihan    Tagihan[]    @relation("DeletedByUserTagihan")
-  deletedPembayaran Pembayaran[] @relation("DeletedByUserPembayaran")
+  // Audit: daftar entitas yang pernah di-soft-delete oleh user ini (1 user bisa hapus banyak)
+  deletedPelanggan    Pelanggan[]    @relation("DeletedByUser")
+  deletedCatat        CatatMeter[]   @relation("DeletedByUserCatatMeter")
+  deletedTagihan      Tagihan[]      @relation("DeletedByUserTagihan")
+  deletedPembayaran   Pembayaran[]   @relation("DeletedByUserPembayaran")
+  deletedCatatPeriode CatatPeriode[] @relation("DeletedByUserCatatPeriode")
+  lockedPeriods       CatatPeriode[] @relation("LockedByUser")
+  petugasCatat        CatatPeriode[] @relation("PetugasCatatPeriode")
+  // 🔹 back-relation: 1 petugas bisa pegang banyak zona
+  zonasDipegang Zona[] @relation("UserZonaPetugas")
 
-  // ================= Soft Delete User =================
-  deletedAt     DateTime?
-  deletedBy     String?
+  // Soft delete untuk User itu sendiri
+  deletedAt     DateTime? // kapan user “dihapus”
+  deletedBy     String? // FK → User.id yang menghapus
   deletedByUser User?     @relation("DeletedByUserSelf", fields: [deletedBy], references: [id])
-  deletedUsers  User[]    @relation("DeletedByUserSelf")
+  deletedUsers  User[]    @relation("DeletedByUserSelf") // daftar user yang dia hapus
 
-  @@index([deletedAt])   // <— tambah index ini
-  @@index([deletedBy])   // <— dan ini
+  @@index([deletedAt]) // index untuk query cepat by deletedAt
+  @@index([deletedBy]) // index untuk query cepat by deletedBy
 }
 
 model Pelanggan {
@@ -54,45 +60,139 @@ model Pelanggan {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  // Relasi utama ke user (FK disimpan di sini)
+  // Relasi utama ke User (pemilik akun pelanggan). FK disimpan di sini (userId).
   userId String? @unique
   user   User?   @relation("UserPelanggan", fields: [userId], references: [id])
 
-  // ---------- Soft delete ----------
-  deletedAt     DateTime? @db.DateTime(3)
-  deletedBy     String? // FK -> User.id yang menghapus
+  // 🔹 Relasi ke Zona (opsional)
+  zonaId String?
+  zona   Zona?   @relation("PelangganZona", fields: [zonaId], references: [id])
+
+  // 🔹 KOLUM BARU: nomor urut per zona
+  noUrutRumah Int?   // null = belum ditetapkan
+
+  // Soft delete pelanggan
+  deletedAt     DateTime? @db.DateTime(3) // penanda terhapus
+  deletedBy     String? // FK → User.id yang menghapus
   deletedByUser User?     @relation("DeletedByUser", fields: [deletedBy], references: [id])
 
-  // Back-relations agar relasi ke transaksi eksplisit (opsional tapi sehat)
+  // Back-relations ke transaksi (1 Pelanggan punya banyak CatatMeter & Tagihan)
   catatans CatatMeter[]
   tagihans Tagihan[]
 
+  @@index([zonaId])      // 🔹 biar filter per zona cepat
+  @@index([deletedAt])   // filter WHERE deletedAt IS NULL/NOT NULL jadi cepat
+  @@index([deletedBy])   // filter/rekap berdasarkan penghapus
+
+  // 🔹 constraint unik per zona (null mengabaikan unik)
+  @@unique([zonaId, noUrutRumah])
+  // (opsional) index tambahan untuk sorting cepat
+  @@index([zonaId, noUrutRumah])
+}
+
+
+enum PeriodeStatus {
+  DRAFT
+  FINAL
+}
+
+model CatatPeriode {
+  id             String        @id @default(cuid())
+  kodePeriode    String        @unique   // "YYYY-MM"
+  bulan          Int
+  tahun          Int
+
+  // snapshot setting
+  tarifPerM3     Int           @default(0)
+  abonemen       Int           @default(0)
+
+  // pencatatan
+  tanggalCatat   DateTime?     @db.DateTime(3)
+  petugasId      String?
+  petugas        User?         @relation("PetugasCatatPeriode", fields: [petugasId], references: [id])
+  petugasNama    String?
+
+  // progress
+  totalPelanggan Int           @default(0)
+  selesai        Int           @default(0)
+  pending        Int           @default(0)
+
+  // approval / lock
+  status         PeriodeStatus @default(DRAFT)
+  isLocked       Boolean       @default(false)
+  lockedAt       DateTime?     @db.DateTime(3)
+  lockedBy       String?
+  lockedByUser   User?         @relation("LockedByUser", fields: [lockedBy], references: [id])
+
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  entries        CatatMeter[]
+
+  // audit delete
+  deletedAt      DateTime?     @db.DateTime(3)
+  deletedBy      String?
+  deletedByUser  User?         @relation("DeletedByUserCatatPeriode", fields: [deletedBy], references: [id])
+
+  @@index([kodePeriode])
+  @@index([status])
+  @@index([isLocked, lockedAt])
+  @@index([petugasId])
+  @@index([tanggalCatat])
   @@index([deletedAt])
   @@index([deletedBy])
 }
 
+// ===== Detail pencatatan per pelanggan =====
 model CatatMeter {
-  id           String   @id @default(cuid())
-  periode      String
-  tanggalCatat DateTime @default(now())
-  standAwal    Int
-  standAkhir   Int
-  pemakaianM3  Int
+  id String @id @default(cuid())
 
-  // FK -> Pelanggan
+  // FK → master periode
+  periodeId String
+  periode   CatatPeriode @relation(fields: [periodeId], references: [id])
+
+  // FK → pelanggan
   pelangganId String
   pelanggan   Pelanggan @relation(fields: [pelangganId], references: [id])
 
-  // ---------- Soft delete ----------
+  // angka meter
+  meterAwal   Int @default(0) // biar aman saat kolom ditambahkan
+  meterAkhir  Int @default(0)
+  pemakaianM3 Int @default(0) // max(meterAkhir - meterAwal, 0)
+
+  // snapshot biaya saat dibuat
+  tarifPerM3 Int @default(0)
+  abonemen   Int @default(0)
+  total      Int @default(0) // (tarifPerM3 * pemakaianM3) + abonemen
+
+  kendala      String?   @db.Text  // <— TAMBAH BARIS INI
+
+  // status entri
+  status CatatStatus @default(PENDING)
+
+  // WA
+  waTerkirim Boolean   @default(false)
+  waSentAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  // soft delete & audit
   deletedAt     DateTime? @db.DateTime(3)
   deletedBy     String?
   deletedByUser User?     @relation("DeletedByUserCatatMeter", fields: [deletedBy], references: [id])
 
-  // Kombinasi unik: 1 pelanggan x 1 periode = 1 catatan
-  @@unique([pelangganId, periode])
-  @@index([periode])
+  // unik per (periode, pelanggan)
+  @@unique([periodeId, pelangganId])
+  @@index([status])
   @@index([deletedAt])
   @@index([deletedBy])
+}
+
+// enum status entri
+enum CatatStatus {
+  PENDING
+  DONE
 }
 
 model Tagihan {
@@ -109,19 +209,21 @@ model Tagihan {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  // FK -> Pelanggan
+  // FK → Pelanggan (banyak Tagihan milik 1 Pelanggan)
   pelangganId String
   pelanggan   Pelanggan @relation(fields: [pelangganId], references: [id])
 
+  // 1 tagihan punya banyak pembayaran
   pembayarans Pembayaran[]
 
-  // ---------- Soft delete ----------
+  // Soft delete tagihan
   deletedAt     DateTime? @db.DateTime(3)
   deletedBy     String?
   deletedByUser User?     @relation("DeletedByUserTagihan", fields: [deletedBy], references: [id])
 
-  // Unik per pelanggan & periode
+  // Unik per (pelanggan, periode)
   @@unique([pelangganId, periode])
+  // Index praktis untuk listing & filter status
   @@index([periode])
   @@index([statusBayar, statusVerif])
   @@index([deletedAt])
@@ -133,17 +235,18 @@ model Pembayaran {
   tanggalBayar DateTime @default(now())
   jumlahBayar  Int
   buktiUrl     String?
-  adminBayar   String?
+  adminBayar   String? // misal nama admin yang memproses
 
-  // FK -> Tagihan
+  // FK → Tagihan (banyak Pembayaran milik 1 Tagihan)
   tagihanId String
   tagihan   Tagihan @relation(fields: [tagihanId], references: [id])
 
-  // ---------- Soft delete ----------
+  // Soft delete pembayaran
   deletedAt     DateTime? @db.DateTime(3)
   deletedBy     String?
   deletedByUser User?     @relation("DeletedByUserPembayaran", fields: [deletedBy], references: [id])
 
+  // Index umum
   @@index([tanggalBayar])
   @@index([tagihanId], map: "Pembayaran_tagihanId_fkey")
   @@index([deletedAt])
@@ -151,12 +254,24 @@ model Pembayaran {
 }
 
 model Setting {
-  id            Int      @id @default(1)
-  tarifPerM3    Int      @default(3000)
-  abonemen      Int      @default(10000)
-  tglJatuhTempo Int      @default(15)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                       Int      @id @default(1)          // singleton
+  // ——— Tarif & penagihan ———
+  tarifPerM3               Int      @default(3000)           // tetap disimpan untuk perhitungan pemakaian
+  abonemen                 Int      @default(10000)          // (1) Abonemen
+  biayaAdmin               Int      @default(2500)           // (2) Biaya Admin
+  tglJatuhTempo            Int      @default(15)             // (3) Tgl Jatuh Tempo (tanggal)
+  dendaTelatBulanSama      Int      @default(5000)           // (4) denda bulan sama
+  dendaTelatBulanBerbeda   Int      @default(10000)          // (5) denda bulan beda
+
+  // ——— Profil sistem ———
+  namaPerusahaan           String?  @db.VarChar(120)
+  alamat                   String?  @db.VarChar(255)
+  telepon                  String?  @db.VarChar(30)
+  email                    String?  @db.VarChar(120)
+  logoUrl                  String?  @db.VarChar(255)
+
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 }
 
 model WaLog {
@@ -167,3 +282,25 @@ model WaLog {
   status    String
   createdAt DateTime @default(now())
 }
+
+enum JadwalStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+
+model Zona {
+  id        String   @id @default(cuid())
+  kode      String   @unique
+  nama      String
+  deskripsi String?
+  petugasId String?
+  petugas   User?    @relation("UserZonaPetugas", fields: [petugasId], references: [id])
+  pelanggan Pelanggan[] @relation("PelangganZona")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+
