@@ -37,13 +37,14 @@ model User {
   lockedPeriods       CatatPeriode[] @relation("LockedByUser")
   petugasCatat        CatatPeriode[] @relation("PetugasCatatPeriode")
   // 🔹 back-relation: 1 petugas bisa pegang banyak zona
-  zonasDipegang Zona[] @relation("UserZonaPetugas")
+  zonasDipegang       Zona[]         @relation("UserZonaPetugas")
 
   // Soft delete untuk User itu sendiri
-  deletedAt     DateTime? // kapan user “dihapus”
-  deletedBy     String? // FK → User.id yang menghapus
-  deletedByUser User?     @relation("DeletedByUserSelf", fields: [deletedBy], references: [id])
-  deletedUsers  User[]    @relation("DeletedByUserSelf") // daftar user yang dia hapus
+  deletedAt        DateTime? // kapan user “dihapus”
+  deletedBy        String? // FK → User.id yang menghapus
+  deletedByUser    User?              @relation("DeletedByUserSelf", fields: [deletedBy], references: [id])
+  deletedUsers     User[]             @relation("DeletedByUserSelf") // daftar user yang dia hapus
+  JadwalPencatatan JadwalPencatatan[]
 
   @@index([deletedAt]) // index untuk query cepat by deletedAt
   @@index([deletedBy]) // index untuk query cepat by deletedBy
@@ -69,7 +70,7 @@ model Pelanggan {
   zona   Zona?   @relation("PelangganZona", fields: [zonaId], references: [id])
 
   // 🔹 KOLUM BARU: nomor urut per zona
-  noUrutRumah Int?   // null = belum ditetapkan
+  noUrutRumah Int? // null = belum ditetapkan
 
   // Soft delete pelanggan
   deletedAt     DateTime? @db.DateTime(3) // penanda terhapus
@@ -80,16 +81,14 @@ model Pelanggan {
   catatans CatatMeter[]
   tagihans Tagihan[]
 
-  @@index([zonaId])      // 🔹 biar filter per zona cepat
-  @@index([deletedAt])   // filter WHERE deletedAt IS NULL/NOT NULL jadi cepat
-  @@index([deletedBy])   // filter/rekap berdasarkan penghapus
-
   // 🔹 constraint unik per zona (null mengabaikan unik)
   @@unique([zonaId, noUrutRumah])
+  @@index([zonaId]) // 🔹 biar filter per zona cepat
+  @@index([deletedAt]) // filter WHERE deletedAt IS NULL/NOT NULL jadi cepat
+  @@index([deletedBy]) // filter/rekap berdasarkan penghapus
   // (opsional) index tambahan untuk sorting cepat
   @@index([zonaId, noUrutRumah])
 }
-
 
 enum PeriodeStatus {
   DRAFT
@@ -97,42 +96,42 @@ enum PeriodeStatus {
 }
 
 model CatatPeriode {
-  id             String        @id @default(cuid())
-  kodePeriode    String        @unique   // "YYYY-MM"
-  bulan          Int
-  tahun          Int
+  id          String @id @default(cuid())
+  kodePeriode String @unique // "YYYY-MM"
+  bulan       Int
+  tahun       Int
 
   // snapshot setting
-  tarifPerM3     Int           @default(0)
-  abonemen       Int           @default(0)
+  tarifPerM3 Int @default(0)
+  abonemen   Int @default(0)
 
   // pencatatan
-  tanggalCatat   DateTime?     @db.DateTime(3)
-  petugasId      String?
-  petugas        User?         @relation("PetugasCatatPeriode", fields: [petugasId], references: [id])
-  petugasNama    String?
+  tanggalCatat DateTime? @db.DateTime(3)
+  petugasId    String?
+  petugas      User?     @relation("PetugasCatatPeriode", fields: [petugasId], references: [id])
+  petugasNama  String?
 
   // progress
-  totalPelanggan Int           @default(0)
-  selesai        Int           @default(0)
-  pending        Int           @default(0)
+  totalPelanggan Int @default(0)
+  selesai        Int @default(0)
+  pending        Int @default(0)
 
   // approval / lock
-  status         PeriodeStatus @default(DRAFT)
-  isLocked       Boolean       @default(false)
-  lockedAt       DateTime?     @db.DateTime(3)
-  lockedBy       String?
-  lockedByUser   User?         @relation("LockedByUser", fields: [lockedBy], references: [id])
+  status       PeriodeStatus @default(DRAFT)
+  isLocked     Boolean       @default(false)
+  lockedAt     DateTime?     @db.DateTime(3)
+  lockedBy     String?
+  lockedByUser User?         @relation("LockedByUser", fields: [lockedBy], references: [id])
 
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  entries        CatatMeter[]
+  entries CatatMeter[]
 
   // audit delete
-  deletedAt      DateTime?     @db.DateTime(3)
-  deletedBy      String?
-  deletedByUser  User?         @relation("DeletedByUserCatatPeriode", fields: [deletedBy], references: [id])
+  deletedAt     DateTime? @db.DateTime(3)
+  deletedBy     String?
+  deletedByUser User?     @relation("DeletedByUserCatatPeriode", fields: [deletedBy], references: [id])
 
   @@index([kodePeriode])
   @@index([status])
@@ -165,7 +164,7 @@ model CatatMeter {
   abonemen   Int @default(0)
   total      Int @default(0) // (tarifPerM3 * pemakaianM3) + abonemen
 
-  kendala      String?   @db.Text  // <— TAMBAH BARIS INI
+  kendala String? @db.Text // <— TAMBAH BARIS INI
 
   // status entri
   status CatatStatus @default(PENDING)
@@ -254,26 +253,32 @@ model Pembayaran {
 }
 
 model Setting {
-  id                       Int      @id @default(1)          // singleton
+  id                     Int      @id @default(1)
+
   // ——— Tarif & penagihan ———
-  tarifPerM3               Int      @default(3000)           // tetap disimpan untuk perhitungan pemakaian
-  abonemen                 Int      @default(10000)          // (1) Abonemen
-  biayaAdmin               Int      @default(2500)           // (2) Biaya Admin
-  tglJatuhTempo            Int      @default(15)             // (3) Tgl Jatuh Tempo (tanggal)
-  dendaTelatBulanSama      Int      @default(5000)           // (4) denda bulan sama
-  dendaTelatBulanBerbeda   Int      @default(10000)          // (5) denda bulan beda
+  tarifPerM3             Int      @default(3000)
+  abonemen               Int      @default(10000)
+  biayaAdmin             Int      @default(2500)
+  tglJatuhTempo          Int      @default(15)
+  dendaTelatBulanSama    Int      @default(5000)
+  dendaTelatBulanBerbeda Int      @default(10000)
 
   // ——— Profil sistem ———
-  namaPerusahaan           String?  @db.VarChar(120)
-  alamat                   String?  @db.VarChar(255)
-  telepon                  String?  @db.VarChar(30)
-  email                    String?  @db.VarChar(120)
-  logoUrl                  String?  @db.VarChar(255)
+  namaPerusahaan String? @db.VarChar(120)
+  alamat         String? @db.VarChar(255)
+  telepon        String? @db.VarChar(30)
+  email          String? @db.VarChar(120)
+  logoUrl        String? @db.VarChar(255)
 
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
+  // ——— Pengaturan Jadwal ———
+  // Periode aktif di UI (mis. "2025-09")
+  periodeJadwalAktif  String?   @db.VarChar(7)
+  // Tanggal default catat meter untuk generate (Date, disimpan UTC)
+  tanggalCatatDefault DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
-
 model WaLog {
   id        String   @id @default(cuid())
   tujuan    String
@@ -290,17 +295,50 @@ enum JadwalStatus {
   CANCELLED
 }
 
-
 model Zona {
-  id        String   @id @default(cuid())
-  kode      String   @unique
-  nama      String
-  deskripsi String?
-  petugasId String?
-  petugas   User?    @relation("UserZonaPetugas", fields: [petugasId], references: [id])
-  pelanggan Pelanggan[] @relation("PelangganZona")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               String             @id @default(cuid())
+  kode             String             @unique
+  nama             String
+  deskripsi        String?
+  petugasId        String?
+  petugas          User?              @relation("UserZonaPetugas", fields: [petugasId], references: [id])
+  pelanggan        Pelanggan[]        @relation("PelangganZona")
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  JadwalPencatatan JadwalPencatatan[]
 }
 
+enum JadwalUiStatus {
+  WAITING
+  IN_PROGRESS
+  NON_PROGRESS
+  DONE
+  OVERDUE
+}
 
+model JadwalPencatatan {
+  id             String         @id @default(cuid())
+  // format "YYYY-MM" agar sejalan dengan filter UI (filters.month)
+  bulan          String         @db.VarChar(7)
+  tanggalRencana DateTime
+  target         Int            @default(0)
+  progress       Int            @default(0)
+  status         JadwalUiStatus @default(WAITING)
+
+  // Relasi
+  zonaId    String?
+  zona      Zona?   @relation(fields: [zonaId], references: [id])
+  petugasId String?
+  petugas   User?   @relation(fields: [petugasId], references: [id])
+
+  // Opsional: info alamat/titik kumpul untuk tampil di tabel
+  alamat String? @db.VarChar(255)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([bulan])
+  @@index([status])
+  @@index([zonaId])
+  @@index([petugasId])
+}

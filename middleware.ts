@@ -7,6 +7,7 @@ const PROTECTED = [
   "/dashboard",
   "/pelanggan",
   "/catat-meter",
+  "/jadwal-pencatatan",
   "/pelunasan",
   "/pengaturan",
   "/warga-dashboard",
