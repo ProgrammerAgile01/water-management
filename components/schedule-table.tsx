@@ -16,7 +16,7 @@ import { GlassCard } from "@/components/glass-card";
 import { useScheduleStore, type ScheduleItem } from "@/lib/schedule-store";
 import { useToast } from "@/hooks/use-toast";
 
-// Ketatkan typing statusConfig supaya kunci wajib = status UI kita
+// ====== UI status config ======
 const statusConfig: Record<
   ScheduleItem["status"],
   {
@@ -53,18 +53,91 @@ interface ScheduleTableProps {
 function getZonaName(z: ScheduleItem["zona"] | string): string {
   if (!z) return "";
   if (typeof z === "string") return z;
-  // @ts-expect-error: untuk kompatibilitas bila tipe local masih string
   return z?.nama ?? "";
+}
+
+// ==== Helpers normalisasi periode & tanggal (tahan banting) ====
+const reYYYYMM = /^\d{4}-(0[1-9]|1[0-2])$/;
+const reYYYYMMDD = /^\d{4}-\d{2}-\d{2}$/;
+
+function toYYYYMMFromAny(x: unknown): string | null {
+  if (!x) return null;
+  if (typeof x === "string") {
+    if (reYYYYMM.test(x)) return x; // "2025-09"
+    if (reYYYYMMDD.test(x)) return x.slice(0, 7); // "2025-09-11" -> "2025-09"
+  }
+  const d = new Date(x as any);
+  if (Number.isNaN(d.getTime())) return null;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
+}
+
+function toYYYYMMDDFromAny(x: unknown): string | null {
+  if (!x) return null;
+  if (typeof x === "string" && reYYYYMMDD.test(x)) return x;
+  const d = new Date(x as any);
+  if (Number.isNaN(d.getTime())) return null;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
 }
 
 export function ScheduleTable({ schedules, isLoading }: ScheduleTableProps) {
   const { startRecording } = useScheduleStore();
   const { toast } = useToast();
 
-  const handleStartRecording = async (scheduleId: string) => {
+  const handleStartRecording = async (sch: ScheduleItem) => {
     try {
-      await startRecording(scheduleId);
-      toast({ title: "Berhasil", description: "Form pencatatan dimulai" });
+      // opsional: update status lokal ke in-progress
+      await startRecording(sch.id).catch(() => {});
+
+      // periode: pakai kolom `bulan` dari DB atau derive dari tanggalRencana
+      const periode =
+        typeof (sch as any).bulan === "string" &&
+        reYYYYMM.test((sch as any).bulan)
+          ? (sch as any).bulan
+          : toYYYYMMFromAny(
+              (sch as any).periodeCatat ??
+                sch.tanggalRencana ??
+                (sch as any).tanggal ??
+                null
+            );
+
+      if (!periode) {
+        toast({
+          title: "Data kurang",
+          description: "Periode jadwal tidak valid.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // tanggal rencana (YYYY-MM-DD)
+      const tanggal = toYYYYMMDDFromAny(
+        sch.tanggalRencana ?? (sch as any).tanggal
+      );
+      if (!tanggal) {
+        toast({
+          title: "Data kurang",
+          description: "Tanggal rencana tidak valid.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const petugas = sch.petugas?.nama ?? "";
+      const zona = getZonaName(sch.zona);
+
+      // redirect dengan query lengkap untuk prefill di /catat-meter
+      const url =
+        `/catat-meter?periode=${encodeURIComponent(periode)}` +
+        `&tanggal=${encodeURIComponent(tanggal)}` +
+        `&petugas=${encodeURIComponent(petugas)}` +
+        `&jadwalId=${encodeURIComponent(sch.id)}` +
+        (zona ? `&zona=${encodeURIComponent(zona)}` : "");
+      window.location.href = url;
     } catch {
       toast({
         title: "Error",
@@ -102,7 +175,7 @@ export function ScheduleTable({ schedules, isLoading }: ScheduleTableProps) {
     return (
       <GlassCard className="p-12 text-center">
         <Calendar className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-        <h3 className="text-lg font-semibold text-foreground mb-2">
+        <h3 className="text-lg font-semibold text-foreground">
           Tidak ada jadwal
         </h3>
         <p className="text-muted-foreground">
@@ -155,11 +228,12 @@ export function ScheduleTable({ schedules, isLoading }: ScheduleTableProps) {
               const zonaName = getZonaName(schedule.zona);
 
               const avatarUrl =
-                schedule.petugas.avatar && schedule.petugas.avatar.trim() !== ""
+                schedule.petugas?.avatar &&
+                schedule.petugas.avatar.trim() !== ""
                   ? schedule.petugas.avatar
                   : "/placeholder.svg";
               const petugasInitial = (
-                schedule.petugas.nama?.trim()?.charAt(0) || "#"
+                schedule.petugas?.nama?.trim()?.charAt(0) || "#"
               ).toUpperCase();
 
               return (
@@ -185,7 +259,7 @@ export function ScheduleTable({ schedules, isLoading }: ScheduleTableProps) {
                         <AvatarFallback>{petugasInitial}</AvatarFallback>
                       </Avatar>
                       <span className="text-foreground">
-                        {schedule.petugas.nama}
+                        {schedule.petugas?.nama}
                       </span>
                     </div>
                   </td>
@@ -218,7 +292,7 @@ export function ScheduleTable({ schedules, isLoading }: ScheduleTableProps) {
                   </td>
                   <td className="p-4">
                     <Button
-                      onClick={() => handleStartRecording(schedule.id)}
+                      onClick={() => handleStartRecording(schedule)}
                       className="bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-2"
                       size="sm"
                     >
@@ -244,11 +318,11 @@ export function ScheduleTable({ schedules, isLoading }: ScheduleTableProps) {
           const zonaName = getZonaName(schedule.zona);
 
           const avatarUrl =
-            schedule.petugas.avatar && schedule.petugas.avatar.trim() !== ""
+            schedule.petugas?.avatar && schedule.petugas.avatar.trim() !== ""
               ? schedule.petugas.avatar
               : "/placeholder.svg";
           const petugasInitial = (
-            schedule.petugas.nama?.trim()?.charAt(0) || "#"
+            schedule.petugas?.nama?.trim()?.charAt(0) || "#"
           ).toUpperCase();
 
           return (
@@ -288,7 +362,7 @@ export function ScheduleTable({ schedules, isLoading }: ScheduleTableProps) {
                       </AvatarFallback>
                     </Avatar>
                     <span className="text-sm text-foreground">
-                      {schedule.petugas.nama}
+                      {schedule.petugas?.nama}
                     </span>
                   </div>
                 </div>
@@ -316,7 +390,7 @@ export function ScheduleTable({ schedules, isLoading }: ScheduleTableProps) {
 
               {/* Footer */}
               <Button
-                onClick={() => handleStartRecording(schedule.id)}
+                onClick={() => handleStartRecording(schedule)}
                 className="w-full bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center gap-2"
               >
                 <CheckCircle className="h-4 w-4" />

@@ -22,11 +22,11 @@ interface ScheduleStore {
   schedules: ScheduleItem[];
   isLoading: boolean;
   filters: {
-    month: string;    // "YYYY-MM"
+    month: string; // "YYYY-MM"
     zonaId: string;
     petugasId: string;
     search: string;
-    status: string;   // "all" | "waiting" | ...
+    status: string; // "all" | "waiting" | ...
   };
   setSchedules: (schedules: ScheduleItem[]) => void;
   setLoading: (loading: boolean) => void;
@@ -67,7 +67,8 @@ export const useScheduleStore = create<ScheduleStore>()(
         return schedules.filter((s) => {
           const matchMonth = !filters.month || s.bulan === filters.month;
           const matchZona = !filters.zonaId || s.zonaId === filters.zonaId;
-          const matchPetugas = !filters.petugasId || s.petugas.id === filters.petugasId;
+          const matchPetugas =
+            !filters.petugasId || s.petugas.id === filters.petugasId;
           const zonaNama =
             typeof s.zona === "string" ? s.zona : s.zona?.nama ?? "";
           const matchSearch =
@@ -75,8 +76,15 @@ export const useScheduleStore = create<ScheduleStore>()(
             zonaNama.toLowerCase().includes(q) ||
             s.alamat.toLowerCase().includes(q) ||
             s.petugas.nama.toLowerCase().includes(q);
-          const matchStatus = filters.status === "all" || s.status === filters.status;
-          return matchMonth && matchZona && matchPetugas && matchSearch && matchStatus;
+          const matchStatus =
+            filters.status === "all" || s.status === filters.status;
+          return (
+            matchMonth &&
+            matchZona &&
+            matchPetugas &&
+            matchSearch &&
+            matchStatus
+          );
         });
       },
 
@@ -104,10 +112,14 @@ export const useScheduleStore = create<ScheduleStore>()(
           // Baca raw text supaya kalau bukan JSON kita tetap dapat pesan
           const text = await res.text();
           let j: any = {};
-          try { j = JSON.parse(text); } catch {}
+          try {
+            j = JSON.parse(text);
+          } catch {}
 
           if (!res.ok || !j?.ok) {
-            throw new Error(j?.message ?? `HTTP ${res.status} ${res.statusText} - ${text}`);
+            throw new Error(
+              j?.message ?? `HTTP ${res.status} ${res.statusText} - ${text}`
+            );
           }
 
           set({ schedules: j.data ?? [] });
@@ -117,19 +129,64 @@ export const useScheduleStore = create<ScheduleStore>()(
       },
 
       startRecording: async (scheduleId: string) => {
-        const res = await fetch(`/api/jadwal/${scheduleId}/start`, { method: "POST" });
+        const res = await fetch(`/api/jadwal/${scheduleId}/start`, {
+          method: "POST",
+        });
         const text = await res.text();
         let j: any = {};
-        try { j = JSON.parse(text); } catch {}
-        if (!res.ok || !j?.ok) throw new Error(j?.message ?? `HTTP ${res.status} ${res.statusText} - ${text}`);
+        try {
+          j = JSON.parse(text);
+        } catch {}
+        if (!res.ok || !j?.ok)
+          throw new Error(
+            j?.message ?? `HTTP ${res.status} ${res.statusText} - ${text}`
+          );
 
         // Optimistik: ubah status lokal lalu arahkan ke catat-meter
+        // helper normalisasi
+        function toPeriodYYYYMM(input: string | Date): string | null {
+          const d = new Date(input);
+          if (isNaN(d.getTime())) return null;
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, "0");
+          return `${y}-${m}`;
+        }
+        function toDateYYYYMMDD(input: string | Date): string | null {
+          const d = new Date(input);
+          if (isNaN(d.getTime())) return null;
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, "0");
+          const dd = String(d.getDate()).padStart(2, "0");
+          return `${y}-${m}-${dd}`;
+        }
+
+        // update status jadwal di store
         set((state) => ({
           schedules: state.schedules.map((s) =>
             s.id === scheduleId ? { ...s, status: "in-progress" } : s
           ),
         }));
-        window.location.href = `/catat-meter?jadwalId=${encodeURIComponent(scheduleId)}`;
+
+        // cari data jadwal sesuai id
+        const sch = get().schedules.find((s) => s.id === scheduleId);
+        if (!sch) {
+          console.error("Schedule tidak ditemukan");
+          return;
+        }
+
+        // derive periode & tanggal
+        const periode = toPeriodYYYYMM(sch.tanggalRencana);
+        const tanggal = toDateYYYYMMDD(sch.tanggalRencana);
+        const petugas = sch.petugas?.nama ?? "";
+        const zona = sch.zona ?? "";
+
+        // redirect dengan query lengkap
+        window.location.href =
+          `/catat-meter?periode=${encodeURIComponent(periode ?? "")}` +
+          `&tanggal=${encodeURIComponent(tanggal ?? "")}` +
+          `&petugas=${encodeURIComponent(petugas)}` +
+          `&zona=${encodeURIComponent(zona)}` +
+          `&jadwalId=${encodeURIComponent(scheduleId)}`;
       },
 
       generateSchedules: async (opts) => {
@@ -142,8 +199,13 @@ export const useScheduleStore = create<ScheduleStore>()(
           });
           const text = await res.text();
           let j: any = {};
-          try { j = JSON.parse(text); } catch {}
-          if (!res.ok || !j?.ok) throw new Error(j?.message ?? `HTTP ${res.status} ${res.statusText} - ${text}`);
+          try {
+            j = JSON.parse(text);
+          } catch {}
+          if (!res.ok || !j?.ok)
+            throw new Error(
+              j?.message ?? `HTTP ${res.status} ${res.statusText} - ${text}`
+            );
 
           // Ambil ulang data supaya tabel ter-update
           await get().refreshSchedules();

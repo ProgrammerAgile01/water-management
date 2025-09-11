@@ -173,8 +173,15 @@ model CatatMeter {
   waTerkirim Boolean   @default(false)
   waSentAt   DateTime?
 
+  // Tambahan untuk “lock per pelanggan”
+  isLocked   Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
+
+  // ⬇️ SIMPAN SNAPSHOT ZONA SAAT ENTRY DIBUAT
+  zonaIdSnapshot   String?
+  zonaNamaSnapshot String?
 
   // soft delete & audit
   deletedAt     DateTime? @db.DateTime(3)
@@ -184,6 +191,8 @@ model CatatMeter {
   // unik per (periode, pelanggan)
   @@unique([periodeId, pelangganId])
   @@index([status])
+  @@index([zonaIdSnapshot])
+  @@index([zonaNamaSnapshot])
   @@index([deletedAt])
   @@index([deletedBy])
 }
