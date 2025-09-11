@@ -1,11 +1,13 @@
-import { AuthGuard } from "@/components/auth-guard"
-import { AppShell } from "@/components/app-shell"
-import { GlassCard } from "@/components/glass-card"
-import { AppHeader } from "@/components/app-header"
-import { TarifForm } from "@/components/tarif-form"
-import { SystemForm } from "@/components/system-form"
-import { UserManagement } from "@/components/user-management"
-import { PermissionMatrix } from "@/components/permission-matrix"
+// app/pengaturan/page.tsx
+import { AuthGuard } from "@/components/auth-guard";
+import { AppShell } from "@/components/app-shell";
+import { GlassCard } from "@/components/glass-card";
+import { AppHeader } from "@/components/app-header";
+import { TarifForm } from "@/components/tarif-form";
+import { SystemForm } from "@/components/system-form";
+import { UserManagement } from "@/components/user-management";
+import { PermissionMatrix } from "@/components/permission-matrix";
+import { ScheduleSettingsForm } from "@/components/schedule-settings-form";
 
 export default function PengaturanPage() {
   return (
@@ -25,11 +27,17 @@ export default function PengaturanPage() {
               <SystemForm />
             </GlassCard>
 
+            {/* Pengaturan Jadwal Pencatatan */}
+            <GlassCard className="p-6">
+              <ScheduleSettingsForm />
+            </GlassCard>
+
             {/* Manajemen User */}
             <GlassCard className="p-6 lg:col-span-2">
               <UserManagement />
             </GlassCard>
 
+            {/* Permission Matrix */}
             <GlassCard className="p-6 lg:col-span-2">
               <PermissionMatrix />
             </GlassCard>
@@ -37,5 +45,5 @@ export default function PengaturanPage() {
         </div>
       </AppShell>
     </AuthGuard>
-  )
+  );
 }
