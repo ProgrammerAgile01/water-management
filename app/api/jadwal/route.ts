@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
-import { Prisma } from "@prisma/client";
+import { Prisma, CatatStatus } from "@prisma/client";
 import { toUiStatus } from "@/lib/status-map";
 
 export const runtime = "nodejs";
@@ -16,11 +16,12 @@ const UI_TO_DB: Record<string, string> = {
 };
 
 /* ===================== GET /api/jadwal ===================== */
+/* ===================== GET /api/jadwal ===================== */
 export async function GET(req: NextRequest) {
   try {
     const sp = req.nextUrl.searchParams;
 
-    // bulan bisa: "YYYY-MM" ATAU (year + month number)
+    // bulan boleh "YYYY-MM" atau (year + month)
     const mParam = (sp.get("month") ?? "").trim();
     const yParam = Number(sp.get("year"));
     let bulan = "";
@@ -39,16 +40,19 @@ export async function GET(req: NextRequest) {
     if (bulan) where.bulan = bulan;
     if (zonaId) where.zonaId = zonaId;
     if (petugasId) where.petugasId = petugasId;
-    if (statusUi !== "all" && UI_TO_DB[statusUi])
+    if (statusUi !== "all" && UI_TO_DB[statusUi]) {
       where.status = UI_TO_DB[statusUi] as any;
+    }
     if (q) {
+      // Tanpa "mode", pakai LIKE/contains default DB
       where.OR = [
-        { zona: { nama: { contains: q, mode: "insensitive" } } },
-        { alamat: { contains: q, mode: "insensitive" } },
-        { petugas: { name: { contains: q, mode: "insensitive" } } },
+        { zona: { nama: { contains: q } } },
+        { alamat: { contains: q } },
+        { petugas: { name: { contains: q } } },
       ];
     }
 
+    // Ambil jadwal
     const rows = await prisma.jadwalPencatatan.findMany({
       where,
       orderBy: [{ tanggalRencana: "asc" }, { createdAt: "asc" }],
@@ -58,25 +62,73 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    const data = rows.map((r) => {
-      const d = new Date(r.tanggalRencana);
-      return {
-        id: r.id,
-        zonaId: r.zonaId ?? r.zona?.id ?? "",
-        zona: { id: r.zona?.id ?? r.zonaId ?? "", nama: r.zona?.nama ?? "-" },
-        alamat: r.alamat ?? r.zona?.deskripsi ?? "-",
-        petugas: {
-          id: r.petugas?.id ?? r.petugasId ?? "",
-          nama: r.petugas?.name ?? "-",
-          avatar: "/placeholder.svg?height=32&width=32",
-        },
-        target: r.target ?? 0,
-        progress: r.progress ?? 0,
-        status: toUiStatus(r.status),
-        tanggalRencana: d.toISOString().slice(0, 10),
-        bulan: r.bulan,
-      };
-    });
+    // Cari periode catat untuk bulan ini (jika ada)
+    const periode = bulan
+      ? await prisma.catatPeriode.findUnique({
+          where: { kodePeriode: bulan },
+          select: { id: true },
+        })
+      : null;
+
+    // Hitung target/progress langsung dari catatMeter (sinkron dengan /catat-meter)
+    const data = await Promise.all(
+      rows.map(async (r) => {
+        const d = new Date(r.tanggalRencana);
+
+        let target = 0;
+        let progress = 0;
+
+        if (periode?.id) {
+          const zonaNama = (r.zona?.nama ?? "").trim();
+          const zonaFilters: Prisma.CatatMeterWhereInput[] = [];
+
+          // 1) Paling akurat: pakai zonaId
+          if (r.zonaId) {
+            zonaFilters.push({ zonaIdSnapshot: r.zonaId });
+            zonaFilters.push({ pelanggan: { zonaId: r.zonaId } });
+          }
+
+          // 2) Fallback: pakai nama zona (tanpa mode)
+          if (zonaNama) {
+            zonaFilters.push({ zonaNamaSnapshot: { equals: zonaNama } });
+            zonaFilters.push({
+              pelanggan: { zona: { is: { nama: { equals: zonaNama } } } },
+            });
+            // bila ada kolom string zonaNama di pelanggan
+            // zonaFilters.push({ pelanggan: { zonaNama: { equals: zonaNama } } });
+          }
+
+          const baseWhere: Prisma.CatatMeterWhereInput = {
+            periodeId: periode.id,
+            deletedAt: null,
+            ...(zonaFilters.length ? { OR: zonaFilters } : {}),
+          };
+
+          // total entri & yang DONE
+          target = await prisma.catatMeter.count({ where: baseWhere });
+          progress = await prisma.catatMeter.count({
+            where: { ...baseWhere, status: CatatStatus.DONE },
+          });
+        }
+
+        return {
+          id: r.id,
+          zonaId: r.zonaId ?? r.zona?.id ?? "",
+          zona: { id: r.zona?.id ?? r.zonaId ?? "", nama: r.zona?.nama ?? "-" },
+          alamat: r.alamat ?? r.zona?.deskripsi ?? "-",
+          petugas: {
+            id: r.petugas?.id ?? r.petugasId ?? "",
+            nama: r.petugas?.name ?? "-",
+            avatar: "/placeholder.svg?height=32&width=32",
+          },
+          target,
+          progress,
+          status: toUiStatus(r.status),
+          tanggalRencana: d.toISOString().slice(0, 10),
+          bulan: r.bulan,
+        };
+      })
+    );
 
     return NextResponse.json({ ok: true, data });
   } catch (e: any) {

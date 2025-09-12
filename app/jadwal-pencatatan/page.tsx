@@ -27,22 +27,14 @@ import { useToast } from "@/hooks/use-toast";
 import { ScheduleGenerateBar } from "@/components/schedule-generate-bar";
 
 export default function JadwalPencatatanPage() {
-  const {
-    schedules,
-    isLoading,
-    getFilteredSchedules,
-    refreshSchedules,
-    filters,
-  } = useScheduleStore();
+  const { isLoading, getFilteredSchedules, refreshSchedules, filters } =
+    useScheduleStore();
   const { toast } = useToast();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // 1) Ambil data saat mount & setiap filter berubah
   useEffect(() => {
-    (async () => {
-      try {
-        await refreshSchedules();
-      } catch {}
-    })();
+    refreshSchedules().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     filters.month,
@@ -50,8 +42,26 @@ export default function JadwalPencatatanPage() {
     filters.petugasId,
     filters.status,
     filters.search,
-    refreshSchedules,
   ]);
+
+  // 2) Dengarkan event global dari halaman Catat Meter agar jadwal auto-refresh
+  useEffect(() => {
+    const onRefresh = () => refreshSchedules().catch(() => {});
+    window.addEventListener("jadwal:refresh", onRefresh);
+
+    // 3) Saat user balik ke tab ini, perbarui juga (mis. selesai catat di tab lain)
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        refreshSchedules().catch(() => {});
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      window.removeEventListener("jadwal:refresh", onRefresh);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [refreshSchedules]);
 
   const filteredSchedules = getFilteredSchedules();
 
