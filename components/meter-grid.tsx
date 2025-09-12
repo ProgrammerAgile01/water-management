@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import useSWR, { useSWRConfig } from "swr";
 import React from "react";
 import { GlassCard } from "./glass-card";
@@ -83,6 +84,7 @@ export function MeterGrid() {
   const { tarif } = useConfigStore();
   const { addIssue } = useWaterIssuesStore();
   const { currentPeriod, isFinalPeriod } = usePeriodStore();
+  const searchParams = useSearchParams();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
@@ -94,12 +96,23 @@ export function MeterGrid() {
   const [deleteTarget, setDeleteTarget] = useState<ApiRow | null>(null);
 
   const period = currentPeriod || "";
+  // Baca zona dari query URL (reactive)
+  const zonaFromUrl = (() => {
+    const z = searchParams?.get("zona") ?? "";
+    return z ? decodeURIComponent(z) : "";
+  })();
 
-  const { data, isLoading, error } = useSWR<ApiResp>(
-    period ? `/api/catat-meter?periode=${period}` : null,
-    fetcher,
-    { revalidateOnFocus: false }
-  );
+  // Bangun key daftar yang konsisten untuk SWR & mutate
+  const listKey = useMemo(() => {
+    if (!period) return null;
+    const qs = new URLSearchParams({ periode: period });
+    if (zonaFromUrl) qs.set("zona", zonaFromUrl);
+    return `/api/catat-meter?${qs.toString()}`;
+  }, [period, zonaFromUrl]);
+
+  const { data, isLoading, error } = useSWR<ApiResp>(listKey, fetcher, {
+    revalidateOnFocus: false,
+  });
 
   const rows = (data?.ok ? data.items : []) as ApiRow[];
   const isPeriodLocked =
@@ -179,7 +192,7 @@ export function MeterGrid() {
     setSelectedCustomer("");
     setExpandedCard(null);
     setAutoSaving({});
-  }, [period]);
+  }, [period, zonaFromUrl]);
 
   useEffect(() => {
     if (data?.ok) {
@@ -257,7 +270,7 @@ export function MeterGrid() {
         });
       }
 
-      await mutate(`/api/catat-meter?periode=${period}`);
+      if (listKey) await mutate(listKey);
 
       setEditEnd((p) => {
         const { [row.id]: _, ...rest } = p;
@@ -301,7 +314,7 @@ export function MeterGrid() {
       const json = await res.json();
       if (!res.ok || !json?.ok)
         throw new Error(json?.message || "Gagal menghapus");
-      await mutate(`/api/catat-meter?periode=${period}`);
+      if (listKey) await mutate(listKey);
       toast({ title: "Terhapus", description: `Inputan ${row.nama} dihapus.` });
     } catch (e: any) {
       toast({
@@ -365,7 +378,7 @@ export function MeterGrid() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: row.id, lock: !row.locked }),
       });
-      await mutate(`/api/catat-meter?periode=${period}`);
+      if (listKey) await mutate(listKey);
       toast({
         title: row.locked ? "Dibuka" : "Dikunci",
         description: `Entri ${row.nama} berhasil ${
@@ -965,27 +978,6 @@ export function MeterGrid() {
                         </p>
                       </div>
                     </div>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground mb-2 block">
-                      Kendala (Opsional)
-                    </label>
-                    <Textarea
-                      value={editNote[r.id] ?? ""}
-                      onChange={(e) =>
-                        !(isPeriodLocked || rowLocked) &&
-                        setEditNote((p) => ({ ...p, [r.id]: e.target.value }))
-                      }
-                      placeholder={
-                        isPeriodLocked || rowLocked
-                          ? "Dikunci - tidak dapat diubah"
-                          : "Catat kendala (bocor, meter rusak, dsb.)"
-                      }
-                      className="h-20 text-sm"
-                      readOnly={isPeriodLocked || rowLocked}
-                      disabled={isPeriodLocked || rowLocked}
-                    />
                   </div>
 
                   <div className="flex gap-2 pt-2">

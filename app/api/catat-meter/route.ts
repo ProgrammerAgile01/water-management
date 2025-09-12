@@ -174,7 +174,7 @@ export async function POST(req: NextRequest) {
         id: true,
         meterAwal: true,
         zonaId: true,
-        zonaNama: true,
+        // zonaNama: true,
         zona: { select: { id: true, nama: true } },
       },
       orderBy: { createdAt: "asc" },
@@ -216,7 +216,8 @@ export async function POST(req: NextRequest) {
       .filter((p) => !existSet.has(p.id))
       .map((p) => {
         const zId = p.zonaId ?? p.zona?.id ?? null;
-        const zNm = p.zonaNama ?? p.zona?.nama ?? null;
+        // const zNm = p.zonaNama ?? p.zona?.nama ?? null;
+        const zNm = null;
         return {
           periodeId: periode.id,
           pelangganId: p.id,
@@ -258,10 +259,11 @@ export async function POST(req: NextRequest) {
 }
 
 // ===== LIST (GET) =====
+// ===== LIST (GET) =====
 export async function GET(req: NextRequest) {
   const kodePeriode = req.nextUrl.searchParams.get("periode") ?? "";
   const zonaParamRaw = (req.nextUrl.searchParams.get("zona") ?? "").trim();
-  const zonaParam = zonaParamRaw === "" ? "" : zonaParamRaw;
+  const zonaParam = zonaParamRaw ? zonaParamRaw : "";
 
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(kodePeriode)) {
     return NextResponse.json(
@@ -287,64 +289,29 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // ---------- FILTER ZONA (robust) ----------
-    // Prefer snapshot di catatMeter (stabil untuk histori).
-    // - Jika zonaParam adalah ID: cocokan ke zonaIdSnapshot
-    // - Jika zonaParam adalah nama: cocokan ke zonaNamaSnapshot (case-insensitive)
-    // Fallback: kalau schema relasi zona di Pelanggan ada, ikutkan OR ke sana.
-    let whereZona: any = undefined;
-    if (zonaParam) {
-      const isIdLike =
-        /^[0-9a-f-]{16,}$/.test(zonaParam) ||
-        /^[A-Za-z0-9_-]+$/.test(zonaParam);
-
-      // Snapshot condition
-      const snapshotCond = isIdLike
-        ? { zonaIdSnapshot: zonaParam }
-        : {
-            // case-insensitive: Prisma filter pakai mode: "insensitive"
-            zonaNamaSnapshot: {
-              equals: zonaParam,
-              mode: "insensitive" as const,
+    // Bangun where untuk filter zona (opsional)
+    // Kita utamakan snapshot (zonaNamaSnapshot), fallback ke relasi pelanggan.zona.nama
+    const zonaWhere = zonaParam
+      ? {
+          OR: [
+            { zonaNamaSnapshot: { equals: zonaParam } as any },
+            {
+              pelanggan: {
+                zona: {
+                  // kalau tidak ada relasi zona di schema, hapus blok ini
+                  is: { nama: { equals: zonaParam } as any },
+                },
+              },
             },
-          };
-
-      // Optional fallback via relasi pelanggan (aktifkan kalau kolom/tabel ada)
-      // Catatan: akses pelanggan.zonaNama atau pelanggan.zona.nama tergantung schema
-      const pelangganZonaCond = isIdLike
-        ? { pelanggan: { zonaId: zonaParam } }
-        : {
-            OR: [
-              {
-                pelanggan: {
-                  zonaNama: { equals: zonaParam, mode: "insensitive" as const },
-                },
-              },
-              {
-                pelanggan: {
-                  zona: {
-                    is: {
-                      nama: { equals: zonaParam, mode: "insensitive" as const },
-                    },
-                  },
-                },
-              },
-            ],
-          };
-
-      whereZona = {
-        OR: [
-          snapshotCond,
-          pelangganZonaCond, // aman bila relasi ada; jika tidak ada kolom, hapus bagian ini
-        ],
-      };
-    }
+          ],
+        }
+      : {};
 
     const rows = await prisma.catatMeter.findMany({
       where: {
         periodeId: periode.id,
         deletedAt: null,
-        ...(whereZona ?? {}),
+        ...(zonaWhere as any),
       },
       orderBy: [{ pelanggan: { createdAt: "asc" } }, { id: "asc" }],
       select: {
@@ -358,16 +325,20 @@ export async function GET(req: NextRequest) {
         status: true,
         kendala: true,
         isLocked: true,
+
+        // simpan untuk debugging/keperluan lain, aman jika field ada
         zonaIdSnapshot: true,
         zonaNamaSnapshot: true,
+
+        // include relasi pelanggan agar r.pelanggan.xxx tersedia
         pelanggan: {
           select: {
             kode: true,
             nama: true,
             alamat: true,
             wa: true,
-            // zonaNama: true,
-            // zona: { select: { nama: true } },
+            // aktifkan ini jika ada relasi zona di schema:
+            zona: { select: { nama: true } },
           },
         },
       },
@@ -400,9 +371,7 @@ export async function GET(req: NextRequest) {
         abonemen: r.abonemen,
         status: r.status === CatatStatus.DONE ? "completed" : "pending",
         locked: !!r.isLocked,
-        // zona: r.pelanggan.zona?.nama ?? r.pelanggan.zonaNama ?? r.zonaNamaSnapshot ?? null,
-        zonaId: r.zonaIdSnapshot ?? null,
-        zonaNama: r.zonaNamaSnapshot ?? null,
+        // zona: r.zonaNamaSnapshot ?? r.pelanggan.zona?.nama ?? null,
       })),
     });
   } catch (e: any) {
