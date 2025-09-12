@@ -54,6 +54,13 @@ export const MENU: MenuItem[] = [
     roles: ["ADMIN", "OPERATOR", "PETUGAS"],
   },
 
+  // === Tagihan & Pembayaran
+  {
+    label: "Tagihan & Pembayaran",
+    icon: CalendarDays,
+    href: "tagihan-pembayaran",
+    roles: ["ADMIN", "OPERATOR", "PETUGAS"],
+  },
   // === Import/Export
   {
     label: "Import/Export",

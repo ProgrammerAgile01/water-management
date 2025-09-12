@@ -15,6 +15,7 @@ const PROTECTED = [
   "/catat-meter",
   "/jadwal-pencatatan",
   "/pelunasan",
+  "/tagihan-pembayaran",
   "/pengaturan",
   "/warga-dashboard",
 ];

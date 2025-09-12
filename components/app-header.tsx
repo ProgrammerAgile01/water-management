@@ -11,6 +11,7 @@ import {
   LogOut,
   MapPin,
   FileSpreadsheet,
+  FileText,
   CalendarDays,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -81,6 +82,11 @@ const MENU_ITEMS: MenuItem[] = [
     roles: ["ADMIN", "OPERATOR"],
   },
   {
+    href: "/tagihan-pembayaran",
+    label: "Tagihan & Pembayaran",
+    icon: FileText,
+  },
+  {
     href: "/tools/import-export",
     label: "Import/Export",
     icon: FileSpreadsheet,
@@ -102,6 +108,7 @@ const PATH_LABELS: Record<string, string> = {
   "/catat-meter": "Catat Meter",
   "/jadwal-pencatatan": "Jadwal Pencatatan",
   "/pelunasan": "Pelunasan",
+  "/tagihan-pembayaran": "Tagihan & Pembayaran",
   "/pengaturan": "Pengaturan",
   "/tools/import-export": "Import/Export",
   "/login": "Login",
