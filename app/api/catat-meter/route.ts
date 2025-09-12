@@ -123,6 +123,12 @@ export async function POST(req: NextRequest) {
       if (!setting) throw new Error("Setting (id=1) belum ada");
 
       const { tahun, bulan } = parsePeriod(kodePeriode);
+      // parsing tanggal aman
+      const tanggalCatat =
+        readingDateFromBody && /^\d{4}-\d{2}-\d{2}$/.test(readingDateFromBody)
+          ? new Date(readingDateFromBody)
+          : new Date();
+
       periode = await prisma.catatPeriode.create({
         data: {
           kodePeriode,
@@ -134,9 +140,7 @@ export async function POST(req: NextRequest) {
           selesai: 0,
           pending: 0,
           isLocked: false,
-          tanggalCatat: readingDateFromBody
-            ? new Date(readingDateFromBody)
-            : new Date(),
+          tanggalCatat,
           petugasId: userId ?? null,
           petugasNama: officerNameFromBody ?? userName ?? null,
         },
@@ -144,14 +148,16 @@ export async function POST(req: NextRequest) {
     } else {
       // backfill metadata jika kosong
       if (!periode.tanggalCatat || !periode.petugasId || !periode.petugasNama) {
+        const tanggalCatat =
+          periode.tanggalCatat ??
+          (readingDateFromBody &&
+          /^\d{4}-\d{2}-\d{2}$/.test(readingDateFromBody)
+            ? new Date(readingDateFromBody)
+            : new Date());
         periode = await prisma.catatPeriode.update({
           where: { id: periode.id },
           data: {
-            tanggalCatat:
-              periode.tanggalCatat ??
-              (readingDateFromBody
-                ? new Date(readingDateFromBody)
-                : new Date()),
+            tanggalCatat,
             petugasId: periode.petugasId ?? userId ?? null,
             petugasNama:
               periode.petugasNama ?? officerNameFromBody ?? userName ?? null,
@@ -160,7 +166,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3) Generate entri pelanggan (idempotent & tahan banting)
+    // 3) Generate entri pelanggan (idempotent)
     //    ⬇️ ambil juga info zona pelanggan untuk snapshot
     const aktif = await prisma.pelanggan.findMany({
       where: { statusAktif: true, deletedAt: null },
@@ -222,7 +228,7 @@ export async function POST(req: NextRequest) {
           total: 0,
           status: CatatStatus.PENDING,
           isLocked: false,
-          // ⬇️ snapshot zona
+          // ⬇️ snapshot zona (dipakai filter di GET)
           zonaIdSnapshot: zId,
           zonaNamaSnapshot: zNm,
         };
@@ -254,9 +260,10 @@ export async function POST(req: NextRequest) {
 // ===== LIST (GET) =====
 export async function GET(req: NextRequest) {
   const kodePeriode = req.nextUrl.searchParams.get("periode") ?? "";
-  const zonaQuery = (req.nextUrl.searchParams.get("zona") ?? "").trim(); // ⬅️ filter zona (opsional)
+  const zonaParamRaw = (req.nextUrl.searchParams.get("zona") ?? "").trim();
+  const zonaParam = zonaParamRaw === "" ? "" : zonaParamRaw;
 
-  if (!isPeriodStr(kodePeriode)) {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(kodePeriode)) {
     return NextResponse.json(
       { ok: false, message: "Periode wajib format YYYY-MM" },
       { status: 400 }
@@ -267,6 +274,7 @@ export async function GET(req: NextRequest) {
     const periode = await prisma.catatPeriode.findUnique({
       where: { kodePeriode },
     });
+
     if (!periode) {
       return NextResponse.json({
         ok: true,
@@ -279,22 +287,65 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // ==== filter zona (id ATAU nama) via snapshot terlebih dahulu, fallback ke pelanggan
-    const whereZona =
-      zonaQuery
-        ? {
+    // ---------- FILTER ZONA (robust) ----------
+    // Prefer snapshot di catatMeter (stabil untuk histori).
+    // - Jika zonaParam adalah ID: cocokan ke zonaIdSnapshot
+    // - Jika zonaParam adalah nama: cocokan ke zonaNamaSnapshot (case-insensitive)
+    // Fallback: kalau schema relasi zona di Pelanggan ada, ikutkan OR ke sana.
+    let whereZona: any = undefined;
+    if (zonaParam) {
+      const isIdLike =
+        /^[0-9a-f-]{16,}$/.test(zonaParam) ||
+        /^[A-Za-z0-9_-]+$/.test(zonaParam);
+
+      // Snapshot condition
+      const snapshotCond = isIdLike
+        ? { zonaIdSnapshot: zonaParam }
+        : {
+            // case-insensitive: Prisma filter pakai mode: "insensitive"
+            zonaNamaSnapshot: {
+              equals: zonaParam,
+              mode: "insensitive" as const,
+            },
+          };
+
+      // Optional fallback via relasi pelanggan (aktifkan kalau kolom/tabel ada)
+      // Catatan: akses pelanggan.zonaNama atau pelanggan.zona.nama tergantung schema
+      const pelangganZonaCond = isIdLike
+        ? { pelanggan: { zonaId: zonaParam } }
+        : {
             OR: [
-              { zonaIdSnapshot: zonaQuery },
-              { zonaNamaSnapshot: zonaQuery },
-              { pelanggan: { zonaId: zonaQuery } },
-              { pelanggan: { zonaNama: zonaQuery } },
-              { pelanggan: { zona: { nama: zonaQuery } } },
+              {
+                pelanggan: {
+                  zonaNama: { equals: zonaParam, mode: "insensitive" as const },
+                },
+              },
+              {
+                pelanggan: {
+                  zona: {
+                    is: {
+                      nama: { equals: zonaParam, mode: "insensitive" as const },
+                    },
+                  },
+                },
+              },
             ],
-          }
-        : {};
+          };
+
+      whereZona = {
+        OR: [
+          snapshotCond,
+          pelangganZonaCond, // aman bila relasi ada; jika tidak ada kolom, hapus bagian ini
+        ],
+      };
+    }
 
     const rows = await prisma.catatMeter.findMany({
-      where: { periodeId: periode.id, deletedAt: null, ...whereZona },
+      where: {
+        periodeId: periode.id,
+        deletedAt: null,
+        ...(whereZona ?? {}),
+      },
       orderBy: [{ pelanggan: { createdAt: "asc" } }, { id: "asc" }],
       select: {
         id: true,
@@ -315,9 +366,8 @@ export async function GET(req: NextRequest) {
             nama: true,
             alamat: true,
             wa: true,
-            zonaId: true,
-            zonaNama: true,
-            zona: { select: { id: true, nama: true} },
+            // zonaNama: true,
+            // zona: { select: { nama: true } },
           },
         },
       },
@@ -331,45 +381,33 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       period: kodePeriode,
-      tarifPerM3: periode.tarifPerM3, // snapshot periode
-      abonemen: periode.abonemen,     // snapshot periode
-      locked: periode.isLocked,       // lock level periode (global)
+      tarifPerM3: periode.tarifPerM3,
+      abonemen: periode.abonemen,
+      locked: periode.isLocked,
       progress: { total, selesai, pending, percent },
-      items: rows.map((r) => {
-        const zId =
-          r.zonaIdSnapshot ??
-          r.pelanggan.zonaId ??
-          r.pelanggan.zona?.id ??
-          null;
-        const zNm =
-          r.zonaNamaSnapshot ??
-          r.pelanggan.zonaNama ??
-          r.pelanggan.zona?.nama ??
-          null;
-        return {
-          id: r.id,
-          kodeCustomer: r.pelanggan.kode,
-          nama: r.pelanggan.nama,
-          alamat: r.pelanggan.alamat,
-          phone: r.pelanggan.wa ?? "",
-          meterAwal: r.meterAwal,
-          meterAkhir: r.meterAkhir ?? null,
-          pemakaian: r.pemakaianM3,
-          total: r.total,
-          kendala: r.kendala ?? "",
-          tarifPerM3: r.tarifPerM3,
-          abonemen: r.abonemen,
-          status: r.status === CatatStatus.DONE ? "completed" : "pending",
-          locked: !!r.isLocked, // row-level lock
-          // ⬇️ info zona untuk FE
-          zonaId: zId,
-          zonaNama: zNm,
-        };
-      }),
+      items: rows.map((r) => ({
+        id: r.id,
+        kodeCustomer: r.pelanggan.kode,
+        nama: r.pelanggan.nama,
+        alamat: r.pelanggan.alamat,
+        phone: r.pelanggan.wa ?? "",
+        meterAwal: r.meterAwal,
+        meterAkhir: r.meterAkhir ?? null,
+        pemakaian: r.pemakaianM3,
+        total: r.total,
+        kendala: r.kendala ?? "",
+        tarifPerM3: r.tarifPerM3,
+        abonemen: r.abonemen,
+        status: r.status === CatatStatus.DONE ? "completed" : "pending",
+        locked: !!r.isLocked,
+        // zona: r.pelanggan.zona?.nama ?? r.pelanggan.zonaNama ?? r.zonaNamaSnapshot ?? null,
+        zonaId: r.zonaIdSnapshot ?? null,
+        zonaNama: r.zonaNamaSnapshot ?? null,
+      })),
     });
   } catch (e: any) {
     return NextResponse.json(
-      { ok: false, message: e.message ?? "Server error" },
+      { ok: false, message: e?.message ?? "Server error" },
       { status: 500 }
     );
   }
@@ -452,7 +490,7 @@ export async function PUT(req: NextRequest) {
   }
 }
 
-// ===== DELETE (soft or hard) =====
+// ===== DELETE (hard) =====
 export async function DELETE(req: NextRequest) {
   try {
     const urlId = req.nextUrl.searchParams.get("id") ?? undefined;

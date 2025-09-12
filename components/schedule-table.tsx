@@ -129,6 +129,8 @@ export function ScheduleTable({ schedules, isLoading }: ScheduleTableProps) {
 
       const petugas = sch.petugas?.nama ?? "";
       const zona = getZonaName(sch.zona);
+      const zonaName =
+        typeof sch.zona === "string" ? sch.zona : sch.zona?.nama ?? "";
 
       // redirect dengan query lengkap untuk prefill di /catat-meter
       const url =
@@ -136,7 +138,7 @@ export function ScheduleTable({ schedules, isLoading }: ScheduleTableProps) {
         `&tanggal=${encodeURIComponent(tanggal)}` +
         `&petugas=${encodeURIComponent(petugas)}` +
         `&jadwalId=${encodeURIComponent(sch.id)}` +
-        (zona ? `&zona=${encodeURIComponent(zona)}` : "");
+        (zonaName ? `&zona=${encodeURIComponent(zonaName)}` : "");
       window.location.href = url;
     } catch {
       toast({
