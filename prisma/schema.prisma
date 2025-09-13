@@ -57,6 +57,8 @@ model Pelanggan {
   wa          String?  @db.VarChar(20)
   alamat      String
   meterAwal   Int      @default(0)
+  // Tambahan penting agar alur reset berjalan
+  isResetMeter Boolean  @default(false)
   statusAktif Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -80,6 +82,8 @@ model Pelanggan {
   // Back-relations ke transaksi (1 Pelanggan punya banyak CatatMeter & Tagihan)
   catatans CatatMeter[]
   tagihans Tagihan[]
+  // Back-relation transaksi reset
+  resets ResetMeter[] @relation("PelangganReset")
 
   // 🔹 constraint unik per zona (null mengabaikan unik)
   @@unique([zonaId, noUrutRumah])
@@ -350,4 +354,28 @@ model JadwalPencatatan {
   @@index([status])
   @@index([zonaId])
   @@index([petugasId])
+}
+
+/// === Tambahkan/letakkan ENUM di atas model yang memakainya ===
+enum ResetStatus {
+  DRAFT
+  SELESAI
+}
+
+model ResetMeter {
+  id            String      @id @default(cuid())
+  pelangganId   String
+  pelanggan     Pelanggan   @relation("PelangganReset", fields: [pelangganId], references: [id])
+
+  tanggalReset  DateTime
+  alasan        String?     @db.Text
+  meterAwalBaru Int
+  status        ResetStatus @default(DRAFT)
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([pelangganId])
+  @@index([tanggalReset])
+  @@index([status]) // kalau DB-mu protes di enum index, hapus baris ini dulu
 }

@@ -13,6 +13,7 @@ import {
   FileSpreadsheet,
   FileText,
   CalendarDays,
+  RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter, usePathname } from "next/navigation";
@@ -85,7 +86,15 @@ const MENU_ITEMS: MenuItem[] = [
     href: "/tagihan-pembayaran",
     label: "Tagihan & Pembayaran",
     icon: FileText,
+    roles: ["ADMIN", "OPERATOR"],
   },
+  {
+    href: "/reset-meteran",
+    label: "Reset Meteran",
+    icon: RotateCcw,
+    roles: ["ADMIN", "OPERATOR"],
+  },
+
   {
     href: "/tools/import-export",
     label: "Import/Export",
@@ -109,6 +118,7 @@ const PATH_LABELS: Record<string, string> = {
   "/jadwal-pencatatan": "Jadwal Pencatatan",
   "/pelunasan": "Pelunasan",
   "/tagihan-pembayaran": "Tagihan & Pembayaran",
+  "/reset-meteran": "Reset Meteran",
   "/pengaturan": "Pengaturan",
   "/tools/import-export": "Import/Export",
   "/login": "Login",
