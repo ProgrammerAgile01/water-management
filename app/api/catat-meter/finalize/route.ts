@@ -64,12 +64,15 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
 
-    const today = new Date();
-    const due = new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      setting.tglJatuhTempo
-    );
+    // const today = new Date();
+    // const due = new Date(
+    //   today.getFullYear(),
+    //   today.getMonth(),
+    //   setting.tglJatuhTempo
+    // );
+
+    const [yy, mm] = periodeStr.split("-").map(Number);
+    const due = new Date(yy, mm - 1, Math.max(1, setting.tglJatuhTempo ?? 15));
 
     await prisma.$transaction(async (tx) => {
       for (const r of rows) {

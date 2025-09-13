@@ -32,6 +32,7 @@ import {
   ChevronDown,
   Trash2,
   Lock,
+  LockOpen,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -43,6 +44,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { LockRowModal } from "./lock-row-modal";
 
 type ApiRow = {
   id: string;
@@ -94,6 +96,40 @@ export function MeterGrid() {
   const [sending, setSending] = useState<string | null>(null);
   const [autoSaving, setAutoSaving] = useState<Record<string, boolean>>({});
   const [deleteTarget, setDeleteTarget] = useState<ApiRow | null>(null);
+
+  // new lock
+  const [lockTarget, setLockTarget] = useState<ApiRow | null>(null);
+  const [locking, setLocking] = useState(false);
+
+  async function finalizeRow(row: ApiRow) {
+    try {
+      setLocking(true);
+      const res = await fetch("/api/catat-meter/finalize-row", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: row.id, sendWa: true }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json?.ok)
+        throw new Error(json?.message || "Gagal finalisasi");
+
+      // await mutate(`/api/catat-meter?periode=${period}`);
+      if (listKey) await mutate(listKey);
+      toast({
+        title: "Terkunci & Tagihan dibuat",
+        description: `Untuk ${row.nama}`,
+      });
+    } catch (e: any) {
+      toast({
+        title: "Gagal finalisasi",
+        description: e?.message ?? "Error",
+        variant: "destructive",
+      });
+    } finally {
+      setLocking(false);
+      setLockTarget(null);
+    }
+  }
 
   const period = currentPeriod || "";
   // Baca zona dari query URL (reactive)
@@ -393,6 +429,15 @@ export function MeterGrid() {
       });
     }
   };
+
+  // toast terkunci
+  const showLockedToast = (msg?: string) =>
+    toast({
+      title: "Terkunci",
+      description:
+        msg ?? "Entri ini sudah difinalisasi dan tidak bisa dibuka kembali.",
+      variant: "destructive",
+    });
 
   const getStatusBadge = (status: ApiRow["status"]) =>
     status === "completed" ? (
@@ -710,17 +755,29 @@ export function MeterGrid() {
                               </>
                             )}
 
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className={`h-8 px-2 ${
-                                rowLocked ? "text-green-600" : ""
-                              }`}
-                              onClick={() => toggleLockRow(r)}
-                              title={rowLocked ? "Buka kunci" : "Kunci entri"}
-                            >
-                              <Lock className="w-4 h-4" />
-                            </Button>
+                            {!rowLocked ? (
+                              // FINALISASI -> buka modal -> hit /finalize-row
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 px-2"
+                                onClick={() => setLockTarget(r)}
+                                title="Kunci & Finalisasi"
+                              >
+                                <LockOpen className="w-4 h-4" />
+                              </Button>
+                            ) : (
+                              // Terkunci
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 px-2 text-green-600"
+                                onClick={() => showLockedToast()}
+                                title="Terkunci"
+                              >
+                                <Lock className="w-4 h-4" />
+                              </Button>
+                            )}
 
                             <Button
                               size="sm"
@@ -1018,7 +1075,7 @@ export function MeterGrid() {
                       </>
                     )}
 
-                    <Button
+                    {/* <Button
                       size="sm"
                       variant="outline"
                       className={`${r.locked ? "text-green-600" : ""}`}
@@ -1026,7 +1083,31 @@ export function MeterGrid() {
                       title={r.locked ? "Buka kunci" : "Kunci entri"}
                     >
                       <Lock className="w-4 h-4" />
-                    </Button>
+                    </Button> */}
+
+                    {!rowLocked ? (
+                      // FINALISASI -> buka modal -> hit /finalize-row
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-2"
+                        onClick={() => setLockTarget(r)}
+                        title="Kunci & Finalisasi"
+                      >
+                        <LockOpen className="w-4 h-4" />
+                      </Button>
+                    ) : (
+                      //lock
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-2 text-green-600"
+                        onClick={() => showLockedToast()}
+                        title="Terkunci"
+                      >
+                        <Lock className="w-4 h-4" />
+                      </Button>
+                    )}
 
                     {r.status === "completed" && (
                       <Button
@@ -1084,6 +1165,46 @@ export function MeterGrid() {
           </div>
         </>
       )}
+
+      {/* Dialog finalisasi per row */}
+      {/* <AlertDialog
+        open={!!lockTarget}
+        onOpenChange={(o) => !o && setLockTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Finalisasi Tagihan?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Data <b>{lockTarget?.nama}</b> untuk periode{" "}
+              <b>{renderPeriodeLabel(period)}</b> akan
+              <b> dikunci</b> dan <b>tagihan dibuat</b>. Notifikasi WhatsApp
+              akan dikirim.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={locking}>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={locking}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={() => lockTarget && finalizeRow(lockTarget)}
+            >
+              {locking ? "Memproses…" : "Ya, Finalisasi"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog> */}
+
+      {/* Modal finalisasi per row */}
+      <LockRowModal
+        open={!!lockTarget}
+        onClose={() => setLockTarget(null)}
+        onConfirm={() => lockTarget && finalizeRow(lockTarget)}
+        isLoading={locking}
+        row={lockTarget}
+        period={period}
+        headerTarif={headerTarif}
+        headerAbon={headerAbon}
+      />
 
       {/* Dialog hapus */}
       <AlertDialog
