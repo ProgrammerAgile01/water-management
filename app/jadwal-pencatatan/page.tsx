@@ -92,7 +92,7 @@ export default function JadwalPencatatanPage() {
   };
 
   return (
-    <AuthGuard>
+    <AuthGuard requiredRole="ADMIN">
       <AppShell>
         <div className="min-h-screen bg-gradient-to-br from-teal-50 via-cyan-50 to-blue-50">
           <div className="container mx-auto px-4 py-6">

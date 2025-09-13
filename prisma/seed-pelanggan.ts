@@ -1,9 +1,10 @@
+import { prisma } from "@/lib/prisma";
 import { readFileSync } from "fs";
 import { join } from "path";
-import prisma from "../app/lib/prisma";
+// import prisma from "../app/lib/prisma";
 
 async function main() {
-  const filePath = join(__dirname, "seed-pelanggan.json");
+  const filePath = join(__dirname, "/seed/pelanggan.json");
   const raw = readFileSync(filePath, "utf-8");
   const rows = JSON.parse(raw);
 

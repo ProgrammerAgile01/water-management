@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { CatatStatus } from "@prisma/client";
+import { randomToken } from "@/lib/auth-utils";
+import { cookies } from "next/headers";
 export const runtime = "nodejs";
 
 // util: ambil base URL app untuk bikin link PDF
@@ -100,7 +102,6 @@ function waText(p: {
       `• Pemakaian: ${p.pemakaian} m³`,
       `• Tarif/m³: ${formatRp(p.tarifPerM3)}`,
       `• Abonemen: ${formatRp(p.abonemen)}`,
-      `• BIaya Admin: ${formatRp(p.biayaAdmin)}`,
       "—",
       `*Total Tagihan: ${formatRp(p.total)}*`,
     ].join("\n")
@@ -123,7 +124,7 @@ function waText(p: {
   sections.push("Terima kasih 🙏");
 
   // note
-  sections.push(["*NOTE:*", "Dokumen invoice (PDF) terlampir."].join("\n"));
+  sections.push(["*NOTE:*", "Dokumen tagihan (PDF) terlampir."].join("\n"));
 
   // Gabung antar-section dengan 1 baris kosong
   return sections
@@ -286,7 +287,9 @@ export async function POST(req: NextRequest) {
       where: { id },
       include: {
         periode: true,
-        pelanggan: { select: { id: true, nama: true, wa: true, kode: true } },
+        pelanggan: {
+          select: { id: true, nama: true, wa: true, kode: true, userId: true },
+        },
       },
     });
     if (!row || row.deletedAt)
@@ -394,6 +397,53 @@ export async function POST(req: NextRequest) {
       }
     );
 
+    // magic link
+    // --- 1) Pastikan pelanggan punya User (role WARGA) ---
+    let userId = pelanggan.userId as string | undefined;
+    if (!userId) {
+      const username = pelanggan.kode; // unik, kamu sudah unique di schema
+      const pwd = randomToken(12); // password random (bisa kirim terpisah kalau perlu)
+      const user = await prisma.user.create({
+        data: {
+          username,
+          passwordHash: pwd, // TODO: kalau kamu hashing sendiri, hash dulu
+          name: pelanggan.nama,
+          phone: pelanggan.wa ?? null,
+          role: "WARGA",
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      userId = user.id;
+
+      // tautkan ke pelanggan
+      await prisma.pelanggan.update({
+        where: { id: pelanggan.id },
+        data: { userId },
+      });
+    }
+
+    // --- 2) Buat magic link token sekali pakai & expired cepat ---
+    const token = randomToken(32);
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24); // 24 jam
+    await prisma.magicLinkToken.create({
+      data: {
+        token,
+        userId: userId!,
+        tagihanId: tagihan.id, // biar landing langsung ke tagihan /pelunasan?id=...
+        purpose: "pelunasan",
+        expiresAt,
+      },
+    });
+
+    // --- 3) Bangun link untuk WA ---
+    const origin = getAppOrigin(req);
+    const magicUrl =
+      origin &&
+      `${origin.replace(/\/$/, "")}/api/auth/magic?token=${encodeURIComponent(
+        token
+      )}`;
+
     // === Compose pesan profesional + kirim WA ===
     if (sendWa && pelanggan?.wa) {
       const origin = getAppOrigin(req);
@@ -403,26 +453,31 @@ export async function POST(req: NextRequest) {
         ? `${origin.replace(/\/$/, "")}/api/tagihan/preview/${pelanggan.id}`
         : undefined;
 
-      const text = waText({
-        setting: {
-          namaPerusahaan: setting.namaPerusahaan,
-          telepon: setting.telepon,
-          email: setting.email,
-          alamat: setting.alamat,
-        },
-        nama: pelanggan.nama,
-        kode: pelanggan.kode || undefined,
-        periode: periodeStr,
-        meterAwal: row.meterAwal,
-        meterAkhir: akhir,
-        pemakaian: pem,
-        tarifPerM3: tarif,
-        abonemen: abon,
-        biayaAdmin,
-        total,
-        due,
-        pdfUrl,
-      });
+      const linkBaris = magicUrl
+        ? `\n\nBayar/unggah bukti dengan aman via tautan berikut:\n${magicUrl}`
+        : "";
+
+      const text =
+        waText({
+          setting: {
+            namaPerusahaan: setting.namaPerusahaan,
+            telepon: setting.telepon,
+            email: setting.email,
+            alamat: setting.alamat,
+          },
+          nama: pelanggan.nama,
+          kode: pelanggan.kode || undefined,
+          periode: periodeStr,
+          meterAwal: row.meterAwal,
+          meterAkhir: akhir,
+          pemakaian: pem,
+          tarifPerM3: tarif,
+          abonemen: abon,
+          biayaAdmin,
+          total,
+          due,
+          pdfUrl,
+        }) + linkBaris;
 
       // === KIRIM DI BACKGROUND — JANGAN await ===
       (async () => {
@@ -440,9 +495,12 @@ export async function POST(req: NextRequest) {
               .replace(/-/g, "")}/${(tagihan.id || "")
               .slice(-6)
               .toUpperCase()}.pdf`;
-            const caption = `Invoice Tagihan Air Periode ${new Date(
+            const caption = `Tagihan Air Periode ${new Date(
               `${periodeStr}-01`
-            ).toLocaleDateString("id-ID", { month: "long", year: "numeric" })} - ${pelanggan.nama}`;
+            ).toLocaleDateString("id-ID", {
+              month: "long",
+              year: "numeric",
+            })} - ${pelanggan.nama}`;
 
             await sendWaPdfAndLog(pelanggan.wa, pdfUrl, fileName, caption);
           } catch (e) {

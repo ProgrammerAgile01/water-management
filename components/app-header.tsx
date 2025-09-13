@@ -57,6 +57,12 @@ const MENU_ITEMS: MenuItem[] = [
     roles: ["ADMIN", "OPERATOR", "PETUGAS"],
   },
   {
+    href: "/warga-dashboard",
+    label: "Dashboard Warga",
+    icon: Home,
+    roles: ["WARGA"],
+  },
+  {
     href: "/pelanggan",
     label: "Pelanggan",
     icon: Users,
@@ -79,12 +85,13 @@ const MENU_ITEMS: MenuItem[] = [
     href: "/pelunasan",
     label: "Pelunasan",
     icon: CreditCard,
-    roles: ["ADMIN", "OPERATOR"],
+    roles: ["ADMIN", "OPERATOR", "WARGA"],
   },
   {
     href: "/tagihan-pembayaran",
     label: "Tagihan & Pembayaran",
     icon: FileText,
+    roles: ["ADMIN"]
   },
   {
     href: "/tools/import-export",

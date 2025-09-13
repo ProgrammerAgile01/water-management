@@ -46,3 +46,5 @@ ALTER TABLE `CatatPeriode`
   DROP INDEX `CatatPeriode_petugasId_fkey`,
   ADD INDEX `CatatPeriode_petugasId_idx` (`petugasId`);
 
+-- ALTER TABLE `CatatPeriode`
+--   RENAME INDEX `CatatPeriode_petugasId_fkey` TO `CatatPeriode_petugasId_idx`;

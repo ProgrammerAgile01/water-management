@@ -9,7 +9,7 @@ import { Send } from "lucide-react"
 
 export default function CatatMeterPage() {
   return (
-    <AuthGuard requiredRole="petugas">
+    <AuthGuard requiredRole="PETUGAS">
       <AppShell>
         <div className="max-w-6xl mx-auto space-y-6">
           <AppHeader title="Catat Meter" />

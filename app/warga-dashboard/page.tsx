@@ -92,7 +92,7 @@ export default function WargaDashboardPage() {
 
   useEffect(() => {
     // Get user data from localStorage
-    const userData = localStorage.getItem("user")
+    const userData = localStorage.getItem("tb_user")
     if (userData) {
       setUser(JSON.parse(userData))
     }
@@ -144,7 +144,7 @@ export default function WargaDashboardPage() {
   )
 
   return (
-    <AuthGuard requiredRole="warga">
+    <AuthGuard requiredRole="WARGA">
       <AppShell>
         <div className="max-w-6xl mx-auto space-y-6">
           {/* Header */}

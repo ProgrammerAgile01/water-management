@@ -11,7 +11,7 @@ import { Plus } from "lucide-react"                   // Ikon "Plus" (tanda tamb
 // Komponen halaman utama untuk modul pelanggan
 export default function PelangganPage() {
   return (
-    <AuthGuard> 
+    <AuthGuard requiredRole="ADMIN"> 
       {/* Semua isi halaman dilindungi oleh AuthGuard */}
       <AppShell>
         {/* AppShell memberi kerangka layout aplikasi */}

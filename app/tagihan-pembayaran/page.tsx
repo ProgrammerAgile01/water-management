@@ -64,8 +64,8 @@ export default function TagihanPembayaranPage() {
 
   return (
     <div className="space-y-6">
-      <AuthGuard>
-        <AppShell>
+      <AuthGuard requiredRole="ADMIN">
+        <AppShell className="space-y-6">
           <AppHeader title="Tagihan & Pembayaran" />
 
           {/* Header Section */}

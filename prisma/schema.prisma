@@ -48,6 +48,10 @@ model User {
 
   @@index([deletedAt]) // index untuk query cepat by deletedAt
   @@index([deletedBy]) // index untuk query cepat by deletedBy
+
+  // back relation session dan magic link
+  sessions        Session[]         @relation("UserSessions")
+  magicLinkTokens MagicLinkToken[]  @relation("UserMagicLinks")
 }
 
 model Pelanggan {
@@ -236,6 +240,17 @@ model Tagihan {
   @@index([statusBayar, statusVerif])
   @@index([deletedAt])
   @@index([deletedBy])
+
+  // back-relation ke MagicLinkToken (opsional)
+  magicLinkTokens MagicLinkToken[] @relation("TagihanMagicLinks")
+}
+
+// enum metode bayar
+enum MetodeBayar {
+  TUNAI
+  TRANSFER
+  EWALLET
+  QRIS
 }
 
 model Pembayaran {
@@ -248,6 +263,11 @@ model Pembayaran {
   // FK → Tagihan (banyak Pembayaran milik 1 Tagihan)
   tagihanId String
   tagihan   Tagihan @relation(fields: [tagihanId], references: [id])
+
+  metode    MetodeBayar    @default(TUNAI)
+
+  // ✅ Catatan/keterangan pelunasan
+  keterangan   String?  @db.Text
 
   // Soft delete pembayaran
   deletedAt     DateTime? @db.DateTime(3)
@@ -350,4 +370,31 @@ model JadwalPencatatan {
   @@index([status])
   @@index([zonaId])
   @@index([petugasId])
+}
+
+// model session dan magic link untuk kirim link auto login
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation("UserSessions", fields: [userId], references: [id])
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model MagicLinkToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation("UserMagicLinks", fields: [userId], references: [id])
+
+  tagihanId String?
+  tagihan   Tagihan? @relation("TagihanMagicLinks", fields: [tagihanId], references: [id])
+
+  purpose   String   @default("pelunasan")
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId, purpose, expiresAt])
 }

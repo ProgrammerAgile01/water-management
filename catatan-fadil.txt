@@ -1,0 +1,10 @@
+Sabtu 13 September 2025
+
+Saya menambahkan:
+1. Model session dan magiclink untuk link login otomatis
+2. migrate modelnya = npx prisma migrate dev -n add_magic_link_and_session atau db push kalo gabisa
+3. Menambahkan file auth utils untuk generate tonken add_magiclink
+4. menambahkan API pelunasan dan list
+5. menambahkan API auth magic
+6. menyesuaikan halaman pelunasan untuk admin dan warga/pelanggan
+7. penyesuaian middleware untuk akses warga dan magic link

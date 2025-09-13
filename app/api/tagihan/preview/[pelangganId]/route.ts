@@ -70,9 +70,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ pelangganId
     await page.goto(url, { waitUntil: "networkidle0", timeout: 60_000 });
 
     const pdf = await page.pdf({
-      format: "A5",
+      // format: "A5",
       printBackground: true,
-      margin: { top: "20mm", bottom: "20mm", left: "12mm", right: "12mm" },
+      preferCSSPageSize: true,
+      // margin: { top: "20mm", bottom: "20mm", left: "12mm", right: "12mm" },
     });
 
     return new NextResponse(pdf, {
