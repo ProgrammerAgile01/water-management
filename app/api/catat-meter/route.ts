@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { CatatStatus } from "@prisma/client";
 import { getAuthUserId } from "@/lib/auth";
+import { startOfMonth, endOfMonth, parseISO, isValid } from "date-fns";
 
 // ===== Helpers =====
 function isPeriodStr(p: string) {
@@ -259,7 +260,6 @@ export async function POST(req: NextRequest) {
 }
 
 // ===== LIST (GET) =====
-// ===== LIST (GET) =====
 export async function GET(req: NextRequest) {
   const kodePeriode = req.nextUrl.searchParams.get("periode") ?? "";
   const zonaParamRaw = (req.nextUrl.searchParams.get("zona") ?? "").trim();
@@ -289,24 +289,27 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Bangun where untuk filter zona (opsional)
-    // Kita utamakan snapshot (zonaNamaSnapshot), fallback ke relasi pelanggan.zona.nama
+    // range tanggal untuk periode (buat filter reset)
+    const periodDate = parseISO(`${kodePeriode}-01`);
+    const monthRange = isValid(periodDate)
+      ? { gte: startOfMonth(periodDate), lte: endOfMonth(periodDate) }
+      : null;
+
+    // filter zona opsional
     const zonaWhere = zonaParam
       ? {
           OR: [
             { zonaNamaSnapshot: { equals: zonaParam } as any },
             {
               pelanggan: {
-                zona: {
-                  // kalau tidak ada relasi zona di schema, hapus blok ini
-                  is: { nama: { equals: zonaParam } as any },
-                },
+                zona: { is: { nama: { equals: zonaParam } as any } },
               },
             },
           ],
         }
       : {};
 
+    // Ambil entri CatatMeter untuk periode + info pelanggan
     const rows = await prisma.catatMeter.findMany({
       where: {
         periodeId: periode.id,
@@ -316,6 +319,7 @@ export async function GET(req: NextRequest) {
       orderBy: [{ pelanggan: { createdAt: "asc" } }, { id: "asc" }],
       select: {
         id: true,
+        pelangganId: true, // ⬅️ perlu untuk mapping reset
         meterAwal: true,
         meterAkhir: true,
         pemakaianM3: true,
@@ -325,27 +329,64 @@ export async function GET(req: NextRequest) {
         status: true,
         kendala: true,
         isLocked: true,
-
-        // simpan untuk debugging/keperluan lain, aman jika field ada
         zonaIdSnapshot: true,
         zonaNamaSnapshot: true,
-
-        // include relasi pelanggan agar r.pelanggan.xxx tersedia
         pelanggan: {
           select: {
             kode: true,
             nama: true,
             alamat: true,
             wa: true,
-            // aktifkan ini jika ada relasi zona di schema:
             zona: { select: { nama: true } },
           },
         },
       },
     });
 
-    const total = rows.length;
-    const selesai = rows.filter((r) => r.status === CatatStatus.DONE).length;
+    // ===== Ambil 'reset meter' untuk pelanggan2 di bulan ini, lalu buat map latest per pelanggan =====
+    let resetMap = new Map<string, number>();
+    if (monthRange && rows.length) {
+      const ids = Array.from(new Set(rows.map((r) => r.pelangganId)));
+      const resets = await prisma.resetMeter.findMany({
+        where: {
+          pelangganId: { in: ids },
+          ...(monthRange ? { tanggalReset: monthRange } : {}),
+        },
+        select: { pelangganId: true, meterAwalBaru: true, tanggalReset: true },
+        orderBy: [{ pelangganId: "asc" }, { tanggalReset: "desc" }],
+      });
+      for (const r of resets) {
+        // simpan yang terbaru per pelanggan
+        if (!resetMap.has(r.pelangganId)) {
+          resetMap.set(r.pelangganId, r.meterAwalBaru);
+        }
+      }
+    }
+
+    const items = rows.map((r) => {
+      // jika ada reset bulan ini -> override meterAwal
+      const meterAwalOverride = resetMap.get(r.pelangganId) ?? r.meterAwal;
+
+      return {
+        id: r.id,
+        kodeCustomer: r.pelanggan.kode,
+        nama: r.pelanggan.nama,
+        alamat: r.pelanggan.alamat,
+        phone: r.pelanggan.wa ?? "",
+        meterAwal: meterAwalOverride, // ⬅️ sudah hormati reset
+        meterAkhir: r.meterAkhir ?? null,
+        pemakaian: Math.max((r.meterAkhir ?? 0) - meterAwalOverride, 0),
+        total: r.total, // boleh dibiarkan, UI juga hitung ulang
+        kendala: r.kendala ?? "",
+        tarifPerM3: r.tarifPerM3,
+        abonemen: r.abonemen,
+        status: r.status === CatatStatus.DONE ? "completed" : "pending",
+        locked: !!r.isLocked,
+      };
+    });
+
+    const total = items.length;
+    const selesai = items.filter((x) => x.status === "completed").length;
     const pending = Math.max(0, total - selesai);
     const percent = total ? Math.round((selesai / total) * 100) : 0;
 
@@ -356,23 +397,7 @@ export async function GET(req: NextRequest) {
       abonemen: periode.abonemen,
       locked: periode.isLocked,
       progress: { total, selesai, pending, percent },
-      items: rows.map((r) => ({
-        id: r.id,
-        kodeCustomer: r.pelanggan.kode,
-        nama: r.pelanggan.nama,
-        alamat: r.pelanggan.alamat,
-        phone: r.pelanggan.wa ?? "",
-        meterAwal: r.meterAwal,
-        meterAkhir: r.meterAkhir ?? null,
-        pemakaian: r.pemakaianM3,
-        total: r.total,
-        kendala: r.kendala ?? "",
-        tarifPerM3: r.tarifPerM3,
-        abonemen: r.abonemen,
-        status: r.status === CatatStatus.DONE ? "completed" : "pending",
-        locked: !!r.isLocked,
-        // zona: r.zonaNamaSnapshot ?? r.pelanggan.zona?.nama ?? null,
-      })),
+      items,
     });
   } catch (e: any) {
     return NextResponse.json(

@@ -8,6 +8,7 @@ import {
   Settings,
   CalendarDays,
   FileText,
+  RotateCcw,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -19,6 +20,7 @@ const navItems = [
   { href: "/pelanggan", label: "Pelanggan", icon: Users },
   { href: "/catat-meter", label: "Catat", icon: ClipboardList },
   { href: "/jadwal-pencatatan", label: "Jadwal", icon: CalendarDays },
+  { href: "/reset-meteran", label: "Reset", icon: RotateCcw },
   { href: "/pelunasan", label: "Bayar", icon: CreditCard },
   { href: "/tagihan-pembayaran", label: "Tagihan", icon: FileText },
   { href: "/pengaturan", label: "Setting", icon: Settings },

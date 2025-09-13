@@ -113,7 +113,6 @@ export function MeterGrid() {
       if (!res.ok || !json?.ok)
         throw new Error(json?.message || "Gagal finalisasi");
 
-      // await mutate(`/api/catat-meter?periode=${period}`);
       if (listKey) await mutate(listKey);
       toast({
         title: "Terkunci & Tagihan dibuat",
@@ -237,6 +236,36 @@ export function MeterGrid() {
       setEditNote(map);
     }
   }, [data]);
+
+  // ====== PATCH: bersihkan buffer ketika data server berubah (mis. setelah Reset Meter) ======
+  useEffect(() => {
+    if (!data?.ok) return;
+    // setiap kali daftar/period berubah → kosongkan buffer end & autosave
+    setEditEnd({});
+    setAutoSaving({});
+  }, [data?.period, data?.items?.length, data?.progress?.total]);
+
+  // (opsional aman) jika server punya meterAkhir=0 untuk baris tertentu, hapus buffer baris itu
+  useEffect(() => {
+    if (!data?.ok) return;
+    const zeroIds =
+      (data.items ?? [])
+        .filter((it) => (it.meterAkhir ?? 0) === 0)
+        .map((it) => it.id) || [];
+    if (!zeroIds.length) return;
+
+    setEditEnd((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const id of zeroIds) {
+        if (next[id] !== undefined) {
+          delete next[id];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [data?.items]);
 
   // ===== helpers autosave =====
   const digits = (n: number) => String(Math.max(0, n)).length;
@@ -403,30 +432,6 @@ export function MeterGrid() {
       }
     } finally {
       setSending(null);
-    }
-  };
-
-  // Lock/Unlock per pelanggan
-  const toggleLockRow = async (row: ApiRow) => {
-    try {
-      await fetch("/api/catat-meter/lock", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: row.id, lock: !row.locked }),
-      });
-      if (listKey) await mutate(listKey);
-      toast({
-        title: row.locked ? "Dibuka" : "Dikunci",
-        description: `Entri ${row.nama} berhasil ${
-          row.locked ? "dibuka" : "dikunci"
-        }.`,
-      });
-    } catch (e: any) {
-      toast({
-        title: "Gagal",
-        description: e?.message ?? "Tidak bisa mengubah kunci",
-        variant: "destructive",
-      });
     }
   };
 
@@ -756,7 +761,6 @@ export function MeterGrid() {
                             )}
 
                             {!rowLocked ? (
-                              // FINALISASI -> buka modal -> hit /finalize-row
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -767,7 +771,6 @@ export function MeterGrid() {
                                 <LockOpen className="w-4 h-4" />
                               </Button>
                             ) : (
-                              // Terkunci
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -1075,18 +1078,7 @@ export function MeterGrid() {
                       </>
                     )}
 
-                    {/* <Button
-                      size="sm"
-                      variant="outline"
-                      className={`${r.locked ? "text-green-600" : ""}`}
-                      onClick={() => toggleLockRow(r)}
-                      title={r.locked ? "Buka kunci" : "Kunci entri"}
-                    >
-                      <Lock className="w-4 h-4" />
-                    </Button> */}
-
                     {!rowLocked ? (
-                      // FINALISASI -> buka modal -> hit /finalize-row
                       <Button
                         size="sm"
                         variant="outline"
@@ -1097,7 +1089,6 @@ export function MeterGrid() {
                         <LockOpen className="w-4 h-4" />
                       </Button>
                     ) : (
-                      //lock
                       <Button
                         size="sm"
                         variant="outline"
@@ -1166,35 +1157,7 @@ export function MeterGrid() {
         </>
       )}
 
-      {/* Dialog finalisasi per row */}
-      {/* <AlertDialog
-        open={!!lockTarget}
-        onOpenChange={(o) => !o && setLockTarget(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Finalisasi Tagihan?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Data <b>{lockTarget?.nama}</b> untuk periode{" "}
-              <b>{renderPeriodeLabel(period)}</b> akan
-              <b> dikunci</b> dan <b>tagihan dibuat</b>. Notifikasi WhatsApp
-              akan dikirim.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={locking}>Batal</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={locking}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
-              onClick={() => lockTarget && finalizeRow(lockTarget)}
-            >
-              {locking ? "Memproses…" : "Ya, Finalisasi"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog> */}
-
-      {/* Modal finalisasi per row */}
+      {/* Dialog finalisasi per row (pakai modal khusus) */}
       <LockRowModal
         open={!!lockTarget}
         onClose={() => setLockTarget(null)}

@@ -7,6 +7,9 @@ const PROTECTED = [
   "/pelanggan",
   "/catat-meter",
   "/jadwal-pencatatan",
+  "/pelunasan",
+  "/tagihan-pembayaran",
+  "/reset-meter",
   "/pengaturan",
   "/warga-dashboard",
   "/pelunasan",               // ✅ lindungi juga halaman pelunasan (butuh login)

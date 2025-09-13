@@ -61,6 +61,8 @@ model Pelanggan {
   wa          String?  @db.VarChar(20)
   alamat      String
   meterAwal   Int      @default(0)
+  // Tambahan penting agar alur reset berjalan
+  isResetMeter Boolean  @default(false)
   statusAktif Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -84,6 +86,8 @@ model Pelanggan {
   // Back-relations ke transaksi (1 Pelanggan punya banyak CatatMeter & Tagihan)
   catatans CatatMeter[]
   tagihans Tagihan[]
+  // Back-relation transaksi reset
+  resets ResetMeter[] @relation("PelangganReset")
 
   // 🔹 constraint unik per zona (null mengabaikan unik)
   @@unique([zonaId, noUrutRumah])
@@ -372,29 +376,26 @@ model JadwalPencatatan {
   @@index([petugasId])
 }
 
-// model session dan magic link untuk kirim link auto login
-model Session {
-  id        String   @id @default(cuid())
-  token     String   @unique
-  userId    String
-  user      User     @relation("UserSessions", fields: [userId], references: [id])
-  expiresAt DateTime
-  createdAt DateTime @default(now())
+/// === Tambahkan/letakkan ENUM di atas model yang memakainya ===
+enum ResetStatus {
+  DRAFT
+  SELESAI
 }
 
-model MagicLinkToken {
-  id        String   @id @default(cuid())
-  token     String   @unique
-  userId    String
-  user      User     @relation("UserMagicLinks", fields: [userId], references: [id])
+model ResetMeter {
+  id            String      @id @default(cuid())
+  pelangganId   String
+  pelanggan     Pelanggan   @relation("PelangganReset", fields: [pelangganId], references: [id])
 
-  tagihanId String?
-  tagihan   Tagihan? @relation("TagihanMagicLinks", fields: [tagihanId], references: [id])
+  tanggalReset  DateTime
+  alasan        String?     @db.Text
+  meterAwalBaru Int
+  status        ResetStatus @default(DRAFT)
 
-  purpose   String   @default("pelunasan")
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
-  @@index([userId, purpose, expiresAt])
+  @@index([pelangganId])
+  @@index([tanggalReset])
+  @@index([status]) // kalau DB-mu protes di enum index, hapus baris ini dulu
 }
