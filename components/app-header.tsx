@@ -14,6 +14,7 @@ import {
   FileText,
   CalendarDays,
   RotateCcw,
+  Grid3X3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter, usePathname } from "next/navigation";
@@ -76,6 +77,12 @@ const MENU_ITEMS: MenuItem[] = [
     icon: ClipboardList,
     roles: ["ADMIN", "OPERATOR", "PETUGAS"],
   },
+  // {
+  //   href: "catat-meter-blok",
+  //   label: "Catat Meter Blok",
+  //   icon: Grid3X3,
+  //   roles: ["ADMIN", "OPERATOR"],
+  // },
   {
     href: "/jadwal-pencatatan",
     label: "Jadwal Pencatatan",
@@ -121,6 +128,7 @@ const PATH_LABELS: Record<string, string> = {
   "/pelanggan": "Pelanggan",
   "/zona": "Zona",
   "/catat-meter": "Catat Meter",
+  "/catat-meter-blok": "Catat Meter Blok",
   "/jadwal-pencatatan": "Jadwal Pencatatan",
   "/pelunasan": "Pelunasan",
   "/tagihan-pembayaran": "Tagihan & Pembayaran",

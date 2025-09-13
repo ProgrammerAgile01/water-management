@@ -9,6 +9,7 @@ import {
   CalendarDays,
   FileText,
   RotateCcw,
+  Grid3X3,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -19,6 +20,11 @@ const navItems = [
   { href: "/dashboard", label: "Home", icon: Home },
   { href: "/pelanggan", label: "Pelanggan", icon: Users },
   { href: "/catat-meter", label: "Catat", icon: ClipboardList },
+  // {
+  //   href: "catat-meter-blok",
+  //   label: "Catat Meter Blok",
+  //   icon: Grid3X3,
+  // },
   { href: "/jadwal-pencatatan", label: "Jadwal", icon: CalendarDays },
   { href: "/reset-meteran", label: "Reset", icon: RotateCcw },
   { href: "/pelunasan", label: "Bayar", icon: CreditCard },
