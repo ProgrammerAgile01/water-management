@@ -5,11 +5,12 @@ import { GlassCard } from "./glass-card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
-import { Eye, CheckCircle, FileText } from "lucide-react";
+import { Eye, CheckCircle, FileText, CreditCard } from "lucide-react";
 import { useBillingStore } from "@/lib/billing-store";
 import { useToast } from "@/hooks/use-toast";
 import { useMobile } from "@/hooks/use-mobile";
 import type { BillingItem } from "@/lib/billing-store";
+import { useRouter } from "next/navigation";
 
 function canApproveBilling(b: BillingItem) {
   // Tampilkan approve jika:
@@ -24,6 +25,7 @@ function canApproveBilling(b: BillingItem) {
 }
 
 export function BillingTable() {
+  const router = useRouter();
   const { filteredBillings, approveBilling, isLoading } = useBillingStore();
   const { toast } = useToast();
   const isMobile = useMobile();
@@ -197,6 +199,16 @@ export function BillingTable() {
                   </Button>
                 )}
 
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.push(`/input-pembayaran/${b.id}`)}
+                  className="flex-1"
+                >
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  Input Pembayaran
+                </Button>
+
                 {showApprove && (
                   <Button
                     size="sm"
@@ -313,6 +325,16 @@ export function BillingTable() {
                           Lihat Bukti
                         </Button>
                       )}
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => router.push(`/input-pembayaran/${b.id}`)}
+                        className="flex-1"
+                      >
+                        <CreditCard className="h-4 w-4 mr-2" />
+                        Input Pembayaran
+                      </Button>
 
                       {showApprove && (
                         <Button

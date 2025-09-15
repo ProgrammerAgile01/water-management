@@ -14,6 +14,7 @@ const PROTECTED = [
   "/pengaturan",
   "/warga-dashboard",
   "/pelunasan",               // ✅ lindungi juga halaman pelunasan (butuh login)
+  "/input-pembayaran"
 ];
 
 const PUBLIC_PREFIX = [

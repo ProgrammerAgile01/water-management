@@ -423,15 +423,15 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // --- 2) Buat magic link token sekali pakai & expired cepat ---
+    // --- 2) Buat magic link token ---
     const token = randomToken(32);
-    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24); // 24 jam
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7); // 7 day
     await prisma.magicLinkToken.create({
       data: {
         token,
         userId: userId!,
         tagihanId: tagihan.id, // biar landing langsung ke tagihan /pelunasan?id=...
-        purpose: "pelunasan",
+        purpose: "pembayaran",
         expiresAt,
       },
     });
