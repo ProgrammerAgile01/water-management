@@ -11,6 +11,7 @@ import {
   RotateCcw,
   Grid3X3,
   FolderOpen,
+  BarChart3,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -32,6 +33,12 @@ const navItems = [
   { href: "/tagihan-pembayaran", label: "Tagihan", icon: FileText },
   { href: "/biaya", label: "Biaya", icon: FolderOpen },
   // { href: "/pengeluaran", label: "Pengeluaran", icon: CreditCard },
+  // {
+  //   href: "/laporan-summary",
+  //   label: "Laporan Summary",
+  //   icon: BarChart3,
+  //   roles: ["ADMIN", "OPERATOR"],
+  // },
   { href: "/pengaturan", label: "Setting", icon: Settings },
 ];
 

@@ -16,6 +16,7 @@ import {
   RotateCcw,
   Grid3X3,
   FolderOpen,
+  BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter, usePathname } from "next/navigation";
@@ -120,7 +121,12 @@ const MENU_ITEMS: MenuItem[] = [
     icon: CreditCard,
     roles: ["ADMIN", "OPERATOR"],
   },
-
+  {
+    href: "/laporan-summary",
+    label: "Laporan Summary",
+    icon: BarChart3,
+    roles: ["ADMIN", "OPERATOR"],
+  },
   {
     href: "/tools/import-export",
     label: "Import/Export",
@@ -148,6 +154,7 @@ const PATH_LABELS: Record<string, string> = {
   "/reset-meteran": "Reset Meteran",
   "/biaya": "Biaya",
   "/pengeluaran": "Pengeluaran",
+  "/laporan-summary": "Laporan Summary",
   "/pengaturan": "Pengaturan",
   "/tools/import-export": "Import/Export",
   "/login": "Login",
