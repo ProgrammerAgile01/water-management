@@ -88,6 +88,7 @@ model Pelanggan {
   tagihans Tagihan[]
   // Back-relation transaksi reset
   resets ResetMeter[] @relation("PelangganReset")
+  catatMeterBlok CatatMeterBlok[] @relation("PelangganToCatatMeterBlok")
 
   // 🔹 constraint unik per zona (null mengabaikan unik)
   @@unique([zonaId, noUrutRumah])
@@ -135,6 +136,7 @@ model CatatPeriode {
   updatedAt DateTime @updatedAt
 
   entries CatatMeter[]
+  catatMeterBlok   CatatMeterBlok[]  @relation("PeriodeToCatatMeterBlok")
 
   // audit delete
   deletedAt     DateTime? @db.DateTime(3)
@@ -376,6 +378,33 @@ model JadwalPencatatan {
   @@index([petugasId])
 }
 
+// model session dan magic link untuk kirim link auto login
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation("UserSessions", fields: [userId], references: [id])
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model MagicLinkToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation("UserMagicLinks", fields: [userId], references: [id])
+
+  tagihanId String?
+  tagihan   Tagihan? @relation("TagihanMagicLinks", fields: [tagihanId], references: [id])
+
+  purpose   String   @default("pelunasan")
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId, purpose, expiresAt])
+}
+
 /// === Tambahkan/letakkan ENUM di atas model yang memakainya ===
 enum ResetStatus {
   DRAFT
@@ -398,4 +427,30 @@ model ResetMeter {
   @@index([pelangganId])
   @@index([tanggalReset])
   @@index([status]) // kalau DB-mu protes di enum index, hapus baris ini dulu
+}
+
+model CatatMeterBlok {
+  id            String       @id @default(cuid())
+
+  periodeId     String
+  periode       CatatPeriode @relation("PeriodeToCatatMeterBlok", fields: [periodeId], references: [id])
+
+  pelangganId   String
+  pelanggan     Pelanggan    @relation("PelangganToCatatMeterBlok", fields: [pelangganId], references: [id])
+
+  meterAwal     Int          @default(0)
+  meterAkhir    Int?
+  pemakaianM3   Int          @default(0)
+  status        CatatStatus  @default(PENDING)
+  kendala       String?
+  isLocked      Boolean      @default(false)
+  lockedAt      DateTime?
+  deletedAt     DateTime?
+
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@unique([periodeId, pelangganId], name: "periodeId_pelangganId_blok")
+  @@index([periodeId])
+  @@index([pelangganId])
 }
