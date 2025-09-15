@@ -464,7 +464,57 @@ model MasterBiaya {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  // BACK-RELATION BARU: satu MasterBiaya bisa dipakai banyak detail pengeluaran
+  pengeluaranDetails PengeluaranDetail[]
+
   @@index([createdAt])
   @@map("master_biaya")
 }
 
+/// --- ENUM status pengeluaran ---
+enum PengeluaranStatus {
+  DRAFT
+  CLOSE
+}
+
+/// --- HEADER PENGELUARAN ---
+model Pengeluaran {
+  id                  String            @id @default(cuid())
+  noBulan             String            @db.VarChar(20) // contoh: "PG-2025-01"
+  tanggalInput        DateTime          @default(now())
+  tanggalPengeluaran  DateTime
+  total               Int               @default(0)
+  status              PengeluaranStatus @default(DRAFT)
+
+  details             PengeluaranDetail[]
+
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@index([noBulan])
+  @@index([tanggalPengeluaran])
+  @@index([status])
+  @@map("pengeluaran")
+}
+
+/// --- DETAIL PENGELUARAN ---
+model PengeluaranDetail {
+  id                 String       @id @default(cuid())
+
+  pengeluaranId      String
+  pengeluaran        Pengeluaran  @relation(fields: [pengeluaranId], references: [id], onDelete: Cascade)
+
+  masterBiayaId      String
+  masterBiaya        MasterBiaya  @relation(fields: [masterBiayaId], references: [id])
+
+  biayaNamaSnapshot  String       @db.VarChar(120)
+  keterangan         String       @db.VarChar(255)
+  nominal            Int
+
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@index([pengeluaranId])
+  @@index([masterBiayaId])
+  @@map("pengeluaran_detail")
+}

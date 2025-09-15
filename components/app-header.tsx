@@ -114,6 +114,12 @@ const MENU_ITEMS: MenuItem[] = [
     icon: FolderOpen,
     roles: ["ADMIN", "OPERATOR"],
   },
+  {
+    href: "/pengeluaran",
+    label: "Pengeluaran",
+    icon: CreditCard,
+    roles: ["ADMIN", "OPERATOR"],
+  },
 
   {
     href: "/tools/import-export",
@@ -141,6 +147,7 @@ const PATH_LABELS: Record<string, string> = {
   "/tagihan-pembayaran": "Tagihan & Pembayaran",
   "/reset-meteran": "Reset Meteran",
   "/biaya": "Biaya",
+  "/pengeluaran": "Pengeluaran",
   "/pengaturan": "Pengaturan",
   "/tools/import-export": "Import/Export",
   "/login": "Login",

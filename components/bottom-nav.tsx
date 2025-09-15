@@ -31,6 +31,7 @@ const navItems = [
   { href: "/pelunasan", label: "Bayar", icon: CreditCard },
   { href: "/tagihan-pembayaran", label: "Tagihan", icon: FileText },
   { href: "/biaya", label: "Biaya", icon: FolderOpen },
+  // { href: "/pengeluaran", label: "Pengeluaran", icon: CreditCard },
   { href: "/pengaturan", label: "Setting", icon: Settings },
 ];
 

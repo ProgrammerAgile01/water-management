@@ -409,7 +409,7 @@ export default function MasterBiayaPage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-teal-50 pb-20">
       <AuthGuard>
         <AppShell>
-          <AppHeader title="Master Biaya" />
+          <AppHeader title="Data Biaya" />
 
           <div className="container mx-auto px-4 space-y-6">
             {/* Header Section */}
@@ -420,7 +420,7 @@ export default function MasterBiayaPage() {
                 </div>
                 <div className="flex-1">
                   <h2 className="text-2xl font-bold text-foreground mb-2">
-                    Master Biaya
+                    Data Biaya
                   </h2>
                   <p className="text-muted-foreground">
                     Kelola entri master biaya menggunakan menu ini.
@@ -512,7 +512,7 @@ export default function MasterBiayaPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="deskripsi">Deskripsi (Opsional)</Label>
+                    <Label htmlFor="deskripsi">Deskripsi</Label>
                     <Textarea
                       id="deskripsi"
                       value={formData.deskripsi}
