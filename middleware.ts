@@ -10,6 +10,7 @@ const PROTECTED = [
   "/pelunasan",
   "/tagihan-pembayaran",
   "/reset-meter",
+  "/biaya",
   "/pengaturan",
   "/warga-dashboard",
   "/pelunasan",               // ✅ lindungi juga halaman pelunasan (butuh login)

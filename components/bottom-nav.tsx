@@ -10,6 +10,7 @@ import {
   FileText,
   RotateCcw,
   Grid3X3,
+  FolderOpen,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -29,6 +30,7 @@ const navItems = [
   { href: "/reset-meteran", label: "Reset", icon: RotateCcw },
   { href: "/pelunasan", label: "Bayar", icon: CreditCard },
   { href: "/tagihan-pembayaran", label: "Tagihan", icon: FileText },
+  { href: "/biaya", label: "Biaya", icon: FolderOpen },
   { href: "/pengaturan", label: "Setting", icon: Settings },
 ];
 

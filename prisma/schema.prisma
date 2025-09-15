@@ -454,3 +454,17 @@ model CatatMeterBlok {
   @@index([periodeId])
   @@index([pelangganId])
 }
+
+model MasterBiaya {
+  id         String   @id @default(cuid())
+  nama       String
+  kode       String?  @unique
+  deskripsi  String?
+  status     String   @default("Aktif") @db.VarChar(10)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([createdAt])
+  @@map("master_biaya")
+}
+

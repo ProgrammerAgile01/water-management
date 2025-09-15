@@ -17,6 +17,7 @@ const PROTECTED = [
   "/pelunasan",
   "/tagihan-pembayaran",
   "/reset-meter",
+  "/biaya",
   "/pengaturan",
   "/warga-dashboard",
 ];

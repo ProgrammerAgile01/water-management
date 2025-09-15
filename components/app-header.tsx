@@ -15,6 +15,7 @@ import {
   CalendarDays,
   RotateCcw,
   Grid3X3,
+  FolderOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter, usePathname } from "next/navigation";
@@ -107,6 +108,12 @@ const MENU_ITEMS: MenuItem[] = [
     icon: RotateCcw,
     roles: ["ADMIN", "OPERATOR"],
   },
+  {
+    href: "/biaya",
+    label: "Biaya",
+    icon: FolderOpen,
+    roles: ["ADMIN", "OPERATOR"],
+  },
 
   {
     href: "/tools/import-export",
@@ -133,6 +140,7 @@ const PATH_LABELS: Record<string, string> = {
   "/pelunasan": "Pelunasan",
   "/tagihan-pembayaran": "Tagihan & Pembayaran",
   "/reset-meteran": "Reset Meteran",
+  "/biaya": "Biaya",
   "/pengaturan": "Pengaturan",
   "/tools/import-export": "Import/Export",
   "/login": "Login",
