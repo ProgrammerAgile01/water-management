@@ -49,16 +49,17 @@ function adminWaText(p: {
     month: "long",
     year: "numeric",
   });
+
   return [
-    `*Notifikasi Pembayaran Masuk*${p.perusahaan ? ` — ${p.perusahaan}` : ""}`,
+    `*Notifikasi Pembayaran Masuk*${p.perusahaan ? `\n${p.perusahaan}` : ""}`,
     "",
-    `Pelanggan : ${p.pelangganNama}${
-      p.pelangganKode ? ` (${p.pelangganKode})` : ""
-    }`,
-    `Periode   : ${periodeLabel}`,
-    `Nominal   : ${formatRp(p.nominal)}`,
-    `Metode    : ${p.metode}`,
-    `Tanggal   : ${fmtTanggalID(p.tanggalBayar)}`,
+    "----------------------------------",
+    `• Pelanggan : ${p.pelangganNama}${p.pelangganKode ? ` (${p.pelangganKode})` : ""}`,
+    `• Periode      : ${periodeLabel}`,
+    `• Nominal     : ${formatRp(p.nominal)}`,
+    `• Metode      : ${p.metode}`,
+    `• Tanggal     : ${fmtTanggalID(p.tanggalBayar)}`,
+    "----------------------------------",
     "",
     p.link ? `Tinjau & verifikasi:\n${p.link}` : undefined,
   ]
@@ -171,13 +172,13 @@ export async function POST(req: NextRequest) {
     const tanggalBayar = tanggalStr ? new Date(tanggalStr) : new Date();
 
     // ambil setting utk perhitungan denda
-    const setting = await prisma.setting.findUnique({
-      where: { id: 1 },
-      select: {
-        dendaTelatBulanSama: true,
-        dendaTelatBulanBerbeda: true,
-      },
-    });
+    // const setting = await prisma.setting.findUnique({
+    //   where: { id: 1 },
+    //   select: {
+    //     dendaTelatBulanSama: true,
+    //     dendaTelatBulanBerbeda: true,
+    //   },
+    // });
     const t0 = await prisma.tagihan.findUnique({
       where: { id: tagihanId },
       select: { tglJatuhTempo: true, denda: true, totalTagihan: true },
@@ -188,15 +189,15 @@ export async function POST(req: NextRequest) {
         { status: 404 }
       );
 
-    // hitung denda sesuai tanggal bayar
-    let calculatedDenda = 0;
-    if (t0.tglJatuhTempo && tanggalBayar > t0.tglJatuhTempo) {
-      const diffMs = +tanggalBayar - +t0.tglJatuhTempo;
-      const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-      const diffMonths = Math.floor(diffDays / 30);
-      if (diffMonths === 0) calculatedDenda = setting?.dendaTelatBulanSama ?? 0;
-      else calculatedDenda = setting?.dendaTelatBulanBerbeda ?? 0;
-    }
+    // // hitung denda sesuai tanggal bayar
+    // let calculatedDenda = 0;
+    // if (t0.tglJatuhTempo && tanggalBayar > t0.tglJatuhTempo) {
+    //   const diffMs = +tanggalBayar - +t0.tglJatuhTempo;
+    //   const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    //   const diffMonths = Math.floor(diffDays / 30);
+    //   if (diffMonths === 0) calculatedDenda = setting?.dendaTelatBulanSama ?? 0;
+    //   else calculatedDenda = setting?.dendaTelatBulanBerbeda ?? 0;
+    // }
 
     // (opsional) tulis nama admin jika bukan warga
     let adminName: string | null = null;
@@ -212,13 +213,13 @@ export async function POST(req: NextRequest) {
     } catch {}
 
     const pembayaran = await prisma.$transaction(async (tx) => {
-      // 1) upsert denda ke Tagihan jika perlu (agar tidak mismatch)
-      if ((t0.denda ?? 0) !== calculatedDenda) {
-        await tx.tagihan.update({
-          where: { id: tagihanId },
-          data: { denda: calculatedDenda },
-        });
-      }
+      // // 1) upsert denda ke Tagihan jika perlu (agar tidak mismatch)
+      // if ((t0.denda ?? 0) !== calculatedDenda) {
+      //   await tx.tagihan.update({
+      //     where: { id: tagihanId },
+      //     data: { denda: calculatedDenda },
+      //   });
+      // }
 
       // 2) simpan pembayaran
       const pay = await tx.pembayaran.create({
@@ -240,9 +241,11 @@ export async function POST(req: NextRequest) {
       });
       const t = await tx.tagihan.findUnique({
         where: { id: tagihanId },
-        select: { totalTagihan: true, denda: true },
+        select: { totalTagihan: true },
+        // select: { totalTagihan: true, denda: true },
       });
-      const harus = (t?.totalTagihan ?? 0) + (t?.denda ?? 0);
+      // const harus = (t?.totalTagihan ?? 0) + (t?.denda ?? 0);
+      const harus = t?.totalTagihan ?? 0; // denda dimatikan
       const sudah = agg._sum.jumlahBayar ?? 0;
 
       await tx.tagihan.update({

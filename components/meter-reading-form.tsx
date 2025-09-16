@@ -573,6 +573,17 @@ export function MeterReadingForm() {
             "Mulai Pencatatan"
           )}
         </Button>
+
+        {/* {selectedPeriod && (
+          <Button
+            onClick={openFinalizeModal}
+            variant="outline"
+            className="h-12 w-full sm:w-auto bg-yellow-50 border-yellow-200 text-yellow-700 hover:bg-yellow-100"
+            disabled={checking}
+          >
+            <Lock className="w-4 h-4 mr-2" /> Finalize & Kunci
+          </Button>
+        )} */}
       </div>
 
       {isCurrentPeriodFinal && (

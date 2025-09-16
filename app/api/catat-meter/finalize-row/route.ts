@@ -193,9 +193,90 @@ async function sendWaAndLog(tujuanRaw: string, text: string) {
 }
 
 // lampiran pdf ke wa
-async function sendWaPdfAndLog(
+// async function sendWaPdfAndLog(
+//   tujuanRaw: string,
+//   pdfUrl: string,
+//   filename: string,
+//   caption?: string
+// ) {
+//   const to = tujuanRaw.replace(/\D/g, "").replace(/^0/, "62");
+//   const base = (process.env.WA_SENDER_URL || "").replace(/\/$/, "");
+//   const apiKey = process.env.WA_SENDER_API_KEY || "";
+//   if (!base) {
+//     await prisma.waLog.create({
+//       data: {
+//         tujuan: to,
+//         tipe: "TAGIHAN_PDF",
+//         payload: JSON.stringify({
+//           to,
+//           pdfUrl,
+//           filename,
+//           caption,
+//           err: "WA_SENDER_URL empty",
+//         }),
+//         status: "FAILED",
+//       },
+//     });
+//     return;
+//   }
+
+//   const log = await prisma.waLog.create({
+//     data: {
+//       tujuan: to,
+//       tipe: "TAGIHAN_PDF",
+//       payload: JSON.stringify({ to, pdfUrl, filename, caption }),
+//       status: "PENDING",
+//     },
+//   });
+
+//   try {
+//     const r = await fetch(`${base}/send-document`, {
+//       method: "POST",
+//       headers: {
+//         "Content-Type": "application/json",
+//         ...(apiKey ? { "x-api-key": apiKey } : {}),
+//       },
+//       body: JSON.stringify({
+//         to,
+//         url: pdfUrl,
+//         filename,
+//         caption,
+//         mimeType: "application/pdf",
+//       }),
+//     });
+
+//     await prisma.waLog.update({
+//       where: { id: log.id },
+//       data: {
+//         status: r.ok ? "SENT" : "FAILED",
+//         payload: JSON.stringify({
+//           to,
+//           pdfUrl,
+//           filename,
+//           http: { ok: r.ok, status: r.status },
+//         }),
+//       },
+//     });
+//   } catch (e: any) {
+//     await prisma.waLog.update({
+//       where: { id: log.id },
+//       data: {
+//         status: "FAILED",
+//         payload: JSON.stringify({
+//           to,
+//           pdfUrl,
+//           filename,
+//           err: String(e?.message || e),
+//         }),
+//       },
+//     });
+//   }
+// }
+
+// kirim jpg
+async function sendWaImageAndLog(
   tujuanRaw: string,
-  pdfUrl: string,
+  imgUrl: string,
   filename: string,
   caption?: string
 ) {
@@ -206,10 +287,10 @@ async function sendWaPdfAndLog(
     await prisma.waLog.create({
       data: {
         tujuan: to,
-        tipe: "TAGIHAN_PDF",
+        tipe: "TAGIHAN_IMG",
         payload: JSON.stringify({
           to,
-          pdfUrl,
+          imgUrl,
           filename,
           caption,
           err: "WA_SENDER_URL empty",
@@ -219,18 +300,16 @@ async function sendWaPdfAndLog(
     });
     return;
   }
-
   const log = await prisma.waLog.create({
     data: {
       tujuan: to,
-      tipe: "TAGIHAN_PDF",
-      payload: JSON.stringify({ to, pdfUrl, filename, caption }),
+      tipe: "TAGIHAN_IMG",
+      payload: JSON.stringify({ to, imgUrl, filename, caption }),
       status: "PENDING",
     },
   });
-
   try {
-    const r = await fetch(`${base}/send-document`, {
+    const r = await fetch(`${base}/send-image`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -238,24 +317,15 @@ async function sendWaPdfAndLog(
       },
       body: JSON.stringify({
         to,
-        url: pdfUrl,
+        url: imgUrl,
         filename,
         caption,
-        mimeType: "application/pdf",
+        mimeType: "image/jpeg",
       }),
     });
-
     await prisma.waLog.update({
       where: { id: log.id },
-      data: {
-        status: r.ok ? "SENT" : "FAILED",
-        payload: JSON.stringify({
-          to,
-          pdfUrl,
-          filename,
-          http: { ok: r.ok, status: r.status },
-        }),
-      },
+      data: { status: r.ok ? "SENT" : "FAILED" },
     });
   } catch (e: any) {
     await prisma.waLog.update({
@@ -264,7 +334,7 @@ async function sendWaPdfAndLog(
         status: "FAILED",
         payload: JSON.stringify({
           to,
-          pdfUrl,
+          imgUrl,
           filename,
           err: String(e?.message || e),
         }),
@@ -482,31 +552,21 @@ export async function POST(req: NextRequest) {
       // === KIRIM DI BACKGROUND — JANGAN await ===
       (async () => {
         try {
-          await sendWaAndLog(pelanggan.wa, text);
-        } catch (e) {
-          // optional: tulis log error kamu di sini
-        }
+          await sendWaAndLog(pelanggan.wa!, text);
+        } catch {}
 
-        if (pdfUrl) {
-          try {
-            const fileName = `INV/${(tagihan.createdAt ?? new Date())
-              .toISOString()
-              .slice(0, 10)
-              .replace(/-/g, "")}/${(tagihan.id || "")
-              .slice(-6)
-              .toUpperCase()}.pdf`;
-            const caption = `Tagihan Air Periode ${new Date(
-              `${periodeStr}-01`
-            ).toLocaleDateString("id-ID", {
-              month: "long",
-              year: "numeric",
-            })} - ${pelanggan.nama}`;
-
-            await sendWaPdfAndLog(pelanggan.wa, pdfUrl, fileName, caption);
-          } catch (e) {
-            // optional: tulis log error kamu di sini juga
-          }
-        }
+        // kirim gambar (bukan pdf)
+        try {
+          const imgUrl = `${origin}/print/tagihan/${tagihan.id}?compact=1`;
+          const fileName = `TAGIHAN-${tagihan.id}.jpg`;
+          const caption = `Tagihan Air Periode ${new Date(
+            `${periodeStr}-01`
+          ).toLocaleDateString("id-ID", {
+            month: "long",
+            year: "numeric",
+          })} - ${pelanggan.nama}`;
+          await sendWaImageAndLog(pelanggan.wa!, imgUrl, fileName, caption);
+        } catch {}
       })();
     }
 

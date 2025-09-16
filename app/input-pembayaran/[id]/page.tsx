@@ -21,6 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import { AuthGuard } from "@/components/auth-guard";
 import { AppShell } from "@/components/app-shell";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ApprovePaymentModal } from "@/components/approve-payment-modal";
 
 type AppRole = "ADMIN" | "PETUGAS" | "WARGA";
 
@@ -63,8 +64,8 @@ export default function InputPembayaranPage() {
   const [role, setRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
   const [t, setT] = useState<TagihanDetail | null>(null);
-  const [denda1, setDenda1] = useState(0);
-  const [denda2, setDenda2] = useState(0);
+  // const [denda1, setDenda1] = useState(0);
+  // const [denda2, setDenda2] = useState(0);
 
   // pembayaran dari DB (kalau sudah pernah upload)
   const [payDB, setPayDB] = useState<PembayaranLite | null>(null);
@@ -79,6 +80,10 @@ export default function InputPembayaranPage() {
 
   const [paymentProof, setPaymentProof] = useState<File | null>(null);
   const [proofPreview, setProofPreview] = useState<string | null>(null);
+
+  // modal approve
+  const [openApprove, setOpenApprove] = useState(false);
+  const [loadingApprove, setLoadingApprove] = useState(false);
 
   // role dari /api/auth/me (AuthGuard juga akan set localStorage)
   useEffect(() => {
@@ -105,8 +110,8 @@ export default function InputPembayaranPage() {
           throw new Error(data?.message || "Gagal mengambil tagihan");
         if (!alive) return;
         setT(data.tagihan);
-        setDenda1(data.dendaFirstMonth || 0);
-        setDenda2(data.dendaNextMonths || 0);
+        // setDenda1(data.dendaFirstMonth || 0);
+        // setDenda2(data.dendaNextMonths || 0);
       } catch (e: any) {
         toast({
           title: "Error",
@@ -169,22 +174,24 @@ export default function InputPembayaranPage() {
   }
 
   // hitung denda dinamis (client) berdasar tanggal input
-  const dendaHitung = useMemo(() => {
-    if (!t?.tglJatuhTempo) return 0;
-    const due = new Date(t.tglJatuhTempo);
-    const pay = new Date(tanggalBayar);
-    if (!(due instanceof Date) || !(pay instanceof Date)) return 0;
-    if (pay <= due) return 0;
-    const diffDays = Math.ceil((+pay - +due) / (1000 * 60 * 60 * 24));
-    const diffMonths = Math.floor(diffDays / 30);
-    if (diffMonths === 0) return denda1;
-    return denda2;
-  }, [t?.tglJatuhTempo, tanggalBayar, denda1, denda2]);
+  // const dendaHitung = useMemo(() => {
+  //   if (!t?.tglJatuhTempo) return 0;
+  //   const due = new Date(t.tglJatuhTempo);
+  //   const pay = new Date(tanggalBayar);
+  //   if (!(due instanceof Date) || !(pay instanceof Date)) return 0;
+  //   if (pay <= due) return 0;
+  //   const diffDays = Math.ceil((+pay - +due) / (1000 * 60 * 60 * 24));
+  //   const diffMonths = Math.floor(diffDays / 30);
+  //   if (diffMonths === 0) return denda1;
+  //   return denda2;
+  // }, [t?.tglJatuhTempo, tanggalBayar, denda1, denda2]);
 
-  const totalPlusDenda = (t?.totalTagihan ?? 0) + dendaHitung;
+  // const totalPlusDenda = (t?.totalTagihan ?? 0) + dendaHitung;
 
-  // ===== lock form kalau sudah ada pembayaran / PAID =====
-  const lockForm = !!payDB || t?.statusBayar === "PAID";
+  const totalBayar = t?.totalTagihan ?? 0;
+
+  // ===== lock form kalau sudah APPROVE / VERIVIED =====
+  const lockForm = t?.statusVerif === "VERIFIED";
 
   const onSubmit = async () => {
     try {
@@ -194,7 +201,7 @@ export default function InputPembayaranPage() {
 
       const fd = new FormData();
       fd.set("tagihanId", t.id);
-      fd.set("nominalBayar", String(totalPlusDenda)); // biasanya bayar penuh
+      fd.set("nominalBayar", String(totalBayar)); // biasanya bayar penuh
       fd.set("tanggalBayar", tanggalBayar);
       fd.set("metodeBayar", metode);
       fd.set("keterangan", keterangan);
@@ -235,13 +242,26 @@ export default function InputPembayaranPage() {
     }
   };
 
-  const onApprove = async () => {
+  // approve
+  const summary = t && {
+    tagihanId: t.id,
+    pelangganNama: t.pelangganNama,
+    pelangganKode: t.pelangganKode,
+    periode: t.periode,
+    totalTagihan: t.totalTagihan, // tanpa denda
+    tanggalBayar, // state dari formmu
+    metodeBayar: metode, // state dari formmu
+    keterangan, // state dari formmu
+  };
+
+  async function handleConfirmApprove() {
     try {
+      setLoadingApprove(true);
       if (!t) return;
       const r = await fetch(`/api/tagihan/${t.id}/verify`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "APPROVE" }),
+        body: JSON.stringify({ action: "APPROVE", sendWa: true }),
       });
       const data = await r.json();
       if (!r.ok || !data?.ok) throw new Error(data?.message || "Gagal approve");
@@ -260,8 +280,11 @@ export default function InputPembayaranPage() {
         description: e?.message || "Terjadi kesalahan",
         variant: "destructive",
       });
+    } finally {
+      setLoadingApprove(false);
+      setOpenApprove(false);
     }
-  };
+  }
 
   const fmt = (n: number) =>
     new Intl.NumberFormat("id-ID", {
@@ -407,6 +430,10 @@ export default function InputPembayaranPage() {
                               ? "Dibayar"
                               : "Belum Dibayar"}
                           </span>
+                          {" | "}
+                          <span className={`${t.statusVerif === "VERIFIED" ? "text-green-600" : "text-orange-600"}`}>
+                            {t.statusVerif === "VERIFIED" ? "Diverifikasi" : "Menunggu verifikasi admin"}
+                          </span>
                         </p>
                       </div>
                     </div>
@@ -440,20 +467,19 @@ export default function InputPembayaranPage() {
                         <span className="text-muted-foreground">Abonemen:</span>
                         <span className="font-medium">{fmt(t.abonemen)}</span>
                       </div>
-                      <div className="flex justify-between">
+                      {/* <div className="flex justify-between">
                         <span className="text-muted-foreground">Subtotal:</span>
                         <span className="font-medium">
                           {fmt(t.totalTagihan)}
                         </span>
-                      </div>
-                      <div className="flex justify-between">
+                      </div> */}
+                      {/* <div className="flex justify-between">
                         <span className="text-muted-foreground">Denda:</span>
                         <span className="font-medium">{fmt(dendaHitung)}</span>
-                      </div>
+                      </div> */}
                       {/* Info Denda */}
-                      <div className="mt-3 rounded-lg border border-yellow-200/60 bg-yellow-50/60 p-3">
+                      {/* <div className="mt-3 rounded-lg border border-yellow-200/60 bg-yellow-50/60 p-3">
                         <div className="flex items-start gap-2">
-                          {/* pakai lucide-react */}
                           <svg
                             viewBox="0 0 24 24"
                             className="w-4 h-4 text-yellow-700 mt-0.5"
@@ -489,7 +515,7 @@ export default function InputPembayaranPage() {
                               </li>
                             </ul>
 
-                            {/** badge “terlambat X hari” (opsional kalau punya due date & tanggal bayar) */}
+                            * badge “terlambat X hari” (opsional kalau punya due date & tanggal bayar)
                             {(() => {
                               // kalau punya variabel jatuh tempo & tanggal bayar, ini akan tampil.
                               // Ganti `tglJatuhTempo` & `tanggalBayar` dgn variabelmu.
@@ -520,11 +546,11 @@ export default function InputPembayaranPage() {
                             })()}
                           </div>
                         </div>
-                      </div>
+                      </div> */}
                       <div className="border-t border-border/20 pt-2 flex justify-between">
                         <span className="font-semibold">Total Bayar:</span>
                         <span className="font-bold text-lg">
-                          {fmt(totalPlusDenda)}
+                          {fmt(t.totalTagihan)}
                         </span>
                       </div>
                     </div>
@@ -820,11 +846,10 @@ export default function InputPembayaranPage() {
                       <Upload className="w-4 h-4 mr-2" />
                       {lockForm ? "Sudah Diupload" : "Simpan"}
                     </Button>
-
                     {role === "ADMIN" && (
                       <Button
                         variant="outline"
-                        onClick={onApprove}
+                        onClick={() => setOpenApprove(true)}
                         className="w-full h-12 text-base border-accent hover:bg-primary bg-transparent text-black hover:text-white mt-3.5"
                         disabled={t.statusVerif === "VERIFIED"}
                       >
@@ -833,6 +858,13 @@ export default function InputPembayaranPage() {
                           : "Approve Pembayaran"}
                       </Button>
                     )}
+                    <ApprovePaymentModal
+                      open={openApprove}
+                      onClose={() => setOpenApprove(false)}
+                      onConfirm={handleConfirmApprove}
+                      isLoading={loadingApprove}
+                      data={summary}
+                    />
                   </div>
                 </div>
               </div>
