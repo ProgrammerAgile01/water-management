@@ -21,17 +21,17 @@ import { GlassCard } from "./glass-card";
 const navItems = [
   { href: "/dashboard", label: "Home", icon: Home },
   { href: "/pelanggan", label: "Pelanggan", icon: Users },
-  { href: "/catat-meter", label: "Catat", icon: ClipboardList },
+  // { href: "/catat-meter", label: "Catat", icon: ClipboardList },
   // {
   //   href: "catat-meter-blok",
   //   label: "Catat Meter Blok",
   //   icon: Grid3X3,
   // },
-  { href: "/jadwal-pencatatan", label: "Jadwal", icon: CalendarDays },
-  { href: "/reset-meteran", label: "Reset", icon: RotateCcw },
-  { href: "/pelunasan", label: "Bayar", icon: CreditCard },
+  // { href: "/jadwal-pencatatan", label: "Jadwal", icon: CalendarDays },
+  // { href: "/reset-meteran", label: "Reset", icon: RotateCcw },
+  // { href: "/pelunasan", label: "Bayar", icon: CreditCard },
   { href: "/tagihan-pembayaran", label: "Tagihan", icon: FileText },
-  { href: "/biaya", label: "Biaya", icon: FolderOpen },
+  // { href: "/biaya", label: "Biaya", icon: FolderOpen },
   // { href: "/pengeluaran", label: "Pengeluaran", icon: CreditCard },
   // {
   //   href: "/laporan-summary",
@@ -39,7 +39,7 @@ const navItems = [
   //   icon: BarChart3,
   //   roles: ["ADMIN", "OPERATOR"],
   // },
-  { href: "/pengaturan", label: "Setting", icon: Settings },
+  // { href: "/pengaturan", label: "Setting", icon: Settings },
 ];
 
 export function BottomNav() {

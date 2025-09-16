@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { CatatStatus } from "@prisma/client";
 import { randomToken } from "@/lib/auth-utils";
 import { cookies } from "next/headers";
+import puppeteer from "puppeteer";
 export const runtime = "nodejs";
 
 // util: ambil base URL app untuk bikin link PDF
@@ -37,6 +38,11 @@ function waText(p: {
     telepon?: string | null;
     email?: string | null;
     alamat?: string | null;
+    anNorekPembayaran?: string | null;
+    namaBankPembayaran?: string | null;
+    namaBendahara?: string | null;
+    norekPembayaran?: string | null;
+    whatsappCs?: string | null;
   };
   nama?: string;
   kode?: string;
@@ -58,14 +64,14 @@ function waText(p: {
   });
 
   const bayarLines = [
-    "• Tunai di kantor kami.",
-    "• BCA 123456789 a.n. Tirtabening.",
-    // "• VA: 88xxxxxxxx (opsional).",
+    `• Tunai ke bendahara (${p.setting?.namaBendahara}).`,
+    `• ${p.setting?.namaBankPembayaran} ${p.setting?.norekPembayaran} a.n. ${p.setting?.anNorekPembayaran}.`,
   ].join("\n");
 
   const kontakLine = [
     p.setting?.telepon ? `Telepon: ${p.setting.telepon}` : null,
     p.setting?.email ? `Email: ${p.setting.email}` : null,
+    p.setting?.whatsappCs ? `WhatsApp: ${p.setting.whatsappCs}` : null,
   ]
     .filter(Boolean)
     .join("\n");
@@ -124,7 +130,7 @@ function waText(p: {
   sections.push("Terima kasih 🙏");
 
   // note
-  sections.push(["*NOTE:*", "Dokumen tagihan (PDF) terlampir."].join("\n"));
+  sections.push(["*NOTE:*"].join("\n"));
 
   // Gabung antar-section dengan 1 baris kosong
   return sections
@@ -276,8 +282,7 @@ async function sendWaAndLog(tujuanRaw: string, text: string) {
 // kirim jpg
 async function sendWaImageAndLog(
   tujuanRaw: string,
-  imgUrl: string,
-  filename: string,
+  tagihanId: string,
   caption?: string
 ) {
   const to = tujuanRaw.replace(/\D/g, "").replace(/^0/, "62");
@@ -290,8 +295,7 @@ async function sendWaImageAndLog(
         tipe: "TAGIHAN_IMG",
         payload: JSON.stringify({
           to,
-          imgUrl,
-          filename,
+          tagihanId,
           caption,
           err: "WA_SENDER_URL empty",
         }),
@@ -300,15 +304,37 @@ async function sendWaImageAndLog(
     });
     return;
   }
+
   const log = await prisma.waLog.create({
     data: {
       tujuan: to,
       tipe: "TAGIHAN_IMG",
-      payload: JSON.stringify({ to, imgUrl, filename, caption }),
+      payload: JSON.stringify({ to, tagihanId, caption }),
       status: "PENDING",
     },
   });
+
   try {
+    // ⬇️ render halaman tagihan pakai Puppeteer
+    const browser = await puppeteer.launch({ headless: "new" });
+    const page = await browser.newPage();
+    const origin =
+      process.env.APP_ORIGIN ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      "http://localhost:3000";
+
+    await page.goto(`${origin}/print/tagihan/${tagihanId}?compact=1`, {
+      waitUntil: "networkidle0",
+    });
+
+    await page.setViewport({ width: 380, height: 800, deviceScaleFactor: 2 });
+    await page.evaluate(() => { document.body.style.background = "#ffffff"; });
+
+    // Screenshot jadi JPEG
+    const buffer = await page.screenshot({ type: "jpeg", quality: 85, fullPage: true });
+    await browser.close();
+
+    // Kirim ke WA sender
     const r = await fetch(`${base}/send-image`, {
       method: "POST",
       headers: {
@@ -317,12 +343,13 @@ async function sendWaImageAndLog(
       },
       body: JSON.stringify({
         to,
-        url: imgUrl,
-        filename,
+        base64: buffer.toString("base64"), // ⬅️ WAJIB: pakai 'base64', bukan 'image'
+        filename: `tagihan-${tagihanId}.jpg`,
         caption,
         mimeType: "image/jpeg",
       }),
     });
+
     await prisma.waLog.update({
       where: { id: log.id },
       data: { status: r.ok ? "SENT" : "FAILED" },
@@ -334,8 +361,8 @@ async function sendWaImageAndLog(
         status: "FAILED",
         payload: JSON.stringify({
           to,
-          imgUrl,
-          filename,
+          tagihanId,
+          caption,
           err: String(e?.message || e),
         }),
       },
@@ -534,6 +561,11 @@ export async function POST(req: NextRequest) {
             telepon: setting.telepon,
             email: setting.email,
             alamat: setting.alamat,
+            anNorekPembayaran: setting.anNorekPembayaran,
+            namaBankPembayaran: setting.namaBankPembayaran,
+            namaBendahara: setting.namaBendahara,
+            norekPembayaran: setting.norekPembayaran,
+            whatsappCs: setting.whatsappCs,
           },
           nama: pelanggan.nama,
           kode: pelanggan.kode || undefined,
@@ -557,15 +589,14 @@ export async function POST(req: NextRequest) {
 
         // kirim gambar (bukan pdf)
         try {
-          const imgUrl = `${origin}/print/tagihan/${tagihan.id}?compact=1`;
-          const fileName = `TAGIHAN-${tagihan.id}.jpg`;
           const caption = `Tagihan Air Periode ${new Date(
             `${periodeStr}-01`
           ).toLocaleDateString("id-ID", {
             month: "long",
             year: "numeric",
           })} - ${pelanggan.nama}`;
-          await sendWaImageAndLog(pelanggan.wa!, imgUrl, fileName, caption);
+
+          await sendWaImageAndLog(pelanggan.wa!, tagihan.id, caption);
         } catch {}
       })();
     }

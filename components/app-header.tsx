@@ -91,12 +91,12 @@ const MENU_ITEMS: MenuItem[] = [
     icon: CalendarDays,
     roles: ["ADMIN"],
   },
-  {
-    href: "/pelunasan",
-    label: "Pelunasan",
-    icon: CreditCard,
-    roles: ["ADMIN", "OPERATOR", "WARGA"],
-  },
+  // {
+  //   href: "/pelunasan",
+  //   label: "Pelunasan",
+  //   icon: CreditCard,
+  //   roles: ["ADMIN", "OPERATOR", "WARGA"],
+  // },
   {
     href: "/tagihan-pembayaran",
     label: "Tagihan & Pembayaran",
@@ -149,7 +149,7 @@ const PATH_LABELS: Record<string, string> = {
   "/catat-meter": "Catat Meter",
   "/catat-meter-blok": "Catat Meter Blok",
   "/jadwal-pencatatan": "Jadwal Pencatatan",
-  "/pelunasan": "Pelunasan",
+  // "/pelunasan": "Pelunasan",
   "/tagihan-pembayaran": "Tagihan & Pembayaran",
   "/reset-meteran": "Reset Meteran",
   "/biaya": "Biaya",

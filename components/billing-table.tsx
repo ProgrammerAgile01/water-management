@@ -336,7 +336,7 @@ export function BillingTable() {
                         Input Pembayaran
                       </Button>
 
-                      {showApprove && (
+                      {/* {showApprove && (
                         <Button
                           size="sm"
                           onClick={() => handleApprove(b.id, b.namaWarga)}
@@ -344,12 +344,12 @@ export function BillingTable() {
                           <CheckCircle className="h-4 w-4 mr-2" />
                           Approve
                         </Button>
-                      )}
+                      )} */}
 
-                      <Button variant="outline" size="sm">
+                      {/* <Button variant="outline" size="sm">
                         <FileText className="h-4 w-4 mr-2" />
                         Lihat Status
-                      </Button>
+                      </Button> */}
                     </div>
                   </td>
                 </tr>
