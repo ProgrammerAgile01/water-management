@@ -59,7 +59,8 @@ export async function middleware(req: NextRequest) {
     // ✅ Definisikan area yang boleh diakses WARGA
     const wargaAllowed = [
       "/warga-dashboard",
-      "/pelunasan"
+      // "/pelunasan"
+      "/tagihan-pembayaran"
     ];
 
     if (role === "WARGA") {

@@ -101,7 +101,7 @@ const MENU_ITEMS: MenuItem[] = [
     href: "/tagihan-pembayaran",
     label: "Tagihan & Pembayaran",
     icon: FileText,
-    roles: ["ADMIN", "OPERATOR"],
+    roles: ["ADMIN", "OPERATOR", "WARGA"],
   },
   {
     href: "/reset-meteran",
