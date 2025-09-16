@@ -188,6 +188,8 @@ export const useResetMeterStore = create<ResetMeterStore>((set, get) => ({
     }
   },
 
+  // lib/reset-meter-store.ts  (potongan fungsi saja)
+
   addReset: async (payload) => {
     set({ loading: true });
     try {
@@ -199,7 +201,7 @@ export const useResetMeterStore = create<ResetMeterStore>((set, get) => ({
           tanggalReset: payload.tanggalReset,
           alasan: payload.alasan ?? null,
           meterAwalBaru: Number(payload.meterAwalBaru),
-          status: (payload.status ?? "DRAFT") as ResetStatusAPI,
+          status: "SELESAI", // ⬅️ kirim selesai
         }),
       });
       if (!res.ok) throw new Error(await res.text());
@@ -225,9 +227,7 @@ export const useResetMeterStore = create<ResetMeterStore>((set, get) => ({
           ...(typeof payload.meterAwalBaru !== "undefined"
             ? { meterAwalBaru: Number(payload.meterAwalBaru) }
             : {}),
-          ...(payload.status
-            ? { status: payload.status as ResetStatusAPI }
-            : {}),
+          status: "SELESAI", // ⬅️ paksa selesai
         }),
       });
       if (!res.ok) throw new Error(await res.text());

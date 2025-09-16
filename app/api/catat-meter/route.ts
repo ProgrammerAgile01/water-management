@@ -353,9 +353,9 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // range tanggal (untuk filter reset)
+    // range tanggal (untuk filter reset bulan yang sama)
     const periodDate = parseISO(`${kodePeriode}-01`);
-    const monthRange = isValid(periodDate)
+    const monthRangeObj = isValid(periodDate)
       ? { gte: startOfMonth(periodDate), lte: endOfMonth(periodDate) }
       : null;
 
@@ -401,20 +401,23 @@ export async function GET(req: NextRequest) {
             nama: true,
             alamat: true,
             wa: true,
-            zona: { select: { nama: true } },
+            zona: { select: { nama: true, kode: true } },
+            // ⬇️ penting untuk override hasil reset lintas-bulan
+            isResetMeter: true,
+            meterAwal: true, // angka terbaru dari master pelanggan
           },
         },
       },
     });
 
-    // Map reset bulan ini → override meterAwal
+    // Map reset bulan ini → override meterAwal (fallback)
     let resetMap = new Map<string, number>();
-    if (monthRange && rows.length) {
+    if (monthRangeObj && rows.length) {
       const ids = Array.from(new Set(rows.map((r) => r.pelangganId)));
       const resets = await prisma.resetMeter.findMany({
         where: {
           pelangganId: { in: ids },
-          ...(monthRange ? { tanggalReset: monthRange } : {}),
+          ...(monthRangeObj ? { tanggalReset: monthRangeObj } : {}),
         },
         select: { pelangganId: true, meterAwalBaru: true, tanggalReset: true },
         orderBy: [{ pelangganId: "asc" }, { tanggalReset: "desc" }],
@@ -426,18 +429,34 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Susun items (override jika isResetMeter = true)
     const items = rows.map((r) => {
-      const meterAwalOverride = resetMap.get(r.pelangganId) ?? r.meterAwal;
+      let meterAwal = r.meterAwal;
+      let meterAkhir = r.meterAkhir ?? null;
+
+      if (r.pelanggan?.isResetMeter) {
+        // pakai angka terbaru dari master pelanggan (hasil reset)
+        meterAwal = r.pelanggan.meterAwal ?? r.meterAwal ?? 0;
+        meterAkhir = 0;
+      } else {
+        // fallback: kalau ada reset di bulan yang sama
+        const m = resetMap.get(r.pelangganId);
+        if (typeof m === "number") meterAwal = m;
+      }
+
+      const pemakaian = Math.max((meterAkhir ?? 0) - meterAwal, 0);
+      const total = (r.tarifPerM3 ?? 0) * pemakaian + (r.abonemen ?? 0);
+
       return {
         id: r.id,
         kodeCustomer: r.pelanggan.kode,
         nama: r.pelanggan.nama,
         alamat: r.pelanggan.alamat,
         phone: r.pelanggan.wa ?? "",
-        meterAwal: meterAwalOverride,
-        meterAkhir: r.meterAkhir ?? null,
-        pemakaian: Math.max((r.meterAkhir ?? 0) - meterAwalOverride, 0),
-        total: r.total,
+        meterAwal,
+        meterAkhir,
+        pemakaian,
+        total,
         kendala: r.kendala ?? "",
         tarifPerM3: r.tarifPerM3,
         abonemen: r.abonemen,
@@ -446,10 +465,10 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    const total = items.length;
+    const totalCount = items.length;
     const selesai = items.filter((x) => x.status === "completed").length;
-    const pending = Math.max(0, total - selesai);
-    const percent = total ? Math.round((selesai / total) * 100) : 0;
+    const pending = Math.max(0, totalCount - selesai);
+    const percent = totalCount ? Math.round((selesai / totalCount) * 100) : 0;
 
     return NextResponse.json({
       ok: true,
@@ -457,7 +476,7 @@ export async function GET(req: NextRequest) {
       tarifPerM3: periode.tarifPerM3,
       abonemen: periode.abonemen,
       locked: periode.isLocked,
-      progress: { total, selesai, pending, percent },
+      progress: { total: totalCount, selesai, pending, percent },
       items,
     });
   } catch (e: any) {
@@ -487,6 +506,7 @@ export async function PUT(req: NextRequest) {
     const row = await prisma.catatMeter.findUnique({
       where: { id },
       select: {
+        pelangganId: true, // ⬅️ diperlukan untuk mematikan flag reset
         meterAwal: true,
         tarifPerM3: true,
         abonemen: true,
@@ -517,16 +537,23 @@ export async function PUT(req: NextRequest) {
     const pemakaian = Math.max(0, end - row.meterAwal);
     const total = row.tarifPerM3 * pemakaian + row.abonemen;
 
-    await prisma.catatMeter.update({
-      where: { id },
-      data: {
-        meterAkhir: end,
-        pemakaianM3: pemakaian,
-        total,
-        status: CatatStatus.DONE,
-        kendala: note,
-      },
-    });
+    await prisma.$transaction([
+      prisma.catatMeter.update({
+        where: { id },
+        data: {
+          meterAkhir: end,
+          pemakaianM3: pemakaian,
+          total,
+          status: CatatStatus.DONE,
+          kendala: note,
+        },
+      }),
+      // Matikan flag reset setelah benar-benar dicatat
+      prisma.pelanggan.update({
+        where: { id: row.pelangganId },
+        data: { isResetMeter: false },
+      }),
+    ]);
 
     await recalcProgress(row.periodeId);
     await syncJadwalForZona(row.periodeId, row.zonaIdSnapshot); // ➜ update status jadwal
