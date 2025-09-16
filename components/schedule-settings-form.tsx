@@ -13,23 +13,22 @@ import { useScheduleSettingsStore } from "@/lib/schedule-setting-store";
 export function ScheduleSettingsForm() {
   const { settings, isLoading, loadSettings, updateSettings } =
     useScheduleSettingsStore();
-
   const { toast } = useToast();
-  const [formData, setFormData] = useState(settings);
+
+  // hanya pegang tanggalCatatDefault
+  const [formData, setFormData] = useState<{
+    tanggalCatatDefault: string | null;
+  }>({ tanggalCatatDefault: settings.tanggalCatatDefault });
   const [saving, setSaving] = useState(false);
 
-  // Load from API on mount
   useEffect(() => {
-    // hanya load sekali waktu pertama mount
-    loadSettings().catch(() => {
-      // diamkan atau tampilkan toast kecil
-    });
+    // load 1x
+    loadSettings().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Jika settings berubah setelah load, sinkronkan ke form
   useEffect(() => {
-    setFormData(settings);
+    setFormData({ tanggalCatatDefault: settings.tanggalCatatDefault });
   }, [settings]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -37,7 +36,6 @@ export function ScheduleSettingsForm() {
     setSaving(true);
     try {
       await updateSettings({
-        periode: formData.periode,
         tanggalCatatDefault: formData.tanggalCatatDefault,
       });
       toast({
@@ -66,30 +64,13 @@ export function ScheduleSettingsForm() {
 
       <div className="space-y-4">
         <div>
-          <Label htmlFor="periode">Periode Pencatatan</Label>
-          <Input
-            id="periode"
-            type="month"
-            value={formData.periode}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, periode: e.target.value }))
-            }
-            className="w-full"
-            disabled={isLoading || saving}
-          />
-        </div>
-
-        <div>
           <Label htmlFor="tanggal-catat">Tanggal Catat Meter</Label>
           <Input
             id="tanggal-catat"
             type="date"
-            value={formData.tanggalCatatDefault}
+            value={formData.tanggalCatatDefault ?? ""}
             onChange={(e) =>
-              setFormData((prev) => ({
-                ...prev,
-                tanggalCatatDefault: e.target.value,
-              }))
+              setFormData({ tanggalCatatDefault: e.target.value || null })
             }
             className="w-full"
             disabled={isLoading || saving}

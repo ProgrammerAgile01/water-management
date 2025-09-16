@@ -1,265 +1,253 @@
 // app/api/jadwal/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { z } from "zod";
-import { Prisma, CatatStatus } from "@prisma/client";
-import { toUiStatus } from "@/lib/status-map";
 
-export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-const UI_TO_DB: Record<string, string> = {
-  waiting: "WAITING",
-  "in-progress": "IN_PROGRESS",
-  "non-progress": "NON_PROGRESS",
-  finished: "DONE",
-  overdue: "OVERDUE",
-};
+function isYm(x?: string | null) {
+  return !!x && /^\d{4}-\d{2}$/.test(x);
+}
 
-/* ===================== GET /api/jadwal ===================== */
-/* ===================== GET /api/jadwal ===================== */
+// Ambil month dari query:
+// - Prioritas: month=YYYY-MM
+// - Kompat lama: year=YYYY & month=1..12 -> YYYY-MM
+function resolveMonthFromSearchParams(sp: URLSearchParams) {
+  let month = (sp.get("month") ?? "").slice(0, 7);
+  if (!isYm(month)) {
+    const y = sp.get("year");
+    const m = sp.get("month");
+    if (y && m && /^\d{4}$/.test(y) && /^\d{1,2}$/.test(m)) {
+      month = `${y}-${String(Number(m)).padStart(2, "0")}`;
+    }
+  }
+  return month;
+}
+
+function buildTanggalUntukBulan(month: string, settingDate?: Date | null) {
+  const [y, m] = month.split("-");
+  const dayFromSetting = settingDate ? settingDate.getUTCDate() : 1;
+  const lastDay = new Date(Number(y), Number(m), 0).getDate();
+  const day = Math.min(dayFromSetting, lastDay);
+  const dayStr = String(day).padStart(2, "0");
+  return new Date(`${month}-${dayStr}T00:00:00.000Z`);
+}
+
+function mapUiStatus(
+  s?: string | null
+): "WAITING" | "IN_PROGRESS" | "NON_PROGRESS" | "DONE" | "OVERDUE" | undefined {
+  const v = (s ?? "").toUpperCase();
+  if (v === "WAITING") return "WAITING";
+  if (v === "IN-PROGRESS" || v === "IN_PROGRESS") return "IN_PROGRESS";
+  if (v === "NON-PROGRESS" || v === "NON_PROGRESS") return "NON_PROGRESS";
+  if (v === "DONE" || v === "FINISHED") return "DONE";
+  if (v === "OVERDUE") return "OVERDUE";
+  return undefined;
+}
+
+// ---------------- GET ----------------
 export async function GET(req: NextRequest) {
   try {
     const sp = req.nextUrl.searchParams;
-
-    // bulan boleh "YYYY-MM" atau (year + month)
-    const mParam = (sp.get("month") ?? "").trim();
-    const yParam = Number(sp.get("year"));
-    let bulan = "";
-    if (/^\d{4}-\d{2}$/.test(mParam)) {
-      bulan = mParam;
-    } else if (Number.isFinite(yParam) && Number.isFinite(Number(mParam))) {
-      bulan = `${yParam}-${String(Number(mParam)).padStart(2, "0")}`;
+    const month = resolveMonthFromSearchParams(sp);
+    if (!isYm(month)) {
+      return NextResponse.json(
+        { ok: false, message: "Param month (YYYY-MM) wajib." },
+        { status: 400 }
+      );
     }
 
-    const zonaId = sp.get("zonaId") || "";
-    const petugasId = sp.get("petugasId") || "";
-    const statusUi = (sp.get("status") ?? "all").toLowerCase();
+    const zona = sp.get("zona") ?? "";
+    const petugas = sp.get("petugas") ?? "";
+    const statusStr = sp.get("status") ?? "all";
     const q = (sp.get("q") ?? "").trim();
 
-    const where: Prisma.JadwalPencatatanWhereInput = {};
-    if (bulan) where.bulan = bulan;
-    if (zonaId) where.zonaId = zonaId;
-    if (petugasId) where.petugasId = petugasId;
-    if (statusUi !== "all" && UI_TO_DB[statusUi]) {
-      where.status = UI_TO_DB[statusUi] as any;
-    }
+    const page = Math.max(1, parseInt(sp.get("page") ?? "1", 10));
+    const pageSize = Math.min(
+      100,
+      Math.max(1, parseInt(sp.get("pageSize") ?? "20", 10))
+    );
+
+    const where: any = { bulan: month };
+    if (zona) where.zonaId = zona;
+    if (petugas) where.petugasId = petugas;
+    const statusEnum = mapUiStatus(statusStr);
+    if (statusEnum) where.status = statusEnum;
     if (q) {
-      // Tanpa "mode", pakai LIKE/contains default DB
       where.OR = [
-        { zona: { nama: { contains: q } } },
         { alamat: { contains: q } },
-        { petugas: { name: { contains: q } } },
+        { zona: { nama: { contains: q } } },
       ];
     }
 
-    // Ambil jadwal
-    const rows = await prisma.jadwalPencatatan.findMany({
-      where,
-      orderBy: [{ tanggalRencana: "asc" }, { createdAt: "asc" }],
-      include: {
-        zona: { select: { id: true, nama: true, deskripsi: true } },
-        petugas: { select: { id: true, name: true } },
-      },
-    });
+    // Ambil jadwalnya dulu
+    const [rows, total] = await Promise.all([
+      prisma.jadwalPencatatan.findMany({
+        where,
+        orderBy: [{ createdAt: "asc" }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          zona: { select: { id: true, nama: true, deskripsi: true } },
+          petugas: { select: { id: true, name: true } },
+        },
+      }),
+      prisma.jadwalPencatatan.count({ where }),
+    ]);
 
-    // Cari periode catat untuk bulan ini (jika ada)
-    const periode = bulan
-      ? await prisma.catatPeriode.findUnique({
-          where: { kodePeriode: bulan },
-          select: { id: true },
-        })
-      : null;
+    // === Hitung progress Live dari CatatMeter ===
+    // Prefer pakai snapshot zonaIdSnapshot (lebih cepat untuk groupBy).
+    const zonaIds = rows.map((r) => r.zonaId).filter(Boolean) as string[];
 
-    // Hitung target/progress langsung dari catatMeter (sinkron dengan /catat-meter)
-    const data = await Promise.all(
-      rows.map(async (r) => {
-        const d = new Date(r.tanggalRencana);
+    // 1) Coba groupBy zonaIdSnapshot
+    let progressMap = new Map<string, number>();
+    if (zonaIds.length) {
+      const grouped = await prisma.catatMeter.groupBy({
+        by: ["zonaIdSnapshot"],
+        where: {
+          status: "DONE",
+          deletedAt: null,
+          zonaIdSnapshot: { in: zonaIds },
+          periode: { kodePeriode: month }, // CatatMeter → CatatPeriode (relasi)
+        },
+        _count: { _all: true },
+      });
+      progressMap = new Map(
+        grouped.map((g) => [g.zonaIdSnapshot ?? "", g._count._all])
+      );
+    }
 
-        let target = 0;
-        let progress = 0;
-
-        if (periode?.id) {
-          const zonaNama = (r.zona?.nama ?? "").trim();
-          const zonaFilters: Prisma.CatatMeterWhereInput[] = [];
-
-          // 1) Paling akurat: pakai zonaId
-          if (r.zonaId) {
-            zonaFilters.push({ zonaIdSnapshot: r.zonaId });
-            zonaFilters.push({ pelanggan: { zonaId: r.zonaId } });
-          }
-
-          // 2) Fallback: pakai nama zona (tanpa mode)
-          if (zonaNama) {
-            zonaFilters.push({ zonaNamaSnapshot: { equals: zonaNama } });
-            zonaFilters.push({
-              pelanggan: { zona: { is: { nama: { equals: zonaNama } } } },
-            });
-            // bila ada kolom string zonaNama di pelanggan
-            // zonaFilters.push({ pelanggan: { zonaNama: { equals: zonaNama } } });
-          }
-
-          const baseWhere: Prisma.CatatMeterWhereInput = {
-            periodeId: periode.id,
-            deletedAt: null,
-            ...(zonaFilters.length ? { OR: zonaFilters } : {}),
-          };
-
-          // total entri & yang DONE
-          target = await prisma.catatMeter.count({ where: baseWhere });
-          progress = await prisma.catatMeter.count({
-            where: { ...baseWhere, status: CatatStatus.DONE },
+    // 2) Fallback jika snapshot kosong: hitung per-zona via relasi pelanggan.zonaId
+    if (
+      [...progressMap.values()].reduce((a, b) => a + b, 0) === 0 &&
+      zonaIds.length
+    ) {
+      const perZonaCounts = await Promise.all(
+        zonaIds.map(async (zid) => {
+          const c = await prisma.catatMeter.count({
+            where: {
+              status: "DONE",
+              deletedAt: null,
+              periode: { kodePeriode: month },
+              pelanggan: { zonaId: zid },
+            },
           });
-        }
+          return [zid, c] as const;
+        })
+      );
+      progressMap = new Map(perZonaCounts);
+    }
 
-        return {
-          id: r.id,
-          zonaId: r.zonaId ?? r.zona?.id ?? "",
-          zona: { id: r.zona?.id ?? r.zonaId ?? "", nama: r.zona?.nama ?? "-" },
-          alamat: r.alamat ?? r.zona?.deskripsi ?? "-",
-          petugas: {
-            id: r.petugas?.id ?? r.petugasId ?? "",
-            nama: r.petugas?.name ?? "-",
-            avatar: "/placeholder.svg?height=32&width=32",
-          },
-          target,
-          progress,
-          status: toUiStatus(r.status),
-          tanggalRencana: d.toISOString().slice(0, 10),
-          bulan: r.bulan,
-        };
-      })
-    );
+    // Timpa progress di rows dengan hasil hitung live
+    const rowsWithProgress = rows.map((r) => ({
+      ...r,
+      progress: progressMap.get(r.zonaId ?? "") ?? r.progress ?? 0,
+    }));
 
-    return NextResponse.json({ ok: true, data });
-  } catch (e: any) {
+    return NextResponse.json({
+      ok: true,
+      data: rowsWithProgress,
+      pagination: { page, pageSize, total, pages: Math.ceil(total / pageSize) },
+    });
+  } catch (e) {
+    console.error("GET /api/jadwal error:", e);
     return NextResponse.json(
-      { ok: false, message: e?.message ?? "Server error" },
+      { ok: false, message: "Gagal memuat jadwal" },
       { status: 500 }
     );
   }
 }
 
-/* ===================== POST /api/jadwal (Generate) ===================== */
-const genSchema = z.object({
-  bulan: z
-    .string()
-    .regex(/^\d{4}-\d{2}$/)
-    .optional(),
-  tanggalRencana: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .optional(),
-  zonaIds: z.array(z.string()).optional(),
-  petugasId: z.string().optional(),
-  overwrite: z.boolean().optional(),
-});
-
+// ---------------- POST ----------------
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const parsed = genSchema.safeParse(body);
-    if (!parsed.success) {
-      const msg = parsed.error.issues.map((i) => i.message).join(", ");
-      return NextResponse.json({ ok: false, message: msg }, { status: 400 });
+    const sp = req.nextUrl.searchParams;
+
+    // Terima month=YYYY-MM atau year+month numerik
+    let month = resolveMonthFromSearchParams(sp);
+    if (!isYm(month)) {
+      const body = await req.json().catch(() => ({}));
+      if (typeof body?.month === "string" && isYm(body.month)) {
+        month = body.month;
+      } else if (
+        typeof body?.year === "string" &&
+        typeof body?.month === "string" &&
+        /^\d{4}$/.test(body.year) &&
+        /^\d{1,2}$/.test(body.month)
+      ) {
+        month = `${body.year}-${String(Number(body.month)).padStart(2, "0")}`;
+      }
+    }
+    if (!isYm(month)) {
+      month = new Date().toISOString().slice(0, 7);
     }
 
-    const setting = await prisma.setting.findUnique({
-      where: { id: 1 },
-      select: { periodeJadwalAktif: true, tanggalCatatDefault: true },
-    });
-
-    const bulan =
-      parsed.data.bulan ??
-      setting?.periodeJadwalAktif ??
-      new Date().toISOString().slice(0, 7);
-
-    const tanggalRencanaStr =
-      parsed.data.tanggalRencana ??
-      (setting?.tanggalCatatDefault
-        ? setting.tanggalCatatDefault.toISOString().slice(0, 10)
-        : undefined);
-
-    const planDate = tanggalRencanaStr
-      ? new Date(tanggalRencanaStr)
-      : new Date(`${bulan}-20`);
-
-    if (parsed.data.overwrite) {
-      await prisma.jadwalPencatatan.deleteMany({
-        where: {
-          bulan,
-          ...(parsed.data.zonaIds?.length
-            ? { zonaId: { in: parsed.data.zonaIds } }
-            : {}),
-        },
-      });
-    }
+    const setting = await prisma.setting.findUnique({ where: { id: 1 } });
+    const tanggalRencana = buildTanggalUntukBulan(
+      month,
+      setting?.tanggalCatatDefault
+    );
 
     const zonas = await prisma.zona.findMany({
-      where: parsed.data.zonaIds?.length
-        ? { id: { in: parsed.data.zonaIds } }
-        : undefined,
-      select: { id: true, deskripsi: true, petugasId: true },
+      orderBy: { nama: "asc" },
+      select: { id: true, nama: true, deskripsi: true, petugasId: true },
     });
-    if (!zonas.length) {
+    if (zonas.length === 0) {
       return NextResponse.json(
-        { ok: false, message: "Zona tidak ditemukan" },
-        { status: 404 }
+        { ok: false, message: "Tidak ada data zona untuk digenerate." },
+        { status: 400 }
       );
     }
 
-    const perZonaCounts = await prisma.pelanggan.groupBy({
+    const pelangganCounts = await prisma.pelanggan.groupBy({
       by: ["zonaId"],
-      where: {
-        zonaId: { in: zonas.map((z) => z.id) },
-        deletedAt: null,
-        statusAktif: true,
-      },
+      where: { statusAktif: true, zonaId: { in: zonas.map((z) => z.id) } },
       _count: { _all: true },
     });
-    const mapCount = new Map(
-      perZonaCounts.map((x) => [x.zonaId, x._count._all])
-    );
+    const targetByZona = new Map<string, number>();
+    for (const row of pelangganCounts) {
+      targetByZona.set(row.zonaId ?? "", row._count._all);
+    }
 
-    // hindari duplikat pada periode yang sama
     const existing = await prisma.jadwalPencatatan.findMany({
-      where: { bulan, zonaId: { in: zonas.map((z) => z.id) } },
+      where: { bulan: month },
       select: { zonaId: true },
     });
-    const already = new Set(existing.map((e) => e.zonaId!));
+    const existSet = new Set(existing.map((x) => x.zonaId ?? ""));
 
-    const data = zonas
-      .filter((z) => !already.has(z.id))
+    const payload = zonas
+      .filter((z) => !existSet.has(z.id))
       .map((z) => ({
-        bulan,
-        tanggalRencana: planDate,
-        zonaId: z.id,
-        petugasId: parsed.data.petugasId ?? z.petugasId ?? null,
-        target: mapCount.get(z.id) ?? 0,
+        bulan: month,
+        tanggalRencana,
+        target: targetByZona.get(z.id) ?? 0,
         progress: 0,
         status: "WAITING" as const,
+        zonaId: z.id,
+        petugasId: z.petugasId ?? null,
         alamat: z.deskripsi ?? null,
       }));
 
-    if (!data.length) {
-      return NextResponse.json({
-        ok: true,
-        created: 0,
-        message: "Semua jadwal zona untuk bulan ini sudah ada.",
-      });
+    if (payload.length > 0) {
+      await prisma.jadwalPencatatan.createMany({ data: payload });
     }
 
-    const created = await prisma.jadwalPencatatan.createMany({ data });
+    return NextResponse.json({
+      ok: true,
+      message:
+        payload.length > 0
+          ? `Generate ${
+              payload.length
+            } jadwal untuk bulan ${month} (tanggal ${tanggalRencana
+              .toISOString()
+              .slice(0, 10)}).`
+          : `Semua jadwal bulan ${month} sudah ada. Tanggal rencana: ${tanggalRencana
+              .toISOString()
+              .slice(0, 10)}.`,
+    });
+  } catch (e) {
+    console.error("POST /api/jadwal error:", e);
     return NextResponse.json(
-      {
-        ok: true,
-        created: created.count,
-        message: "Jadwal berhasil digenerate.",
-      },
-      { status: 201 }
-    );
-  } catch (e: any) {
-    return NextResponse.json(
-      { ok: false, message: e?.message ?? "Server error" },
+      { ok: false, message: "Gagal generate jadwal" },
       { status: 500 }
     );
   }

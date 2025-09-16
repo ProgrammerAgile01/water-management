@@ -1,11 +1,11 @@
 // app/api/catat-meter/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { CatatStatus } from "@prisma/client";
+import { CatatStatus, JadwalUiStatus } from "@prisma/client";
 import { getAuthUserId } from "@/lib/auth";
 import { startOfMonth, endOfMonth, parseISO, isValid } from "date-fns";
 
-// ===== Helpers =====
+// ===== Helpers umum =====
 function isPeriodStr(p: string) {
   return /^\d{4}-(0[1-9]|1[0-2])$/.test(p);
 }
@@ -42,14 +42,12 @@ async function getLatestPeriode() {
     },
   });
 }
-
 async function recalcProgress(periodeId: string) {
   const agg = await prisma.catatMeter.groupBy({
     by: ["status"],
     where: { periodeId, deletedAt: null },
     _count: { _all: true },
   });
-
   const selesai =
     agg.find((a) => a.status === CatatStatus.DONE)?._count._all ?? 0;
   const pending =
@@ -60,6 +58,68 @@ async function recalcProgress(periodeId: string) {
     where: { id: periodeId },
     data: { totalPelanggan: total, selesai, pending },
   });
+}
+
+// ===== Sinkron progres jadwal per zona =====
+async function syncJadwalForZona(periodeId: string, zonaId?: string | null) {
+  if (!zonaId) return;
+
+  const periode = await prisma.catatPeriode.findUnique({
+    where: { id: periodeId },
+    select: { kodePeriode: true, tanggalCatat: true },
+  });
+  if (!periode) return;
+
+  const bulan = periode.kodePeriode;
+
+  // Hitung target & progress untuk zona tsb
+  const [target, progress] = await Promise.all([
+    prisma.pelanggan.count({
+      where: { statusAktif: true, deletedAt: null, zonaId },
+    }),
+    prisma.catatMeter.count({
+      where: {
+        periodeId,
+        deletedAt: null,
+        zonaIdSnapshot: zonaId,
+        status: CatatStatus.DONE,
+      },
+    }),
+  ]);
+
+  // Tentukan status UI
+  let uiStatus: JadwalUiStatus = JadwalUiStatus.WAITING;
+  if (progress > 0 && progress < target) uiStatus = JadwalUiStatus.IN_PROGRESS;
+  if (target > 0 && progress >= target) uiStatus = JadwalUiStatus.DONE;
+
+  const existing = await prisma.jadwalPencatatan.findFirst({
+    where: { bulan, zonaId },
+    select: { id: true },
+  });
+
+  if (existing) {
+    await prisma.jadwalPencatatan.update({
+      where: { id: existing.id },
+      data: { target, progress, status: uiStatus },
+    });
+  } else {
+    const zona = await prisma.zona.findUnique({
+      where: { id: zonaId },
+      select: { petugasId: true, deskripsi: true },
+    });
+    await prisma.jadwalPencatatan.create({
+      data: {
+        bulan,
+        zonaId,
+        petugasId: zona?.petugasId ?? null,
+        alamat: zona?.deskripsi ?? null,
+        tanggalRencana: periode.tanggalCatat ?? new Date(),
+        target,
+        progress,
+        status: uiStatus,
+      },
+    });
+  }
 }
 
 // ===== INIT (POST) =====
@@ -124,7 +184,6 @@ export async function POST(req: NextRequest) {
       if (!setting) throw new Error("Setting (id=1) belum ada");
 
       const { tahun, bulan } = parsePeriod(kodePeriode);
-      // parsing tanggal aman
       const tanggalCatat =
         readingDateFromBody && /^\d{4}-\d{2}-\d{2}$/.test(readingDateFromBody)
           ? new Date(readingDateFromBody)
@@ -167,15 +226,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3) Generate entri pelanggan (idempotent)
-    //    ⬇️ ambil juga info zona pelanggan untuk snapshot
+    // 3) Generate entri pelanggan (idempotent) + snapshot zona
     const aktif = await prisma.pelanggan.findMany({
       where: { statusAktif: true, deletedAt: null },
       select: {
         id: true,
         meterAwal: true,
         zonaId: true,
-        // zonaNama: true,
         zona: { select: { id: true, nama: true } },
       },
       orderBy: { createdAt: "asc" },
@@ -191,14 +248,14 @@ export async function POST(req: NextRequest) {
       where: { periodeId: periode.id, deletedAt: { not: null } },
     });
 
-    // ambil yang sudah ada → untuk skip
+    // entri yang sudah ada
     const existing = await prisma.catatMeter.findMany({
       where: { periodeId: periode.id, deletedAt: null },
       select: { pelangganId: true },
     });
     const existSet = new Set(existing.map((r) => r.pelangganId));
 
-    // ambil periode sebelumnya → tentukan meterAwal default
+    // meter awal default dari periode sebelumnya
     const prevKode = prevPeriodStr(kodePeriode);
     const prevPeriode = await prisma.catatPeriode.findUnique({
       where: { kodePeriode: prevKode },
@@ -217,8 +274,6 @@ export async function POST(req: NextRequest) {
       .filter((p) => !existSet.has(p.id))
       .map((p) => {
         const zId = p.zonaId ?? p.zona?.id ?? null;
-        // const zNm = p.zonaNama ?? p.zona?.nama ?? null;
-        const zNm = null;
         return {
           periodeId: periode.id,
           pelangganId: p.id,
@@ -230,9 +285,8 @@ export async function POST(req: NextRequest) {
           total: 0,
           status: CatatStatus.PENDING,
           isLocked: false,
-          // ⬇️ snapshot zona (dipakai filter di GET)
           zonaIdSnapshot: zId,
-          zonaNamaSnapshot: zNm,
+          zonaNamaSnapshot: null as string | null,
         };
       });
 
@@ -245,7 +299,17 @@ export async function POST(req: NextRequest) {
       createdCount = res.count;
     }
 
+    // Recalc agregat periode
     await recalcProgress(periode.id);
+
+    // Sinkronkan jadwal untuk seluruh zona yang tersentuh
+    const zonaUnique = Array.from(
+      new Set(payload.map((p) => p.zonaIdSnapshot).filter(Boolean) as string[])
+    );
+    await Promise.all(
+      zonaUnique.map((zid) => syncJadwalForZona(periode.id, zid))
+    );
+
     return NextResponse.json({
       ok: true,
       created: createdCount,
@@ -289,13 +353,13 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // range tanggal untuk periode (buat filter reset)
+    // range tanggal (untuk filter reset)
     const periodDate = parseISO(`${kodePeriode}-01`);
     const monthRange = isValid(periodDate)
       ? { gte: startOfMonth(periodDate), lte: endOfMonth(periodDate) }
       : null;
 
-    // filter zona opsional
+    // filter zona opsional (nama)
     const zonaWhere = zonaParam
       ? {
           OR: [
@@ -309,7 +373,7 @@ export async function GET(req: NextRequest) {
         }
       : {};
 
-    // Ambil entri CatatMeter untuk periode + info pelanggan
+    // Ambil entri catat + pelanggan
     const rows = await prisma.catatMeter.findMany({
       where: {
         periodeId: periode.id,
@@ -319,7 +383,7 @@ export async function GET(req: NextRequest) {
       orderBy: [{ pelanggan: { createdAt: "asc" } }, { id: "asc" }],
       select: {
         id: true,
-        pelangganId: true, // ⬅️ perlu untuk mapping reset
+        pelangganId: true,
         meterAwal: true,
         meterAkhir: true,
         pemakaianM3: true,
@@ -343,7 +407,7 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // ===== Ambil 'reset meter' untuk pelanggan2 di bulan ini, lalu buat map latest per pelanggan =====
+    // Map reset bulan ini → override meterAwal
     let resetMap = new Map<string, number>();
     if (monthRange && rows.length) {
       const ids = Array.from(new Set(rows.map((r) => r.pelangganId)));
@@ -356,7 +420,6 @@ export async function GET(req: NextRequest) {
         orderBy: [{ pelangganId: "asc" }, { tanggalReset: "desc" }],
       });
       for (const r of resets) {
-        // simpan yang terbaru per pelanggan
         if (!resetMap.has(r.pelangganId)) {
           resetMap.set(r.pelangganId, r.meterAwalBaru);
         }
@@ -364,19 +427,17 @@ export async function GET(req: NextRequest) {
     }
 
     const items = rows.map((r) => {
-      // jika ada reset bulan ini -> override meterAwal
       const meterAwalOverride = resetMap.get(r.pelangganId) ?? r.meterAwal;
-
       return {
         id: r.id,
         kodeCustomer: r.pelanggan.kode,
         nama: r.pelanggan.nama,
         alamat: r.pelanggan.alamat,
         phone: r.pelanggan.wa ?? "",
-        meterAwal: meterAwalOverride, // ⬅️ sudah hormati reset
+        meterAwal: meterAwalOverride,
         meterAkhir: r.meterAkhir ?? null,
         pemakaian: Math.max((r.meterAkhir ?? 0) - meterAwalOverride, 0),
-        total: r.total, // boleh dibiarkan, UI juga hitung ulang
+        total: r.total,
         kendala: r.kendala ?? "",
         tarifPerM3: r.tarifPerM3,
         abonemen: r.abonemen,
@@ -432,6 +493,7 @@ export async function PUT(req: NextRequest) {
         periodeId: true,
         deletedAt: true,
         isLocked: true,
+        zonaIdSnapshot: true, // ➜ penting untuk sync jadwal
         periode: { select: { isLocked: true } },
       },
     });
@@ -467,6 +529,8 @@ export async function PUT(req: NextRequest) {
     });
 
     await recalcProgress(row.periodeId);
+    await syncJadwalForZona(row.periodeId, row.zonaIdSnapshot); // ➜ update status jadwal
+
     return NextResponse.json({
       ok: true,
       data: {
@@ -497,23 +561,25 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    const row = await prisma.catatMeter.findUnique({
+    // Ambil dulu zona untuk sync setelah delete
+    const before = await prisma.catatMeter.findUnique({
       where: { id },
       select: {
         id: true,
         periodeId: true,
+        zonaIdSnapshot: true,
         deletedAt: true,
         isLocked: true,
         periode: { select: { isLocked: true } },
       },
     });
-    if (!row || row.deletedAt) {
+    if (!before || before.deletedAt) {
       return NextResponse.json(
         { ok: false, message: "Data tidak ditemukan atau sudah dihapus" },
         { status: 404 }
       );
     }
-    if (row.periode.isLocked || row.isLocked) {
+    if (before.periode.isLocked || before.isLocked) {
       return NextResponse.json(
         {
           ok: false,
@@ -526,7 +592,9 @@ export async function DELETE(req: NextRequest) {
     // HARD DELETE supaya bisa dibuat ulang tanpa bentrok unique
     await prisma.catatMeter.delete({ where: { id } });
 
-    await recalcProgress(row.periodeId);
+    await recalcProgress(before.periodeId);
+    await syncJadwalForZona(before.periodeId, before.zonaIdSnapshot); // ➜ sync jadwal pasca hapus
+
     return NextResponse.json({ ok: true, message: "Inputan berhasil dihapus" });
   } catch (e: any) {
     return NextResponse.json(

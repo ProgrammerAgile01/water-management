@@ -305,15 +305,20 @@ model Setting {
   email          String? @db.VarChar(120)
   logoUrl        String? @db.VarChar(255)
 
+  // ——— Informasi pembayaran & kontak ———
+  namaBankPembayaran String? @db.VarChar(120)
+  norekPembayaran    String? @db.VarChar(50)
+  anNorekPembayaran  String? @db.VarChar(120)
+  namaBendahara      String? @db.VarChar(120)
+  whatsappCs         String? @db.VarChar(30)
+
   // ——— Pengaturan Jadwal ———
-  // Periode aktif di UI (mis. "2025-09")
-  periodeJadwalAktif  String?   @db.VarChar(7)
-  // Tanggal default catat meter untuk generate (Date, disimpan UTC)
   tanggalCatatDefault DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
 model WaLog {
   id        String   @id @default(cuid())
   tujuan    String

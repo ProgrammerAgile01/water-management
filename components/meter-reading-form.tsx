@@ -18,15 +18,47 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { FinalizePeriodModal } from "./finalize-period-modal";
 import { useToast } from "@/hooks/use-toast";
-import { User, Lock } from "lucide-react";
+import { User } from "lucide-react";
 import { usePeriodStore } from "@/lib/period-store";
 
-type PeriodOpt = {
-  value: string;
-  catatLabel: string;
-  tagihanLabel: string;
-};
+type PeriodOpt = { value: string; catatLabel: string; tagihanLabel: string };
+type ZoneOpt = { id?: string; nama: string };
+
 const ZONA_ALL = "__ALL__";
+
+// ---- Parser aman
+async function safeJson(res: Response): Promise<Record<string, any>> {
+  try {
+    const t = await res.text();
+    if (!t) return {};
+    return JSON.parse(t);
+  } catch {
+    return {};
+  }
+}
+function pickErrorMessage(res: Response, data?: Record<string, any>) {
+  if (data && typeof data.message === "string" && data.message.trim())
+    return data.message;
+  return `HTTP ${res.status} ${res.statusText}`;
+}
+
+// ---- Util tanggal
+function toDateYYYYMMDDSafe(input: string) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(input)) return input;
+  const d = new Date(input);
+  if (Number.isNaN(d.getTime())) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+}
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+    2,
+    "0"
+  )}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 export function MeterReadingForm() {
   const router = useRouter();
@@ -37,7 +69,10 @@ export function MeterReadingForm() {
 
   // ====== local state
   const [selectedPeriod, setSelectedPeriod] = useState("");
-  const [selectedZona, setSelectedZona] = useState<string>(""); // ⬅️ NEW
+  const [selectedZona, setSelectedZona] = useState<string>("");
+  const [zones, setZones] = useState<ZoneOpt[]>([]);
+  const [zonesLoading, setZonesLoading] = useState(false);
+
   const [officerName, setOfficerName] = useState<string>("");
 
   const [isLoading, setIsLoading] = useState(false);
@@ -47,16 +82,11 @@ export function MeterReadingForm() {
   const [serverLocked, setServerLocked] = useState(false);
   const [finalizeTotal, setFinalizeTotal] = useState(0);
   const [finalizeSelesai, setFinalizeSelesai] = useState(0);
+
   const selectZonaValue = selectedZona ? selectedZona : ZONA_ALL;
 
-  const [readingDate, setReadingDate] = useState<string>(() => {
-    const d = new Date();
-    return [
-      d.getFullYear(),
-      String(d.getMonth() + 1).padStart(2, "0"),
-      String(d.getDate()).padStart(2, "0"),
-    ].join("-");
-  });
+  // ⬇️ Awalnya kosong; akan diisi dari query/setting/hari-ini
+  const [readingDate, setReadingDate] = useState<string>("");
 
   // ====== period store
   const {
@@ -66,28 +96,18 @@ export function MeterReadingForm() {
     finalizePeriod: finalizePeriodLocally,
   } = usePeriodStore();
 
-  // ====== utils
-  function toDateYYYYMMDDSafe(input: string) {
-    if (/^\d{4}-\d{2}-\d{2}$/.test(input)) return input;
-    const d = new Date(input);
-    if (Number.isNaN(d.getTime())) return "";
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${dd}`;
-  }
-
-  // Update query string praktis
+  // Update query string
   function setQuery(next: Record<string, string | undefined>) {
     const params = new URLSearchParams(sp?.toString());
     Object.entries(next).forEach(([k, v]) => {
       if (!v) params.delete(k);
       else params.set(k, v);
     });
-    router.replace(`${pathname}?${params.toString()}`);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname);
   }
 
-  // ====== Prefill dari localStorage (nama petugas)
+  // Prefill petugas dari localStorage
   useEffect(() => {
     try {
       const raw = localStorage.getItem("tb_user");
@@ -98,15 +118,13 @@ export function MeterReadingForm() {
     } catch {}
   }, []);
 
-  // ====== Prefill dari query (?periode, ?tanggal, ?petugas, ?zona)
+  // Prefill dari query (?periode, ?tanggal, ?petugas, ?zona)
   useEffect(() => {
     if (!sp) return;
-
     const qp = sp.get("periode") ?? "";
     const qt = sp.get("tanggal") ?? "";
     const qn = sp.get("petugas") ?? "";
     const qz = sp.get("zona") ?? "";
-
     if (qp) {
       setSelectedPeriod(qp);
       setCurrentPeriod(qp);
@@ -116,32 +134,83 @@ export function MeterReadingForm() {
       if (normalized) setReadingDate(normalized);
     }
     if (qn) setOfficerName(qn);
-    if (qz) setSelectedZona(qz); // ⬅️ zona
+    if (qz) setSelectedZona(qz);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sp]);
 
-  // Sinkronisasi period lokal dengan store jika kosong
+  // ⬇️ Jika masuk tanpa query ?tanggal=, ambil default dari /api/setting
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      // Jika sudah ada nilai dari query sebelumnya, jangan override
+      if (readingDate) return;
+      try {
+        const res = await fetch("/api/setting", { cache: "no-store" });
+        if (!res.ok) throw new Error();
+        const data = await safeJson(res);
+        const t: string | undefined = data?.tanggalCatatDefault;
+        const picked = t && /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : todayStr();
+        if (!cancelled) setReadingDate(picked);
+      } catch {
+        if (!cancelled) setReadingDate(todayStr());
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+    // Hanya sekali saat mount; jangan depend ke selectedPeriod agar tidak override pilihan user
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Sinkronisasi period dengan store
   useEffect(() => {
     if (!selectedPeriod && currentPeriod) setSelectedPeriod(currentPeriod);
   }, [currentPeriod, selectedPeriod]);
 
-  // Cek status lock periode di server tiap kali periode berubah
+  // Cek status periode (abaikan 405). Bisa mengembalikan tanggalCatat dari server; dipakai jika belum ada.
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
-      if (!selectedPeriod) return setServerLocked(false);
+      if (!selectedPeriod) {
+        setServerLocked(false);
+        return;
+      }
       setChecking(true);
       try {
-        const res = await fetch(`/api/catat-meter?periode=${selectedPeriod}`, {
-          cache: "no-store",
-        });
-        const data = await res.json();
-        if (!cancelled && data?.ok) {
-          const locked = !!data.locked;
-          setServerLocked(locked);
-          if (locked) finalizePeriodLocally(selectedPeriod, "server");
+        const res = await fetch(
+          `/api/catat-meter?periode=${encodeURIComponent(selectedPeriod)}`,
+          { cache: "no-store" }
+        );
+        if (res.status === 405) {
+          setServerLocked(false);
           setCurrentPeriod(selectedPeriod);
+          return;
         }
+        const data = await safeJson(res);
+        if (cancelled) return;
+        if (!res.ok || data?.ok === false) {
+          throw new Error(pickErrorMessage(res, data));
+        }
+        const locked = !!data.locked;
+        setServerLocked(locked);
+        if (locked) finalizePeriodLocally(selectedPeriod, "server");
+        setCurrentPeriod(selectedPeriod);
+
+        // Pakai tanggal dari server hanya jika user belum memilih
+        if (!readingDate && typeof data?.tanggalCatat === "string") {
+          const t = toDateYYYYMMDDSafe(data.tanggalCatat);
+          if (t) setReadingDate(t);
+        }
+        if (typeof data?.petugas === "string" && !officerName) {
+          setOfficerName(data.petugas);
+        }
+      } catch (e: any) {
+        toast({
+          title: "Gagal memuat periode",
+          description: e?.message ?? "Terjadi kesalahan",
+          variant: "destructive",
+        });
       } finally {
         if (!cancelled) setChecking(false);
       }
@@ -150,9 +219,16 @@ export function MeterReadingForm() {
     return () => {
       cancelled = true;
     };
-  }, [selectedPeriod, finalizePeriodLocally, setCurrentPeriod]);
+  }, [
+    selectedPeriod,
+    finalizePeriodLocally,
+    setCurrentPeriod,
+    officerName,
+    toast,
+    readingDate,
+  ]);
 
-  // Tulis periode/zona ke URL agar MeterGrid ikut baca
+  // Tulis periode/zona ke URL agar grid ikut baca
   useEffect(() => {
     if (selectedPeriod) setQuery({ periode: selectedPeriod });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -162,14 +238,63 @@ export function MeterReadingForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedZona]);
 
-  // ====== Periode options (6 bulan ke depan mulai dari bulan berjalan/aturanmu)
+  // ====== Ambil daftar zona (periode terlebih dahulu; fallback master zona)
+  useEffect(() => {
+    let cancelled = false;
+    const loadZones = async () => {
+      if (!selectedPeriod) {
+        setZones([]);
+        return;
+      }
+      setZonesLoading(true);
+      try {
+        let res = await fetch(
+          `/api/catat-meter/zona?periode=${encodeURIComponent(selectedPeriod)}`,
+          { cache: "no-store" }
+        );
+        if (res.status === 404 || res.status === 405) {
+          res = await fetch("/api/zona", { cache: "no-store" });
+        }
+        if (!res.ok) {
+          if (!cancelled) setZones([]);
+          return;
+        }
+        const data = await safeJson(res);
+        const raw = Array.isArray(data)
+          ? data
+          : data?.data ?? data?.items ?? [];
+        const list: ZoneOpt[] = Array.isArray(raw)
+          ? raw
+              .map((z: any) => ({
+                id: z.id ?? z.zonaId ?? undefined,
+                nama:
+                  z.nama ??
+                  z.zonaNama ??
+                  z.name ??
+                  z.title ??
+                  (typeof z === "string" ? z : ""),
+              }))
+              .filter((z: ZoneOpt) => z.nama)
+          : [];
+        if (!cancelled) setZones(list);
+      } finally {
+        if (!cancelled) setZonesLoading(false);
+      }
+    };
+    loadZones();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPeriod]);
+
+  // ====== Periode options (mulai Juli tahun berjalan, 6 bulan ke depan)
   const periodOptions = useMemo<PeriodOpt[]>(() => {
     const opts: PeriodOpt[] = [];
     const now = new Date();
-    const y = now.getFullYear();
-    const startMonth = y === 2025 ? 6 : now.getMonth(); // contoh aturan
+    const startYear = now.getFullYear();
+    const startMonthIndex = 6; // 0=Jan, 6=Jul
     for (let i = 0; i < 6; i++) {
-      const catat = new Date(y, startMonth + i, 1);
+      const catat = new Date(startYear, startMonthIndex + i, 1);
       const tagih = new Date(catat.getFullYear(), catat.getMonth() + 1, 1);
       const value = `${catat.getFullYear()}-${String(
         catat.getMonth() + 1
@@ -198,6 +323,7 @@ export function MeterReadingForm() {
     : "";
 
   // ====== Actions
+  const { setCurrentPeriod: setCurrentPeriodStore } = usePeriodStore.getState();
   const handleStartReading = async () => {
     if (!selectedPeriod) {
       toast({
@@ -207,28 +333,37 @@ export function MeterReadingForm() {
       });
       return;
     }
+    const tanggalToSend = toDateYYYYMMDDSafe(readingDate) || todayStr();
+
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/catat-meter?periode=${selectedPeriod}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ officerName, readingDate }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data?.ok)
-        throw new Error(data?.message || "Gagal memuat data");
-      setCurrentPeriod(selectedPeriod);
-      await mutate(`/api/catat-meter?periode=${selectedPeriod}`);
+      const res = await fetch(
+        `/api/catat-meter?periode=${encodeURIComponent(selectedPeriod)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ officerName, readingDate: tanggalToSend }),
+        }
+      );
+      const data = await safeJson(res);
+      if (!res.ok || data?.ok === false) {
+        throw new Error(pickErrorMessage(res, data));
+      }
+
+      setCurrentPeriodStore(selectedPeriod);
+      await mutate(
+        `/api/catat-meter?periode=${encodeURIComponent(selectedPeriod)}`
+      );
       toast({
         title: "Siap dicatat",
         description: `Periode ${selectedPeriod} • Petugas: ${
           officerName || "-"
-        } • Tgl: ${readingDate}`,
+        } • Tgl: ${tanggalToSend}`,
       });
     } catch (e: any) {
       toast({
-        title: "Gagal memuat data",
-        description: e.message,
+        title: "Gagal memulai pencatatan",
+        description: e?.message ?? "Terjadi kesalahan",
         variant: "destructive",
       });
     } finally {
@@ -239,14 +374,21 @@ export function MeterReadingForm() {
   const openFinalizeModal = async () => {
     if (!selectedPeriod) return;
     try {
-      const res = await fetch(`/api/catat-meter?periode=${selectedPeriod}`);
-      const data = await res.json();
-      if (res.ok && data?.ok) {
-        setFinalizeTotal(data.progress?.total ?? 0);
-        setFinalizeSelesai(data.progress?.selesai ?? 0);
-      } else {
+      const res = await fetch(
+        `/api/catat-meter?periode=${encodeURIComponent(selectedPeriod)}`
+      );
+      if (res.status === 405) {
         setFinalizeTotal(0);
         setFinalizeSelesai(0);
+      } else {
+        const data = await safeJson(res);
+        if (res.ok && data?.ok) {
+          setFinalizeTotal(data.progress?.total ?? 0);
+          setFinalizeSelesai(data.progress?.selesai ?? 0);
+        } else {
+          setFinalizeTotal(0);
+          setFinalizeSelesai(0);
+        }
       }
     } finally {
       setShowFinalizeModal(true);
@@ -257,25 +399,31 @@ export function MeterReadingForm() {
     if (!selectedPeriod) return;
     setIsFinalizingPeriod(true);
     try {
-      const res = await fetch(`/api/finalize?periode=${selectedPeriod}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-      });
-      const data = await res.json();
-      if (!res.ok || !data?.ok)
-        throw new Error(data?.message || "Gagal finalize");
-      await mutate(`/api/catat-meter?periode=${selectedPeriod}`);
+      const res = await fetch(
+        `/api/finalize?periode=${encodeURIComponent(selectedPeriod)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        }
+      );
+      const data = await safeJson(res);
+      if (!res.ok || data?.ok === false)
+        throw new Error(pickErrorMessage(res, data));
+
+      await mutate(
+        `/api/catat-meter?periode=${encodeURIComponent(selectedPeriod)}`
+      );
       finalizePeriodLocally(selectedPeriod, "system");
       toast({
         title: "Terkunci",
-        description: `Berhasil mengunci ${data.lockedRows} pelanggan DONE`,
+        description: `Berhasil mengunci ${data.lockedRows ?? 0} pelanggan DONE`,
       });
       setShowFinalizeModal(false);
     } catch (e: any) {
       toast({
         title: "Gagal finalize",
-        description: e.message,
+        description: e?.message ?? "Terjadi kesalahan",
         variant: "destructive",
       });
     } finally {
@@ -338,9 +486,7 @@ export function MeterReadingForm() {
             </SelectContent>
           </Select>
           {selectedOption && (
-            <p className="text-xs text-muted-foreground">
-              Untuk Penagihan {selectedOption.tagihanLabel}
-            </p>
+            <p className="text-xs text-muted-foreground">{tagihanText}</p>
           )}
           {checking && (
             <p className="text-xs text-muted-foreground">
@@ -357,7 +503,7 @@ export function MeterReadingForm() {
           <Input
             id="readingDate"
             type="date"
-            value={readingDate}
+            value={readingDate || todayStr()}
             onChange={(e) => setReadingDate(e.target.value)}
             className="h-12 bg-card/50"
             disabled={isFinalizingPeriod || isLoading}
@@ -371,7 +517,7 @@ export function MeterReadingForm() {
         <div className="space-y-2">
           <Label className="text-base font-medium">Petugas</Label>
           <div className="h-12 px-3 rounded-md bg-muted/40 border flex items-center">
-            <User className="w-4 h-4 mr-2 text-muted-foreground" />
+            <User className="w-4 h-4 mr-1 text-muted-foreground" />
             <span className="text-sm">{officerName || "-"}</span>
           </div>
           <p className="text-xs text-muted-foreground">
@@ -389,17 +535,20 @@ export function MeterReadingForm() {
             onValueChange={(val) =>
               setSelectedZona(val === ZONA_ALL ? "" : val)
             }
-            disabled={isFinalizingPeriod || isLoading}
+            disabled={isFinalizingPeriod || isLoading || zonesLoading}
           >
             <SelectTrigger className="h-10 bg-card/50">
-              <SelectValue placeholder="Semua Zona" />
+              <SelectValue
+                placeholder={zonesLoading ? "Memuat zona..." : "Semua Zona"}
+              />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ZONA_ALL}>Semua Zona</SelectItem>
-              {selectedZona && (
-                <SelectItem value={selectedZona}>{selectedZona}</SelectItem>
-              )}
-              {/* TODO: isi opsi zona lain dari endpoint bila diperlukan */}
+              {zones.map((z) => (
+                <SelectItem key={z.id ?? z.nama} value={z.nama}>
+                  {z.nama}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
@@ -424,17 +573,6 @@ export function MeterReadingForm() {
             "Mulai Pencatatan"
           )}
         </Button>
-
-        {selectedPeriod && (
-          <Button
-            onClick={openFinalizeModal}
-            variant="outline"
-            className="h-12 w-full sm:w-auto bg-yellow-50 border-yellow-200 text-yellow-700 hover:bg-yellow-100"
-            disabled={checking}
-          >
-            <Lock className="w-4 h-4 mr-2" /> Finalize & Kunci
-          </Button>
-        )}
       </div>
 
       {isCurrentPeriodFinal && (

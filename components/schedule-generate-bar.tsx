@@ -8,41 +8,52 @@ import { useToast } from "@/hooks/use-toast";
 import { useScheduleStore } from "@/lib/schedule-store";
 import { useEffect, useState } from "react";
 
-type S = { periode: string; tanggalCatatDefault: string };
+type Sett = { periode: string; tanggalCatatDefault: string };
 
 export function ScheduleGenerateBar() {
   const { toast } = useToast();
-  const { generateSchedules, filters, refreshSchedules } = useScheduleStore();
-  const [sett, setSett] = useState<S | null>(null);
+  const { filters, refreshSchedules } = useScheduleStore();
+  const [sett, setSett] = useState<Sett | null>(null);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
-  // ambil pengaturan dari /api/setting untuk ditampilkan
+  // Ambil setting untuk menampilkan tanggal default (periode mengikuti filter aktif)
   useEffect(() => {
     (async () => {
       try {
         const r = await fetch("/api/setting", { cache: "no-store" });
         const j = await r.json();
         setSett({
-          periode:
-            j?.periodeJadwalAktif ?? new Date().toISOString().slice(0, 7),
+          periode: filters.month, // tampilkan bulan yang sedang dipilih
           tanggalCatatDefault:
             j?.tanggalCatatDefault ?? new Date().toISOString().slice(0, 10),
         });
-      } catch {}
+      } catch {
+        // ignore
+      }
     })();
-  }, []);
+  }, [filters.month]);
 
   const handleGenerate = async () => {
     setLoading(true);
     try {
-      await generateSchedules(); // backend POST /api/jadwal
+      const res = await fetch(
+        `/api/jadwal?month=${encodeURIComponent(filters.month)}`,
+        { method: "POST" }
+      );
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || j?.ok === false) {
+        throw new Error(j?.message ?? "Tidak bisa generate jadwal");
+      }
       await refreshSchedules();
-      toast({ title: "Berhasil", description: "Jadwal berhasil digenerate." });
+      toast({
+        title: "Berhasil",
+        description: j?.message ?? "Jadwal berhasil digenerate.",
+      });
     } catch (e: any) {
       toast({
         title: "Gagal",
-        description: e?.message ?? "Tidak bisa generate jadwal",
+        description: e?.message ?? "Gagal generate jadwal",
         variant: "destructive",
       });
     } finally {
@@ -53,16 +64,19 @@ export function ScheduleGenerateBar() {
   const handleSyncTanggal = async () => {
     setSyncing(true);
     try {
-      // 🔹 Panggil endpoint sync-tanggal pakai bulan dari filters
       const res = await fetch(
         `/api/jadwal/sync-tanggal?bulan=${encodeURIComponent(filters.month)}`,
         { method: "POST" }
       );
-      const j = await res.json();
-      if (!res.ok || !j?.ok) throw new Error(j?.message ?? "Sync gagal");
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || j?.ok === false)
+        throw new Error(j?.message ?? "Sync gagal");
 
-      await refreshSchedules(); // reload data jadwal
-      toast({ title: "Berhasil", description: j.message });
+      await refreshSchedules();
+      toast({
+        title: "Berhasil",
+        description: j?.message ?? "Tanggal tersinkron.",
+      });
     } catch (e: any) {
       toast({
         title: "Gagal",

@@ -6,7 +6,7 @@ import { persist } from "zustand/middleware";
 
 type Settings = {
   // dipakai UI form
-  periode: string; // "YYYY-MM"
+  // periode: string; // "YYYY-MM"
   tanggalCatatDefault: string; // "YYYY-MM-DD"
   // field lain dari Setting boleh ditambah jika perlu
 };
@@ -23,7 +23,7 @@ export const useScheduleSettingsStore = create<ScheduleSettingsStore>()(
     (set, get) => ({
       settings: {
         // default UI jika belum ada di DB
-        periode: new Date().toISOString().slice(0, 7),
+        // periode: new Date().toISOString().slice(0, 7),
         tanggalCatatDefault: new Date().toISOString().slice(0, 10),
       },
       isLoading: false,
@@ -37,8 +37,8 @@ export const useScheduleSettingsStore = create<ScheduleSettingsStore>()(
 
           set({
             settings: {
-              periode:
-                j.periodeJadwalAktif ?? new Date().toISOString().slice(0, 7),
+              // periode:
+              //   j.periodeJadwalAktif ?? new Date().toISOString().slice(0, 7),
               tanggalCatatDefault:
                 j.tanggalCatatDefault ?? new Date().toISOString().slice(0, 10),
             },
@@ -51,8 +51,8 @@ export const useScheduleSettingsStore = create<ScheduleSettingsStore>()(
       updateSettings: async (partial) => {
         // simpan ke DB (pakai field yang API butuhkan)
         const payload: any = {};
-        if (partial.periode !== undefined)
-          payload.periodeJadwalAktif = partial.periode;
+        // if (partial.periode !== undefined)
+        //   payload.periodeJadwalAktif = partial.periode;
         if (partial.tanggalCatatDefault !== undefined)
           payload.tanggalCatatDefault = partial.tanggalCatatDefault;
 
@@ -68,9 +68,9 @@ export const useScheduleSettingsStore = create<ScheduleSettingsStore>()(
         set((state) => ({
           settings: {
             ...state.settings,
-            ...(partial.periode !== undefined
-              ? { periode: partial.periode }
-              : {}),
+            // ...(partial.periode !== undefined
+            //   ? { periode: partial.periode }
+            //   : {}),
             ...(partial.tanggalCatatDefault !== undefined
               ? { tanggalCatatDefault: partial.tanggalCatatDefault }
               : {}),

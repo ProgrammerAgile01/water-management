@@ -18,8 +18,9 @@ export default function PengaturanPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Tarif Air */}
-            <GlassCard className="p-6">
+            <GlassCard className="p-6  space-y-20">
               <TarifForm />
+              <ScheduleSettingsForm />
             </GlassCard>
 
             {/* Pengaturan Sistem */}
@@ -27,10 +28,10 @@ export default function PengaturanPage() {
               <SystemForm />
             </GlassCard>
 
-            {/* Pengaturan Jadwal Pencatatan */}
+            {/* Pengaturan Jadwal Pencatatan
             <GlassCard className="p-6">
-              <ScheduleSettingsForm />
-            </GlassCard>
+             
+            </GlassCard> */}
 
             {/* Manajemen User */}
             <GlassCard className="p-6 lg:col-span-2">
