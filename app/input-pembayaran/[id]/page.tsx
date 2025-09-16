@@ -37,12 +37,22 @@ type TagihanDetail = {
   abonemen: number;
   denda: number;
   totalTagihan: number;
-  statusBayar: string;
-  statusVerif: string;
+  statusBayar: "PAID" | "UNPAID";
+  statusVerif: "VERIFIED" | "UNVERIFIED";
   tglJatuhTempo: string | null;
   meterAwal: number | null;
   meterAkhir: number | null;
   pemakaianM3: number | null;
+};
+
+type PembayaranLite = {
+  id: string;
+  tanggalBayar: string;
+  jumlahBayar: number;
+  buktiUrl: string | null;
+  metode: Metode;
+  adminBayar: string | null;
+  keterangan: string | null;
 };
 
 export default function InputPembayaranPage() {
@@ -55,6 +65,10 @@ export default function InputPembayaranPage() {
   const [t, setT] = useState<TagihanDetail | null>(null);
   const [denda1, setDenda1] = useState(0);
   const [denda2, setDenda2] = useState(0);
+
+  // pembayaran dari DB (kalau sudah pernah upload)
+  const [payDB, setPayDB] = useState<PembayaranLite | null>(null);
+  const [loadingPay, setLoadingPay] = useState(true);
 
   // form
   const [tanggalBayar, setTanggalBayar] = useState<string>(() =>
@@ -108,6 +122,29 @@ export default function InputPembayaranPage() {
     };
   }, [id, toast]);
 
+  // ===== load pembayaran terbaru utk tagihan ini =====
+  const refetchPembayaran = async (tagihanId: string) => {
+    setLoadingPay(true);
+    try {
+      const r = await fetch(
+        `/api/pembayaran/by-tagihan?tagihanId=${encodeURIComponent(tagihanId)}`,
+        { cache: "no-store" }
+      );
+      const d = await r.json();
+      if (r.ok && d?.ok) {
+        setPayDB(d.pembayaran);
+        if (d.pembayaran?.metode) setMetode(d.pembayaran.metode as Metode);
+      }
+    } finally {
+      setLoadingPay(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!id) return;
+    refetchPembayaran(String(id));
+  }, [id]);
+
   // helper tanggalan
   // parse "dd/mm/yyyy" -> Date
   function parseTanggalDMY(s: string): Date | null {
@@ -146,6 +183,9 @@ export default function InputPembayaranPage() {
 
   const totalPlusDenda = (t?.totalTagihan ?? 0) + dendaHitung;
 
+  // ===== lock form kalau sudah ada pembayaran / PAID =====
+  const lockForm = !!payDB || t?.statusBayar === "PAID";
+
   const onSubmit = async () => {
     try {
       if (!t) throw new Error("Tagihan tidak ditemukan");
@@ -169,6 +209,16 @@ export default function InputPembayaranPage() {
         title: "Berhasil",
         description: "Bukti tersimpan & status tagihan ter-update.",
       });
+
+      // refetch pembayaran → kunci form + tampilkan preview dari server
+      await refetchPembayaran(t.id);
+      // opsional: update statusBayar lokal jika sudah lunas
+      setT((prev) =>
+        prev ? ({ ...prev, statusBayar: "PAID" } as TagihanDetail) : prev
+      );
+
+      // bersihka preview lokal
+      removeProof();
 
       // redirect kemana
       if (role === "ADMIN") {
@@ -197,9 +247,13 @@ export default function InputPembayaranPage() {
       if (!r.ok || !data?.ok) throw new Error(data?.message || "Gagal approve");
       toast({
         title: "Approved",
-        description: "Status verifikasi diset ke APPROVED.",
+        description: "Status verifikasi diset ke VERIFIED.",
       });
-      router.replace("/pelunasan/list");
+      // reload status verif
+      setT((prev) =>
+        prev ? ({ ...prev, statusVerif: "VERIFIED" } as TagihanDetail) : prev
+      );
+      router.replace("/tagihan-pembayaran");
     } catch (e: any) {
       toast({
         title: "Gagal",
@@ -506,21 +560,6 @@ export default function InputPembayaranPage() {
                           />
                         </div>
 
-                        {/* <div>
-                          <Label className="text-sm font-medium">Metode</Label>
-                          <select
-                            value={metode}
-                            onChange={(e) => setMetode(e.target.value as any)}
-                            className="mt-1 w-full h-10 rounded-md border bg-background px-3"
-                          >
-                            <option value="">Pilih…</option>
-                            <option value="TUNAI">Tunai</option>
-                            <option value="TRANSFER">Transfer</option>
-                            <option value="EWALLET">E-Wallet</option>
-                            <option value="QRIS">QRIS</option>
-                          </select>
-                        </div> */}
-
                         {/* Metode Pembayaran */}
                         <div className="space-y-2">
                           <Label className="text-base font-medium">
@@ -532,6 +571,7 @@ export default function InputPembayaranPage() {
                             value={metode}
                             onValueChange={(val) => setMetode(val as Metode)}
                             className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+                            disabled={lockForm}
                           >
                             {/* TUNAI */}
                             <label
@@ -661,11 +701,32 @@ export default function InputPembayaranPage() {
                               accept="image/jpeg,image/png,application/pdf"
                               onChange={onChangeProof}
                               className="hidden"
+                              disabled={lockForm}
                             />
 
-                            {proofPreview ? (
+                            {/* Jika sudah ada di DB → tampilkan server preview, sembunyikan uploader */}
+                            {payDB?.buktiUrl ? (
                               <div className="p-3 border rounded-lg bg-muted/20">
-                                {/* Preview gambar */}
+                                {payDB.buktiUrl
+                                  .toLowerCase()
+                                  .endsWith(".pdf") ? (
+                                  <object
+                                    data={payDB.buktiUrl}
+                                    type="application/pdf"
+                                    className="w-full h-60 rounded-md border"
+                                  />
+                                ) : (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={payDB.buktiUrl}
+                                    alt="Bukti pembayaran"
+                                    className="w-full h-60 object-contain rounded-md bg-background"
+                                  />
+                                )}
+                              </div>
+                            ) : proofPreview ? (
+                              // Preview lokal (sebelum submit)
+                              <div className="p-3 border rounded-lg bg-muted/20">
                                 {paymentProof?.type.startsWith("image/") ? (
                                   // eslint-disable-next-line @next/next/no-img-element
                                   <img
@@ -674,7 +735,6 @@ export default function InputPembayaranPage() {
                                     className="w-full h-60 object-contain rounded-md bg-background"
                                   />
                                 ) : (
-                                  // Preview PDF (link ke tab baru)
                                   <div className="flex items-center justify-between gap-3">
                                     <div className="text-sm">
                                       <p className="font-medium">
@@ -694,7 +754,6 @@ export default function InputPembayaranPage() {
                                     </a>
                                   </div>
                                 )}
-
                                 <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
                                   <span>
                                     {paymentProof?.name} •{" "}
@@ -712,8 +771,7 @@ export default function InputPembayaranPage() {
                                     onClick={removeProof}
                                     className="bg-transparent"
                                   >
-                                    <X className="w-4 h-4 mr-1" />
-                                    Hapus
+                                    <X className="w-4 h-4 mr-1" /> Hapus
                                   </Button>
                                 </div>
                               </div>
@@ -723,6 +781,7 @@ export default function InputPembayaranPage() {
                                 onClick={onPickProof}
                                 className="w-full h-32 border-2 border-dashed border-border/50 hover:border-border bg-transparent"
                                 type="button"
+                                disabled={lockForm}
                               >
                                 <div className="text-center">
                                   <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
@@ -743,6 +802,7 @@ export default function InputPembayaranPage() {
                               value={keterangan}
                               onChange={(e) => setKeterangan(e.target.value)}
                               className="mt-1"
+                              disabled={lockForm}
                             />
                           </div>
                         </div>
@@ -755,10 +815,10 @@ export default function InputPembayaranPage() {
                     <Button
                       onClick={onSubmit}
                       className="w-full h-12 text-base font-semibold"
-                      disabled={!paymentProof || !metode}
+                      disabled={lockForm || !paymentProof || !metode}
                     >
                       <Upload className="w-4 h-4 mr-2" />
-                      Simpan
+                      {lockForm ? "Sudah Diupload" : "Simpan"}
                     </Button>
 
                     {role === "ADMIN" && (
@@ -766,8 +826,11 @@ export default function InputPembayaranPage() {
                         variant="outline"
                         onClick={onApprove}
                         className="w-full h-12 text-base border-accent hover:bg-primary bg-transparent text-black hover:text-white mt-3.5"
+                        disabled={t.statusVerif === "VERIFIED"}
                       >
-                        Approve Pembayaran
+                        {t.statusVerif === "VERIFIED"
+                          ? "APPROVED"
+                          : "Approve Pembayaran"}
                       </Button>
                     )}
                   </div>
