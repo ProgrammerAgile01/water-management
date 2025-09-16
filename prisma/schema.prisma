@@ -55,49 +55,43 @@ model User {
 }
 
 model Pelanggan {
-  id          String   @id @default(cuid())
-  kode        String   @unique
-  nama        String
-  wa          String?  @db.VarChar(20)
-  alamat      String
-  meterAwal   Int      @default(0)
-  // Tambahan penting agar alur reset berjalan
+  id           String   @id @default(cuid())
+  kode         String   @unique
+  nama         String
+  wa           String?  @db.VarChar(20)
+  alamat       String
+  meterAwal    Int      @default(0)
   isResetMeter Boolean  @default(false)
-  statusAktif Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  statusAktif  Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  // Relasi utama ke User (pemilik akun pelanggan). FK disimpan di sini (userId).
+  // NEW: simpan password plaintext
+  passwordPlain String? @db.VarChar(100) // atau @db.Text kalau mau bebas panjang
+
   userId String? @unique
   user   User?   @relation("UserPelanggan", fields: [userId], references: [id])
 
-  // 🔹 Relasi ke Zona (opsional)
-  zonaId String?
-  zona   Zona?   @relation("PelangganZona", fields: [zonaId], references: [id])
+  zonaId      String?
+  zona        Zona?   @relation("PelangganZona", fields: [zonaId], references: [id])
+  noUrutRumah Int?
 
-  // 🔹 KOLUM BARU: nomor urut per zona
-  noUrutRumah Int? // null = belum ditetapkan
-
-  // Soft delete pelanggan
-  deletedAt     DateTime? @db.DateTime(3) // penanda terhapus
-  deletedBy     String? // FK → User.id yang menghapus
+  deletedAt     DateTime? @db.DateTime(3)
+  deletedBy     String?
   deletedByUser User?     @relation("DeletedByUser", fields: [deletedBy], references: [id])
 
-  // Back-relations ke transaksi (1 Pelanggan punya banyak CatatMeter & Tagihan)
-  catatans CatatMeter[]
-  tagihans Tagihan[]
-  // Back-relation transaksi reset
-  resets ResetMeter[] @relation("PelangganReset")
+  catatans      CatatMeter[]
+  tagihans      Tagihan[]
+  resets        ResetMeter[] @relation("PelangganReset")
   catatMeterBlok CatatMeterBlok[] @relation("PelangganToCatatMeterBlok")
 
-  // 🔹 constraint unik per zona (null mengabaikan unik)
   @@unique([zonaId, noUrutRumah])
-  @@index([zonaId]) // 🔹 biar filter per zona cepat
-  @@index([deletedAt]) // filter WHERE deletedAt IS NULL/NOT NULL jadi cepat
-  @@index([deletedBy]) // filter/rekap berdasarkan penghapus
-  // (opsional) index tambahan untuk sorting cepat
+  @@index([zonaId])
+  @@index([deletedAt])
+  @@index([deletedBy])
   @@index([zonaId, noUrutRumah])
 }
+
 
 enum PeriodeStatus {
   DRAFT
