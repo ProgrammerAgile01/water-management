@@ -347,7 +347,7 @@ export default function LaporanStatusPembayaranPage() {
       return <span className="text-red-600">Kurang Rp {fmtRp(n)}</span>;
     }
     if (n < 0) {
-      return <span className="text-green-600">Lebih Rp {fmtRp(-n)}</span>;
+      return <span className="text-green-600">Piutang Rp {fmtRp(-n)}</span>;
     }
     return <span className="text-green-600">Lunas</span>;
   }
@@ -385,7 +385,7 @@ export default function LaporanStatusPembayaranPage() {
         "No",
         "Nama",
         "Pemakaian (m³)",
-        "Tagihan Awal (Pemakaian × Tarif/m³)",
+        "Tagihan Bulan Ini (Pemakaian × Tarif/m³)",
         "Tagihan Lalu (+/−)",
         "Total Tagihan",
         "Dibayar",
@@ -539,7 +539,7 @@ export default function LaporanStatusPembayaranPage() {
                     </th> */}
                     <th className="text-left py-3 px-2">Pemakaian (m³)</th>
                     <th className="text-left py-3 px-2">
-                      <p>Tagihan Awal</p>
+                      <p>Tagihan Bulan Ini</p>
                       <p>(Pemakaian × Tarif/m³)</p>
                     </th>
                     <th className="text-left py-3 px-2">Tagihan Lalu</th>
@@ -568,16 +568,8 @@ export default function LaporanStatusPembayaranPage() {
                         Rp {fmtRp(r.tagihanAwal)}
                       </td>
                       {/* <td className="py-3 px-2">Rp {fmtRp(r.abonemen)}</td> */}
-                      <td
-                        className={`py-3 px-2 text-center ${
-                          r.tagihanLalu < 0
-                            ? "text-red-600"
-                            : r.tagihanLalu >= 0
-                            ? "text-green-600"
-                            : ""
-                        }`}
-                      >
-                        Rp {fmtRp(r.tagihanLalu)}
+                      <td>
+                        {renderSisaKurang(r.tagihanLalu)}
                       </td>
                       <td className="py-3 px-2 font-semibold text-center">
                         Rp {fmtRp(r.totalTagihan)}
@@ -586,15 +578,7 @@ export default function LaporanStatusPembayaranPage() {
                       <td className="py-3 px-2 text-center">
                         Rp {fmtRp(r.sudahBayar)}
                       </td>
-                      <td
-                        className={`py-3 px-2 text-center ${
-                          r.sisaKurang < 0
-                            ? "text-green-600"
-                            : r.sisaKurang > 0
-                            ? "text-red-600"
-                            : ""
-                        }`}
-                      >
+                      <td>
                         {renderSisaKurang(r.sisaKurang)}
                       </td>
                       <td className="py-3 px-2">
@@ -712,20 +696,12 @@ export default function LaporanStatusPembayaranPage() {
                   <span className="text-muted-foreground">Pemakaian (m³)</span>
                   <span>{r.pemakaianM3}</span>
 
-                  <span className="text-muted-foreground">Tagihan Awal</span>
+                  <span className="text-muted-foreground">Tagihan Bulan Ini</span>
                   <span>Rp {fmtRp(r.tagihanAwal)}</span>
 
                   <span className="text-muted-foreground">Tagihan Lalu</span>
-                  <span
-                    className={
-                      r.tagihanLalu < 0
-                        ? "text-red-600"
-                        : r.tagihanLalu > 0
-                        ? "text-green-600"
-                        : ""
-                    }
-                  >
-                    Rp {fmtRp(r.tagihanLalu)}
+                  <span>
+                    Rp {renderSisaKurang(r.tagihanLalu)}
                   </span>
 
                   <span className="text-muted-foreground">Total Tagihan</span>
@@ -853,7 +829,7 @@ export default function LaporanStatusPembayaranPage() {
                           : ""
                       }`}
                     >
-                      Rp {fmtRp(detail.tagihanLalu)}
+                      {renderSisaKurang(detail.tagihanLalu)}
                     </div>
                   </div>
                   <div className="p-3 rounded-lg bg-muted/40">
@@ -868,15 +844,7 @@ export default function LaporanStatusPembayaranPage() {
                     <div className="text-muted-foreground">
                       Sisa/Kurang (+/−)
                     </div>
-                    <div
-                      className={`font-medium ${
-                        detail.sisaKurang < 0
-                          ? "text-green-600"
-                          : detail.sisaKurang > 0
-                          ? "text-red-600"
-                          : ""
-                      }`}
-                    >
+                    <div>
                       {renderSisaKurang(detail.sisaKurang)}
                     </div>
                   </div>

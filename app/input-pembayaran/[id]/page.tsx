@@ -321,7 +321,7 @@ export default function InputPembayaranPage() {
       return <span className="text-red-600">Kurang {fmt(n)}</span>;
     }
     if (n < 0) {
-      return <span className="text-green-600">Lebih {fmt(-n)}</span>;
+      return <span className="text-green-600">Piutang {fmt(-n)}</span>;
     }
     return <span className="text-green-600">Lunas</span>;
   }
@@ -592,16 +592,8 @@ export default function InputPembayaranPage() {
                         <span className="text-muted-foreground">
                           Tagihan Lalu (+/−):
                         </span>
-                        <span
-                          className={`font-medium ${
-                            t.tagihanLalu < 0
-                              ? "text-red-600"
-                              : t.tagihanLalu > 0
-                              ? "text-green-600"
-                              : ""
-                          }`}
-                        >
-                          {fmt(t.tagihanLalu)}
+                        <span>
+                          {renderSisaKurang(t.tagihanLalu)}
                         </span>
                       </div>
 

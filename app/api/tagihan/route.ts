@@ -1,523 +1,44 @@
-// import { NextRequest, NextResponse } from "next/server";
-// import { prisma } from "@/lib/prisma";
-
-// export async function GET(req: NextRequest) {
-//   try {
-//     const url = new URL(req.url);
-//     const periodeQ = url.searchParams.get("periode") || undefined;
-//     const statusQRaw = url.searchParams.get("status") || undefined;
-//     const q = url.searchParams.get("q") || undefined;
-
-//     // Ambil identitas dari header DAN sediakan fallback query param (buat dev)
-//     const roleHeader = req.headers.get("x-user-role");
-//     const uidHeader = req.headers.get("x-user-id");
-//     const roleQuery = url.searchParams.get("role");
-//     const uidQuery = url.searchParams.get("uid");
-
-//     // ⬇️ DEFAULT = ADMIN (tanpa scoping) kalau tidak ada apa pun
-//     const role = (roleHeader || roleQuery || "ADMIN") as
-//       | "ADMIN"
-//       | "PETUGAS"
-//       | "WARGA";
-//     const userId = uidHeader || uidQuery || null;
-
-//     const where: any = {
-//       deletedAt: null,
-//       ...(periodeQ ? { periode: periodeQ } : {}),
-//     };
-
-//     // terima PAID/UNPAID atau lunas/belum-lunas
-//     if (statusQRaw) {
-//       const s = statusQRaw.toUpperCase();
-//       if (s === "PAID" || s === "LUNAS") {
-//         where.statusBayar = "PAID";
-//       } else if (s === "UNPAID" || s === "BELUM-LUNAS") {
-//         where.statusBayar = { not: "PAID" };
-//       }
-//     }
-
-//     // Terapkan scoping HANYA bila role WARGA
-//     if (role === "WARGA" && userId) {
-//       const pel = await prisma.pelanggan.findUnique({
-//         where: { userId },
-//         select: { id: true },
-//       });
-//       if (!pel) return NextResponse.json({ ok: true, data: [] });
-//       where.pelangganId = pel.id;
-//     }
-
-//     if (q) {
-//       where.OR = [
-//         { pelanggan: { is: { nama: { contains: q } } } },
-//         { pelanggan: { is: { kode: { contains: q } } } },
-//         { pelanggan: { is: { zona: { is: { nama: { contains: q } } } } } },
-//       ];
-//     }
-
-//     const tagihans = await prisma.tagihan.findMany({
-//       where,
-//       orderBy: [{ createdAt: "desc" }],
-//       include: {
-//         pelanggan: {
-//           select: {
-//             id: true,
-//             userId: true,
-//             kode: true,
-//             nama: true,
-//             zona: { select: { id: true, nama: true } },
-//           },
-//         },
-//         pembayarans: {
-//           orderBy: { tanggalBayar: "desc" },
-//           take: 1,
-//           select: {
-//             id: true,
-//             tanggalBayar: true,
-//             jumlahBayar: true,
-//             buktiUrl: true,
-//             metode: true,
-//             keterangan: true,
-//           },
-//         },
-//       },
-//     });
-
-//     // (opsional) ambil catat meter; kalau tidak ada, biarkan null
-//     const periodeSet = Array.from(new Set(tagihans.map((t) => t.periode)));
-//     const pelangganSet = Array.from(
-//       new Set(tagihans.map((t) => t.pelangganId))
-//     );
-//     const catats =
-//       periodeSet.length && pelangganSet.length
-//         ? await prisma.catatMeter.findMany({
-//             where: {
-//               pelangganId: { in: pelangganSet },
-//               deletedAt: null,
-//               periode: { is: { kodePeriode: { in: periodeSet } } },
-//             },
-//             select: {
-//               pelangganId: true,
-//               meterAwal: true,
-//               meterAkhir: true,
-//               pemakaianM3: true,
-//               periode: { select: { kodePeriode: true } },
-//             },
-//           })
-//         : [];
-
-//     const cmMap = new Map<
-//       string,
-//       { meterAwal: number; meterAkhir: number; pemakaianM3: number }
-//     >();
-//     for (const c of catats) {
-//       cmMap.set(`${c.pelangganId}|${c.periode.kodePeriode}`, {
-//         meterAwal: c.meterAwal,
-//         meterAkhir: c.meterAkhir,
-//         pemakaianM3: c.pemakaianM3,
-//       });
-//     }
-
-//     const data = tagihans.map((t) => {
-//       const cm = cmMap.get(`${t.pelangganId}|${t.periode}`);
-//       const last = t.pembayarans[0] || null;
-
-//       return {
-//         id: t.id,
-//         periode: t.periode,
-
-//         pelangganId: t.pelangganId,
-//         pelangganIdUser: t.pelanggan?.userId ?? null,
-//         pelangganKode: t.pelanggan?.kode ?? null,
-//         namaWarga: t.pelanggan?.nama ?? "-",
-//         zona: t.pelanggan?.zona?.nama ?? "-",
-
-//         meterAwal: cm?.meterAwal ?? null,
-//         meterAkhir: cm?.meterAkhir ?? null,
-//         pemakaian: cm?.pemakaianM3 ?? null,
-
-//         tarifPerM3: t.tarifPerM3,
-//         abonemen: t.abonemen,
-//         denda: t.denda,
-//         totalTagihan: t.totalTagihan,
-
-//         status: t.statusBayar === "PAID" ? "lunas" : "belum-lunas",
-//         statusVerif: t.statusVerif,
-//         tglJatuhTempo: t.tglJatuhTempo,
-
-//         tanggalBayar: last?.tanggalBayar ?? null,
-//         buktiPembayaran: last?.buktiUrl ?? null,
-//         metode: last?.metode ?? null,
-//         keterangan: last?.keterangan ?? null,
-//       };
-//     });
-
-//     return NextResponse.json({ ok: true, data });
-//   } catch (e: any) {
-//     console.error(e);
-//     return NextResponse.json(
-//       { ok: false, message: e?.message ?? "Error" },
-//       { status: 500 }
-//     );
-//   }
-// }
-
-// import { NextRequest, NextResponse } from "next/server";
-// import { prisma } from "@/lib/prisma";
-
-// export async function GET(req: NextRequest) {
-//   try {
-//     const url = new URL(req.url);
-
-//     // ===== filters =====
-//     const periodeQ = url.searchParams.get("periode") || undefined;
-//     const statusQRaw = url.searchParams.get("status") || undefined;
-//     const q = url.searchParams.get("q") || undefined;
-
-//     // ===== pagination =====
-//     const page = Math.max(parseInt(url.searchParams.get("page") || "1", 10) || 1, 1);
-//     const perPageRaw = parseInt(url.searchParams.get("perPage") || "10", 10);
-//     const perPage = Math.min(Math.max(perPageRaw || 10, 1), 100);
-//     const skip = (page - 1) * perPage;
-//     const take = perPage;
-
-//     // ===== scoping by role (header/qs) =====
-//     const roleHeader = req.headers.get("x-user-role");
-//     const uidHeader = req.headers.get("x-user-id");
-//     const roleQuery = url.searchParams.get("role");
-//     const uidQuery = url.searchParams.get("uid");
-//     const role = (roleHeader || roleQuery || "ADMIN") as "ADMIN" | "PETUGAS" | "WARGA";
-//     const userId = uidHeader || uidQuery || null;
-
-//     const where: any = {
-//       deletedAt: null,
-//       ...(periodeQ ? { periode: periodeQ } : {}),
-//     };
-
-//     // map status ui/api → kolom statusBayar
-//     if (statusQRaw) {
-//       const s = statusQRaw.toUpperCase();
-//       if (s === "PAID" || s === "LUNAS") where.statusBayar = "PAID";
-//       else if (s === "UNPAID" || s === "BELUM-LUNAS") where.statusBayar = { not: "PAID" };
-//     }
-
-//     // scope WARGA
-//     if (role === "WARGA" && userId) {
-//       const pel = await prisma.pelanggan.findUnique({
-//         where: { userId },
-//         select: { id: true },
-//       });
-//       if (!pel) return NextResponse.json({ ok: true, data: [], meta: { page, perPage, total: 0, totalPages: 0 } });
-//       where.pelangganId = pel.id;
-//     }
-
-//     // pencarian (tanpa 'mode' karena Prisma/DB kamu tidak support)
-//     if (q) {
-//       where.OR = [
-//         { pelanggan: { is: { nama: { contains: q } } } },
-//         { pelanggan: { is: { kode: { contains: q } } } },
-//         { pelanggan: { is: { zona: { is: { nama: { contains: q } } } } } },
-//       ];
-//     }
-
-//     // total untuk pagination
-//     const total = await prisma.tagihan.count({ where });
-
-//     // data halaman ini
-//     const tagihans = await prisma.tagihan.findMany({
-//       where,
-//       orderBy: [{ createdAt: "desc" }],
-//       skip,
-//       take,
-//       include: {
-//         pelanggan: {
-//           select: {
-//             id: true,
-//             userId: true,
-//             kode: true,
-//             nama: true,
-//             zona: { select: { id: true, nama: true } },
-//           },
-//         },
-//         pembayarans: {
-//           orderBy: { tanggalBayar: "desc" },
-//           take: 1,
-//           select: {
-//             id: true,
-//             tanggalBayar: true,
-//             jumlahBayar: true,
-//             buktiUrl: true,
-//             metode: true,
-//             keterangan: true,
-//           },
-//         },
-//       },
-//     });
-
-//     // catat meter (opsional)
-//     const periodeSet = Array.from(new Set(tagihans.map((t) => t.periode)));
-//     const pelangganSet = Array.from(new Set(tagihans.map((t) => t.pelangganId)));
-//     const catats =
-//       periodeSet.length && pelangganSet.length
-//         ? await prisma.catatMeter.findMany({
-//             where: {
-//               pelangganId: { in: pelangganSet },
-//               deletedAt: null,
-//               periode: { is: { kodePeriode: { in: periodeSet } } },
-//             },
-//             select: {
-//               pelangganId: true,
-//               meterAwal: true,
-//               meterAkhir: true,
-//               pemakaianM3: true,
-//               periode: { select: { kodePeriode: true } },
-//             },
-//           })
-//         : [];
-
-//     const cmMap = new Map<string, { meterAwal: number; meterAkhir: number; pemakaianM3: number }>();
-//     for (const c of catats) {
-//       cmMap.set(`${c.pelangganId}|${c.periode.kodePeriode}`, {
-//         meterAwal: c.meterAwal,
-//         meterAkhir: c.meterAkhir,
-//         pemakaianM3: c.pemakaianM3,
-//       });
-//     }
-
-//     const data = tagihans.map((t) => {
-//       const cm = cmMap.get(`${t.pelangganId}|${t.periode}`);
-//       const last = t.pembayarans[0] || null;
-
-//       return {
-//         id: t.id,
-//         periode: t.periode,
-
-//         pelangganId: t.pelangganId,
-//         pelangganIdUser: t.pelanggan?.userId ?? null,
-//         pelangganKode: t.pelanggan?.kode ?? null,
-//         namaWarga: t.pelanggan?.nama ?? "-",
-//         zona: t.pelanggan?.zona?.nama ?? "-",
-
-//         meterAwal: cm?.meterAwal ?? null,
-//         meterAkhir: cm?.meterAkhir ?? null,
-//         pemakaian: cm?.pemakaianM3 ?? null,
-
-//         tarifPerM3: t.tarifPerM3,
-//         abonemen: t.abonemen,
-//         denda: t.denda,
-//         totalTagihan: t.totalTagihan,
-
-//         status: t.statusBayar === "PAID" ? "lunas" : "belum-lunas",
-//         statusVerif: t.statusVerif,
-//         tglJatuhTempo: t.tglJatuhTempo,
-
-//         tanggalBayar: last?.tanggalBayar ?? null,
-//         buktiPembayaran: last?.buktiUrl ?? null,
-//         metode: last?.metode ?? null,
-//         keterangan: last?.keterangan ?? null,
-//       };
-//     });
-
-//     return NextResponse.json({
-//       ok: true,
-//       data,
-//       meta: { page, perPage, total, totalPages: Math.ceil(total / perPage) },
-//     });
-//   } catch (e: any) {
-//     console.error(e);
-//     return NextResponse.json({ ok: false, message: e?.message ?? "Error" }, { status: 500 });
-//   }
-// }
-
-// import { NextRequest, NextResponse } from "next/server";
-// import { prisma } from "@/lib/prisma";
-
-// function getCurrentPeriode() {
-//   return new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric" }).format(new Date());
-// }
-
-// export async function GET(req: NextRequest) {
-//   try {
-//     const url = new URL(req.url);
-
-//     // ===== filters & pagination =====
-//     const q = url.searchParams.get("q") || undefined;
-//     const periodeQ = url.searchParams.get("periode") || undefined; // untuk ADMIN/PETUGAS
-//     const statusQRaw = url.searchParams.get("status") || undefined;
-
-//     const page = Math.max(parseInt(url.searchParams.get("page") || "1", 10) || 1, 1);
-//     const perPageRaw = parseInt(url.searchParams.get("perPage") || "10", 10);
-//     const perPage = Math.min(Math.max(perPageRaw || 10, 1), 100);
-//     const skip = (page - 1) * perPage;
-//     const take = perPage;
-
-//     // ===== identitas/role =====
-//     const roleHeader = req.headers.get("x-user-role");
-//     const uidHeader  = req.headers.get("x-user-id");
-//     const roleQuery  = url.searchParams.get("role");
-//     const uidQuery   = url.searchParams.get("uid");
-//     const role  = (roleHeader || roleQuery || "ADMIN") as "ADMIN"|"PETUGAS"|"WARGA";
-//     const userId = uidHeader || uidQuery || null;
-
-//     const currentPeriode = getCurrentPeriode();
-
-//     // ===== base where =====
-//     const where: any = { deletedAt: null };
-
-//     // PERIOD RULE:
-//     // - WARGA => force current periode
-//     // - ADMIN/PETUGAS => pakai filter "periode" kalau dikirim, jika tidak ya tampilkan semua
-//     if (role === "WARGA") {
-//       where.periode = currentPeriode;
-//     } else if (periodeQ) {
-//       where.periode = periodeQ;
-//     }
-
-//     // STATUS map (PAID/UNPAID/LUNAS/BELUM-LUNAS)
-//     if (statusQRaw) {
-//       const s = statusQRaw.toUpperCase();
-//       if (s === "PAID" || s === "LUNAS") where.statusBayar = "PAID";
-//       else if (s === "UNPAID" || s === "BELUM-LUNAS") where.statusBayar = { not: "PAID" };
-//     }
-
-//     // SCOPE WARGA
-//     if (role === "WARGA" && userId) {
-//       const pel = await prisma.pelanggan.findUnique({
-//         where: { userId },
-//         select: { id: true },
-//       });
-//       if (!pel) {
-//         return NextResponse.json({
-//           ok: true,
-//           data: [],
-//           meta: { page, perPage, total: 0, totalPages: 0, currentPeriode, periodes: [currentPeriode] },
-//         });
-//       }
-//       where.pelangganId = pel.id;
-//     }
-
-//     // SEARCH (tanpa mode)
-//     if (q) {
-//       where.OR = [
-//         { pelanggan: { is: { nama: { contains: q } } } },
-//         { pelanggan: { is: { kode: { contains: q } } } },
-//         { pelanggan: { is: { zona: { is: { nama: { contains: q } } } } } },
-//       ];
-//     }
-
-//     // ==== periode list untuk FILTER (ADMIN/PETUGAS lihat semua, WARGA hanya current) ====
-//     const whereForPeriods: any = { ...where };
-//     delete whereForPeriods.periode; // supaya dapat semua distinct periode sesuai scope/role + filter lain (status/q)
-//     const periodsRaw = await prisma.tagihan.findMany({
-//       where: whereForPeriods,
-//       distinct: ["periode"],
-//       select: { periode: true },
-//       orderBy: { createdAt: "desc" },
-//     });
-//     const periodes = (role === "WARGA")
-//       ? [currentPeriode]
-//       : Array.from(new Set(periodsRaw.map(p => p.periode))).filter(Boolean);
-
-//     // ==== total + data (dengan pagination) ====
-//     const total = await prisma.tagihan.count({ where });
-
-//     const tagihans = await prisma.tagihan.findMany({
-//       where,
-//       orderBy: [{ createdAt: "desc" }],
-//       skip, take,
-//       include: {
-//         pelanggan: {
-//           select: {
-//             id: true, userId: true, kode: true, nama: true,
-//             zona: { select: { id: true, nama: true } },
-//           },
-//         },
-//         pembayarans: {
-//           orderBy: { tanggalBayar: "desc" },
-//           take: 1,
-//           select: {
-//             id: true, tanggalBayar: true, jumlahBayar: true,
-//             buktiUrl: true, metode: true, keterangan: true,
-//           },
-//         },
-//       },
-//     });
-
-//     // ==== catat meter (opsional) ====
-//     const periodeSet   = Array.from(new Set(tagihans.map(t => t.periode)));
-//     const pelangganSet = Array.from(new Set(tagihans.map(t => t.pelangganId)));
-//     const catats = (periodeSet.length && pelangganSet.length)
-//       ? await prisma.catatMeter.findMany({
-//           where: {
-//             pelangganId: { in: pelangganSet },
-//             deletedAt: null,
-//             periode: { is: { kodePeriode: { in: periodeSet } } },
-//           },
-//           select: {
-//             pelangganId: true,
-//             meterAwal: true, meterAkhir: true, pemakaianM3: true,
-//             periode: { select: { kodePeriode: true } },
-//           },
-//         })
-//       : [];
-
-//     const cmMap = new Map<string, { meterAwal:number; meterAkhir:number; pemakaianM3:number }>();
-//     for (const c of catats) {
-//       cmMap.set(`${c.pelangganId}|${c.periode.kodePeriode}`, {
-//         meterAwal: c.meterAwal, meterAkhir: c.meterAkhir, pemakaianM3: c.pemakaianM3,
-//       });
-//     }
-
-//     const data = tagihans.map(t => {
-//       const cm = cmMap.get(`${t.pelangganId}|${t.periode}`);
-//       const last = t.pembayarans[0] || null;
-//       return {
-//         id: t.id,
-//         periode: t.periode,
-//         pelangganId: t.pelangganId,
-//         pelangganIdUser: t.pelanggan?.userId ?? null,
-//         pelangganKode: t.pelanggan?.kode ?? null,
-//         namaWarga: t.pelanggan?.nama ?? "-",
-//         zona: t.pelanggan?.zona?.nama ?? "-",
-//         meterAwal: cm?.meterAwal ?? null,
-//         meterAkhir: cm?.meterAkhir ?? null,
-//         pemakaian: cm?.pemakaianM3 ?? null,
-//         tarifPerM3: t.tarifPerM3,
-//         abonemen: t.abonemen,
-//         denda: t.denda,
-//         totalTagihan: t.totalTagihan,
-//         status: t.statusBayar === "PAID" ? "lunas" : "belum-lunas",
-//         statusVerif: t.statusVerif,
-//         tglJatuhTempo: t.tglJatuhTempo,
-//         tanggalBayar:    last?.tanggalBayar ?? null,
-//         buktiPembayaran: last?.buktiUrl ?? null,
-//         metode:          last?.metode ?? null,
-//         keterangan:      last?.keterangan ?? null,
-//         // hanya periode berjalan
-//         canInputPayment: t.periode === currentPeriode,
-//       };
-//     });
-
-//     return NextResponse.json({
-//       ok: true,
-//       data,
-//       meta: {
-//         page, perPage, total, totalPages: Math.ceil(total / perPage),
-//         currentPeriode,
-//         periodes, // ← kirim semua opsi periode untuk filter (berdasarkan role/scope)
-//       },
-//     });
-//   } catch (e: any) {
-//     console.error(e);
-//     return NextResponse.json({ ok: false, message: e?.message ?? "Error" }, { status: 500 });
-//   }
-// }
-
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-function getCurrentPeriode() {
-  // contoh: "September 2025"
-  return new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric" }).format(new Date());
+// Parse "Januari 2025", "September 2025", atau "2025-09" → {y,m}
+function parsePeriodeYM(p?: string | null): { y: number; m: number } | null {
+  if (!p) return null;
+  const s = String(p).trim().toLowerCase();
+
+  // format 2025-09
+  const ym = /^(\d{4})-(\d{1,2})$/.exec(s);
+  if (ym) {
+    const y = Number(ym[1]);
+    const m = Number(ym[2]);
+    if (y > 1900 && m >= 1 && m <= 12) return { y, m };
+  }
+
+  const idMonths: Record<string, number> = {
+    "januari": 1, "februari": 2, "maret": 3, "april": 4, "mei": 5, "juni": 6,
+    "juli": 7, "agustus": 8, "september": 9, "oktober": 10, "november": 11, "desember": 12,
+  };
+
+  // "september 2025" / "september-2025"
+  const parts = s.replace(/\s+/g, " ").replace("-", " ").split(" ");
+  if (parts.length >= 2) {
+    const mm = idMonths[parts[0]];
+    const yy = Number(parts[1]);
+    if (mm && yy > 1900) return { y: yy, m: mm };
+  }
+
+  return null;
+}
+
+function comparePeriodeDesc(a: string, b: string) {
+  const pa = parsePeriodeYM(a);
+  const pb = parsePeriodeYM(b);
+  if (pa && pb) {
+    if (pa.y !== pb.y) return pb.y - pa.y;
+    return pb.m - pa.m;
+  }
+  // fallback lexicographic desc
+  return String(b).localeCompare(String(a));
 }
 
 export async function GET(req: NextRequest) {
@@ -526,7 +47,7 @@ export async function GET(req: NextRequest) {
 
     // ===== filters & pagination =====
     const q = url.searchParams.get("q") || undefined;
-    const periodeQ = url.searchParams.get("periode") || undefined; // ADMIN/PETUGAS only
+    const periodeQ = url.searchParams.get("periode") || undefined; // filter opsional
     const statusQRaw = url.searchParams.get("status") || undefined;
 
     const page = Math.max(parseInt(url.searchParams.get("page") || "1", 10) || 1, 1);
@@ -543,28 +64,21 @@ export async function GET(req: NextRequest) {
     const role  = (roleHeader || roleQuery || "ADMIN") as "ADMIN"|"PETUGAS"|"WARGA";
     const userId = uidHeader || uidQuery || null;
 
-    const currentPeriode = getCurrentPeriode();
-
-    // ===== base where =====
+    // ===== SCOPE by role =====
+    // Base where untuk DATA (dipakai count & findMany)
     const where: any = { deletedAt: null };
 
-    // PERIOD RULE:
-    // - WARGA => force current periode
-    // - ADMIN/PETUGAS => pakai filter "periode" kalau dikirim, jika tidak tampilkan semua
-    if (role === "WARGA") {
-      where.periode = currentPeriode;
-    } else if (periodeQ) {
-      where.periode = periodeQ;
-    }
-
-    // STATUS map (PAID/UNPAID/LUNAS/BELUM-LUNAS)
+    // Status: PAID/UNPAID atau lunas/belum-lunas
     if (statusQRaw) {
       const s = statusQRaw.toUpperCase();
       if (s === "PAID" || s === "LUNAS") where.statusBayar = "PAID";
       else if (s === "UNPAID" || s === "BELUM-LUNAS") where.statusBayar = { not: "PAID" };
     }
 
-    // SCOPE WARGA
+    // Periode filter (ADMIN/PETUGAS/WARGA semuanya boleh lihat semua periode; hanya input-nya yang dibatasi)
+    if (periodeQ) where.periode = periodeQ;
+
+    // WARGA dibatasi ke pelanggan sendiri
     if (role === "WARGA" && userId) {
       const pel = await prisma.pelanggan.findUnique({
         where: { userId },
@@ -574,13 +88,13 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({
           ok: true,
           data: [],
-          meta: { page, perPage, total: 0, totalPages: 0, currentPeriode, periodes: [currentPeriode] },
+          meta: { page, perPage, total: 0, totalPages: 0, latestPeriode: "", periodes: [] },
         });
       }
       where.pelangganId = pel.id;
     }
 
-    // SEARCH di relasi (tanpa 'mode')
+    // Search di relasi (tanpa mode karena Prisma/DB tak support)
     if (q) {
       where.OR = [
         { pelanggan: { is: { nama: { contains: q } } } },
@@ -589,20 +103,28 @@ export async function GET(req: NextRequest) {
       ];
     }
 
-    // ==== daftar periode (role-aware) untuk filter di UI ====
-    const whereForPeriods: any = { ...where };
-    delete whereForPeriods.periode; // ambil semua distinct periode sesuai scope (status/q tetap dihormati)
+    // ====== Ambil daftar semua periode (untuk filter & untuk cari "periode terakhir") ======
+    // Scope periode mengikuti ROLE (warga hanya periode miliknya), tapi TIDAK mengikuti q/status/periode filter
+    const wherePeriodsScope: any = { deletedAt: null };
+    if (role === "WARGA" && userId) {
+      const pel = await prisma.pelanggan.findUnique({
+        where: { userId },
+        select: { id: true },
+      });
+      if (pel) wherePeriodsScope.pelangganId = pel.id;
+      else wherePeriodsScope.pelangganId = "__none__"; // kosongkan
+    }
+
     const periodsRaw = await prisma.tagihan.findMany({
-      where: whereForPeriods,
-      distinct: ["periode"],
+      where: wherePeriodsScope,
       select: { periode: true },
     });
-    const periodes =
-      role === "WARGA"
-        ? [currentPeriode]
-        : Array.from(new Set(periodsRaw.map((p) => p.periode))).filter(Boolean);
 
-    // ==== total + data (pagination) ====
+    const periodesUnique = Array.from(new Set(periodsRaw.map((p) => p.periode))).filter(Boolean) as string[];
+    periodesUnique.sort(comparePeriodeDesc);
+    const latestPeriode = periodesUnique[0] ?? "";
+
+    // ===== total + data (pagination) =====
     const total = await prisma.tagihan.count({ where });
 
     const tagihans = await prisma.tagihan.findMany({
@@ -635,7 +157,7 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // ==== catat meter (opsional) ====
+    // ===== catat meter (opsional) =====
     const periodeSet   = Array.from(new Set(tagihans.map((t) => t.periode)));
     const pelangganSet = Array.from(new Set(tagihans.map((t) => t.pelangganId)));
     const catats =
@@ -656,7 +178,7 @@ export async function GET(req: NextRequest) {
           })
         : [];
 
-    const cmMap = new Map<string, { meterAwal:number; meterAkhir:number; pemakaianM3:number }>();
+    const cmMap = new Map<string, { meterAwal: number; meterAkhir: number; pemakaianM3: number }>();
     for (const c of catats) {
       cmMap.set(`${c.pelangganId}|${c.periode.kodePeriode}`, {
         meterAwal: c.meterAwal,
@@ -668,6 +190,7 @@ export async function GET(req: NextRequest) {
     const data = tagihans.map((t) => {
       const cm = cmMap.get(`${t.pelangganId}|${t.periode}`);
       const last = t.pembayarans[0] || null;
+
       return {
         id: t.id,
         periode: t.periode,
@@ -691,13 +214,13 @@ export async function GET(req: NextRequest) {
         statusVerif: t.statusVerif,
         tglJatuhTempo: t.tglJatuhTempo,
 
-        tanggalBayar:    last?.tanggalBayar ?? null,
+        tanggalBayar: last?.tanggalBayar ?? null,
         buktiPembayaran: last?.buktiUrl ?? null,
-        metode:          last?.metode ?? null,
-        keterangan:      last?.keterangan ?? null,
+        metode: last?.metode ?? null,
+        keterangan: last?.keterangan ?? null,
 
-        // hanya periode berjalan & belum lunas yang bisa input
-        canInputPayment: t.periode === currentPeriode && t.statusBayar !== "PAID",
+        // hanya periode TERAKHIR
+        canInputPayment: Boolean(latestPeriode) && t.periode === latestPeriode,
       };
     });
 
@@ -709,8 +232,8 @@ export async function GET(req: NextRequest) {
         perPage,
         total,
         totalPages: Math.ceil(total / perPage),
-        currentPeriode,
-        periodes,
+        latestPeriode,     // ← periode terakhir (contoh: "September 2025")
+        periodes: periodesUnique, // untuk dropdown filter
       },
     });
   } catch (e: any) {
