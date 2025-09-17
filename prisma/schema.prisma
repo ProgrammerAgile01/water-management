@@ -210,13 +210,20 @@ enum CatatStatus {
 model Tagihan {
   id            String   @id @default(cuid())
   periode       String
+
   tarifPerM3    Int
   abonemen      Int      @default(0)
   denda         Int      @default(0)
-  totalTagihan  Int
+  totalTagihan  Int      // nominal bulan ini (tanpa carry): tarif*pemakaian + abonemen + denda
+
+  // 🔽 Tambahan untuk carry-over tagihan lalu dan sisa/kurang
+  tagihanLalu   Int      @default(0) // saldo bulan lalu (boleh + atau −)
+  sisaKurang    Int      @default(0) // saldo akhir bulan ini (boleh + atau −)
+  
   statusBayar   String   @default("UNPAID")
   statusVerif   String   @default("UNVERIFIED")
   tglJatuhTempo DateTime
+
   info          String?  @db.Text
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

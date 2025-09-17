@@ -529,7 +529,7 @@ export function MeterGrid() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Button
+            {/* <Button
               onClick={handlePreviewAllPDF}
               variant="outline"
               size="sm"
@@ -537,7 +537,7 @@ export function MeterGrid() {
             >
               <FileText className="w-4 h-4 mr-2" />
               Preview Semua (PDF)
-            </Button>
+            </Button> */}
             <div className="flex items-center gap-2">
               <Select
                 value={selectedCustomer}
@@ -800,7 +800,7 @@ export function MeterGrid() {
                               />
                             </Button>
 
-                            {r.status === "completed" && (
+                            {/* {r.status === "completed" && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -815,7 +815,7 @@ export function MeterGrid() {
                                   <Send className="w-4 h-4" />
                                 )}
                               </Button>
-                            )}
+                            )} */}
                           </div>
                         </td>
                       </tr>

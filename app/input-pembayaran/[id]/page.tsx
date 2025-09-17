@@ -37,7 +37,12 @@ type TagihanDetail = {
   tarifPerM3: number;
   abonemen: number;
   denda: number;
-  totalTagihan: number;
+  totalTagihan: number; // = tagihan bulan ini
+  tagihanLalu: number; // (+/-) baru
+  totalDue: number; // baru = tagihanLalu + totalTagihan
+  dibayar: number; // baru (akumulasi pembayaran)
+  sisaKurang: number; // baru (totalDue - dibayar)
+
   statusBayar: "PAID" | "UNPAID";
   statusVerif: "VERIFIED" | "UNVERIFIED";
   tglJatuhTempo: string | null;
@@ -84,6 +89,18 @@ export default function InputPembayaranPage() {
   // modal approve
   const [openApprove, setOpenApprove] = useState(false);
   const [loadingApprove, setLoadingApprove] = useState(false);
+
+  // nominal bayar
+  const [nominalBayar, setNominalBayar] = useState<string>("");
+
+  // Set default nominal setelah data tagihan terbaca / pembayaran diambil
+  useEffect(() => {
+    if (!t) return;
+    // default: kalau masih ada kekurangan → isi sisaKurang; kalau tidak → isi totalDue
+    const def =
+      Math.max(t.sisaKurang ?? 0, 0) || (t.totalDue ?? t.totalTagihan);
+    setNominalBayar(String(def || 0));
+  }, [t]);
 
   // role dari /api/auth/me (AuthGuard juga akan set localStorage)
   useEffect(() => {
@@ -195,13 +212,17 @@ export default function InputPembayaranPage() {
 
   const onSubmit = async () => {
     try {
+      const nominal = Number(nominalBayar || 0);
+
       if (!t) throw new Error("Tagihan tidak ditemukan");
       if (!metode) throw new Error("Pilih metode pembayaran");
       if (!paymentProof) throw new Error("Wajib upload bukti pembayaran");
+      if (!nominal || nominal <= 0)
+        throw new Error("Nominal bayar harus diisi dan lebih dari 0");
 
       const fd = new FormData();
       fd.set("tagihanId", t.id);
-      fd.set("nominalBayar", String(totalBayar)); // biasanya bayar penuh
+      fd.set("nominalBayar", String(nominal));
       fd.set("tanggalBayar", tanggalBayar);
       fd.set("metodeBayar", metode);
       fd.set("keterangan", keterangan);
@@ -292,6 +313,18 @@ export default function InputPembayaranPage() {
       currency: "IDR",
       minimumFractionDigits: 0,
     }).format(n);
+
+  // format sisa kurang
+  // helper format sisa kurang
+  function renderSisaKurang(n: number) {
+    if (n > 0) {
+      return <span className="text-red-600">Kurang {fmt(n)}</span>;
+    }
+    if (n < 0) {
+      return <span className="text-green-600">Lebih {fmt(-n)}</span>;
+    }
+    return <span className="text-green-600">Lunas</span>;
+  }
 
   // preview gambar / bukti
   const onPickProof = () => {
@@ -405,7 +438,7 @@ export default function InputPembayaranPage() {
                           Total Tagihan
                         </h3>
                         <p className="text-2xl font-bold text-foreground">
-                          {fmt(t.totalTagihan)}
+                          {fmt(t.totalDue)}
                         </p>
                         <p className="text-sm text-muted-foreground mt-1">
                           Jatuh Tempo{" "}
@@ -431,8 +464,16 @@ export default function InputPembayaranPage() {
                               : "Belum Dibayar"}
                           </span>
                           {" | "}
-                          <span className={`${t.statusVerif === "VERIFIED" ? "text-green-600" : "text-orange-600"}`}>
-                            {t.statusVerif === "VERIFIED" ? "Diverifikasi" : "Menunggu verifikasi admin"}
+                          <span
+                            className={`${
+                              t.statusVerif === "VERIFIED"
+                                ? "text-green-600"
+                                : "text-orange-600"
+                            }`}
+                          >
+                            {t.statusVerif === "VERIFIED"
+                              ? "Diverifikasi"
+                              : "Menunggu verifikasi admin"}
                           </span>
                         </p>
                       </div>
@@ -547,10 +588,60 @@ export default function InputPembayaranPage() {
                           </div>
                         </div>
                       </div> */}
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">
+                          Tagihan Lalu (+/−):
+                        </span>
+                        <span
+                          className={`font-medium ${
+                            t.tagihanLalu < 0
+                              ? "text-red-600"
+                              : t.tagihanLalu > 0
+                              ? "text-green-600"
+                              : ""
+                          }`}
+                        >
+                          {fmt(t.tagihanLalu)}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">
+                          Tagihan Bulan Ini:
+                        </span>
+                        <span className="font-medium">
+                          {fmt(t.totalTagihan)}
+                        </span>
+                      </div>
+
                       <div className="border-t border-border/20 pt-2 flex justify-between">
                         <span className="font-semibold">Total Bayar:</span>
                         <span className="font-bold text-lg">
-                          {fmt(t.totalTagihan)}
+                          {fmt(t.totalDue)}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">
+                          Sudah Dibayar:
+                        </span>
+                        <span className="font-medium">{fmt(t.dibayar)}</span>
+                      </div>
+
+                      <div className="border-t border-border/20 pt-2 flex justify-between">
+                        <span className="font-semibold">
+                          Sisa/Kurang (+/−):
+                        </span>
+                        <span
+                          className={`font-bold text-lg ${
+                            t.sisaKurang > 0
+                              ? "text-red-600"
+                              : t.sisaKurang < 0
+                              ? "text-green-600"
+                              : ""
+                          }`}
+                        >
+                          {renderSisaKurang(t.sisaKurang)}
                         </span>
                       </div>
                     </div>
@@ -584,6 +675,32 @@ export default function InputPembayaranPage() {
                             className="mt-1"
                             readOnly
                           />
+                        </div>
+
+                        {/* input nominal */}
+                        <div>
+                          <Label
+                            htmlFor="nominal"
+                            className="text-sm font-medium"
+                          >
+                            Nominal Bayar
+                            <span className="text-red-600">*</span>
+                          </Label>
+                          <Input
+                            id="nominal"
+                            type="number"
+                            inputMode="numeric"
+                            min={0}
+                            value={nominalBayar}
+                            onChange={(e) => setNominalBayar(e.target.value)}
+                            className="mt-1"
+                            disabled={lockForm}
+                            placeholder="Masukkan nominal sesuai yang anda bayarkan (Rp)"
+                            required
+                          />
+                          {/* <p className="mt-1 text-xs text-muted-foreground">
+                            Sisa/Kurang saat ini: <b>{fmt(t.sisaKurang)}</b>
+                          </p> */}
                         </div>
 
                         {/* Metode Pembayaran */}
@@ -719,6 +836,7 @@ export default function InputPembayaranPage() {
                             className="text-sm font-medium"
                           >
                             Bukti Pembayaran
+                            <span className="text-red-600">*</span>
                           </Label>
                           <div className="mt-1">
                             <input
@@ -841,7 +959,9 @@ export default function InputPembayaranPage() {
                     <Button
                       onClick={onSubmit}
                       className="w-full h-12 text-base font-semibold"
-                      disabled={lockForm || !paymentProof || !metode}
+                      disabled={
+                        lockForm || !paymentProof || !metode || !nominalBayar
+                      }
                     >
                       <Upload className="w-4 h-4 mr-2" />
                       {lockForm ? "Sudah Diupload" : "Simpan"}

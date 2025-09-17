@@ -18,13 +18,13 @@ export default function CatatMeterPage() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <p className="text-muted-foreground">Pencatatan meter air bulanan</p>
             <div className="flex items-center gap-3">
-              <WAButton
+              {/* <WAButton
                 message="Tagihan air bulan ini sudah tersedia. Silakan cek aplikasi Tirta Bening."
                 className="flex items-center gap-2"
               >
                 <Send className="w-4 h-4" />
                 Kirim Tagihan Air
-              </WAButton>
+              </WAButton> */}
             </div>
           </div>
 

@@ -9,15 +9,28 @@ export async function GET(
 ) {
   try {
     const id = params.id;
-    if (!id) return NextResponse.json({ ok:false, message:"id wajib" }, { status:400 });
+    if (!id)
+      return NextResponse.json(
+        { ok: false, message: "id wajib" },
+        { status: 400 }
+      );
 
     const t = await prisma.tagihan.findUnique({
       where: { id },
       include: {
-        pelanggan: { select: { id:true, kode:true, nama:true, wa:true } },
+        pelanggan: { select: { id: true, kode: true, nama: true, wa: true } },
+        // ambil pembayaran agar bisa hitung “dibayar”
+        pembayarans: {
+          where: { deletedAt: null },
+          select: { jumlahBayar: true, tanggalBayar: true },
+        },
       },
     });
-    if (!t) return NextResponse.json({ ok:false, message:"Tagihan tidak ditemukan" }, { status:404 });
+    if (!t)
+      return NextResponse.json(
+        { ok: false, message: "Tagihan tidak ditemukan" },
+        { status: 404 }
+      );
 
     // ambil catatan meter untuk periode & pelanggan ini (jika ada)
     const cm = await prisma.catatMeter.findFirst({
@@ -32,6 +45,13 @@ export async function GET(
     // ambil setting untuk nilai denda (biar UI bisa hitung saat user ubah tanggal)
     const setting = await prisma.setting.findUnique({ where: { id: 1 } });
 
+    // === perhitungan baru ===
+    const dibayar = t.pembayarans.reduce((a, p) => a + (p.jumlahBayar || 0), 0);
+    const tagihanLalu = t.tagihanLalu || 0; // (+/-) carry-over
+    const totalBulanIni = t.totalTagihan || 0; // tarif*m3 + abonemen (tanpa denda sesuai instruksi)
+    const totalDue = tagihanLalu + totalBulanIni; // yang seharusnya ditagih bulan ini
+    const sisaKurang = totalDue - dibayar; // (+ berarti masih kurang, - berarti lebih)
+
     return NextResponse.json({
       ok: true,
       tagihan: {
@@ -45,7 +65,12 @@ export async function GET(
         tarifPerM3: t.tarifPerM3,
         abonemen: t.abonemen,
         denda: t.denda,
-        totalTagihan: t.totalTagihan,
+        totalTagihan: totalBulanIni, // (nama lama) = tagihan bulan ini
+        tagihanLalu, // (+/-)
+        totalDue, // (baru) = tagihanLalu + totalBulanIni
+        dibayar, // (baru) total pembayaran yang sudah masuk
+        sisaKurang, // (baru) dasar carry-over bulan depan
+        
         statusBayar: t.statusBayar,
         statusVerif: t.statusVerif,
         tglJatuhTempo: t.tglJatuhTempo,
@@ -57,7 +82,10 @@ export async function GET(
       dendaFirstMonth: setting?.dendaTelatBulanSama ?? 0,
       dendaNextMonths: setting?.dendaTelatBulanBerbeda ?? 0,
     });
-  } catch (e:any) {
-    return NextResponse.json({ ok:false, message:e?.message ?? "Server error" }, { status:500 });
+  } catch (e: any) {
+    return NextResponse.json(
+      { ok: false, message: e?.message ?? "Server error" },
+      { status: 500 }
+    );
   }
 }

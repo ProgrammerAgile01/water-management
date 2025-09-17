@@ -113,16 +113,17 @@ export default async function Page({ params, searchParams }: PageProps) {
   return (
     <div className="mx-auto text-zinc-900 bg-white">
       {/* ==== CSS: mobile-first, hijau, card, cocok untuk screenshot ==== */}
-      <style>{`
+      <style>
+        {`
         /* untuk keperluan cetak/screenshot ukuran bebas, fokus ke layout mobile */
         @media print { .no-print { display: none !important } }
         :root {
         /* ↓ non-compact | compact */
-        --fz-body:     ${compact ? "9pt"  : "10pt"};
-        --fz-small:    ${compact ? "8pt"  : "9pt"};
-        --fz-label:    ${compact ? "8pt"  : "9pt"};
+        --fz-body:     ${compact ? "9pt" : "10pt"};
+        --fz-small:    ${compact ? "8pt" : "9pt"};
+        --fz-label:    ${compact ? "8pt" : "9pt"};
         --fz-title:    ${compact ? "14pt" : "16pt"};
-        --fz-subtitle: ${compact ? "9pt"  : "10pt"};
+        --fz-subtitle: ${compact ? "9pt" : "10pt"};
         --fz-number:   ${compact ? "10pt" : "11pt"};
         --fz-hero:     ${compact ? "12pt" : "14pt"};
 
@@ -146,7 +147,25 @@ export default async function Page({ params, searchParams }: PageProps) {
         .card { border: 1px solid #E5E7EB; border-radius: var(--radius); overflow: hidden; background:#fff; }
         .sectionTitle { background:#F9FAFB; padding:6pt 10pt; font-weight:600; font-size:var(--fz-subtitle); }
         .pad { padding: var(--card-pad); }
-      `}</style>
+              /* Sembunyikan indikator/overlay Next.js saat dev */
+        #__next-build-watcher,
+        #nextjs__container,
+        #nextjs__standard_error_overlay,
+        #nextjs__webpack_error_overlay,
+        #nextjs__hot-reloader-indicator,
+        #nextjs__dev-overlay,
+        #next-route-announcer,
+        #__next-route-announcer__,
+        [data-nextjs-toast],
+        [data-nextjs-dialog-overlay],
+        [data-nextjs-portal] {
+          display: none !important;
+          visibility: hidden !important;
+          opacity: 0 !important;
+          pointer-events: none !important;
+        }
+      `}
+      </style>
 
       {/* kontainer max 380px agar mirip layar hp & pas dengan viewport Puppeteer */}
       <div className="max-w-[380px] mx-auto">
@@ -163,9 +182,7 @@ export default async function Page({ params, searchParams }: PageProps) {
           </div>
           <div>
             <div className="brandTitle">{perusahaan}</div>
-            <div className="brandSub">
-              {alamatPerusahaan}
-            </div>
+            <div className="brandSub">{alamatPerusahaan}</div>
             <div className="brandSub">
               Tagihan: <span className="font-semibold">{invoiceNo}</span>
             </div>

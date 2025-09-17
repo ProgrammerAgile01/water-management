@@ -54,7 +54,9 @@ function adminWaText(p: {
     `*Notifikasi Pembayaran Masuk*${p.perusahaan ? `\n${p.perusahaan}` : ""}`,
     "",
     "----------------------------------",
-    `• Pelanggan : ${p.pelangganNama}${p.pelangganKode ? ` (${p.pelangganKode})` : ""}`,
+    `• Pelanggan : ${p.pelangganNama}${
+      p.pelangganKode ? ` (${p.pelangganKode})` : ""
+    }`,
     `• Periode      : ${periodeLabel}`,
     `• Nominal     : ${formatRp(p.nominal)}`,
     `• Metode      : ${p.metode}`,
@@ -181,7 +183,16 @@ export async function POST(req: NextRequest) {
     // });
     const t0 = await prisma.tagihan.findUnique({
       where: { id: tagihanId },
-      select: { tglJatuhTempo: true, denda: true, totalTagihan: true },
+      select: {
+        id: true,
+        periode: true,
+        tglJatuhTempo: true,
+        denda: true,
+        totalTagihan: true, // tagihan bulan ini
+        tagihanLalu: true, // (+/-) carry-over
+        pelangganId: true,
+        pelanggan: { select: { nama: true, kode: true } },
+      },
     });
     if (!t0)
       return NextResponse.json(
@@ -241,12 +252,15 @@ export async function POST(req: NextRequest) {
       });
       const t = await tx.tagihan.findUnique({
         where: { id: tagihanId },
-        select: { totalTagihan: true },
+        select: { totalTagihan: true, tagihanLalu: true },
         // select: { totalTagihan: true, denda: true },
       });
-      // const harus = (t?.totalTagihan ?? 0) + (t?.denda ?? 0);
-      const harus = t?.totalTagihan ?? 0; // denda dimatikan
+
+      // *** PERUBAHAN UTAMA ***
+      // Total Due = Tagihan Lalu (+/-) + Tagihan Bulan Ini
+      const harus = (t?.tagihanLalu ?? 0) + (t?.totalTagihan ?? 0);
       const sudah = agg._sum.jumlahBayar ?? 0;
+      // const harus = (t?.totalTagihan ?? 0) + (t?.denda ?? 0);
 
       await tx.tagihan.update({
         where: { id: tagihanId },
@@ -301,7 +315,7 @@ export async function POST(req: NextRequest) {
         });
 
         // next redirect: langsung ke halaman list/verifikasi tagihan tertentu
-        const next = `/input-pembayaran${encodeURIComponent(tagihanId)}`;
+        const next = `/input-pembayaran/${encodeURIComponent(tagihanId)}`;
         const link = origin
           ? `${origin}/api/auth/magic?token=${encodeURIComponent(
               token
@@ -326,7 +340,34 @@ export async function POST(req: NextRequest) {
       console.error("[notify-admin-wa]", err);
     }
 
-    return NextResponse.json({ ok: true, pembayaran });
+    /* ------------------- kembalikan snapshot cepat ke UI ------------------- */
+    const sum = await prisma.pembayaran.aggregate({
+      where: { tagihanId, deletedAt: null },
+      _sum: { jumlahBayar: true },
+    });
+    const tag = await prisma.tagihan.findUnique({
+      where: { id: tagihanId },
+      select: {
+        totalTagihan: true,
+        tagihanLalu: true,
+        statusBayar: true,
+        statusVerif: true,
+      },
+    });
+    const totalDue = (tag?.tagihanLalu ?? 0) + (tag?.totalTagihan ?? 0);
+    const dibayar = sum._sum.jumlahBayar ?? 0;
+
+    return NextResponse.json({
+      ok: true,
+      pembayaran,
+      snapshot: {
+        totalDue,
+        dibayar,
+        sisaKurang: totalDue - dibayar,
+        statusBayar: tag?.statusBayar,
+        statusVerif: tag?.statusVerif,
+      },
+    });
   } catch (e: any) {
     return NextResponse.json(
       { ok: false, message: e?.message ?? "Server error" },
