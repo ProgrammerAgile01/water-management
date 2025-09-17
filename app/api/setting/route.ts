@@ -3,19 +3,14 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 
-// Optional: pastikan route selalu dieksekusi secara dinamis
 export const dynamic = "force-dynamic";
 
-// Util: buang key yang bernilai undefined (Prisma tidak menerima undefined)
 function cleanData<T extends Record<string, any>>(obj: T): Partial<T> {
   const out: Record<string, any> = {};
-  for (const [k, v] of Object.entries(obj)) {
-    if (v !== undefined) out[k] = v;
-  }
+  for (const [k, v] of Object.entries(obj)) if (v !== undefined) out[k] = v;
   return out as Partial<T>;
 }
 
-// Validasi payload untuk pengaturan tarif + profil + jadwal (opsional)
 const SettingSchema = z.object({
   // Tarif & penagihan
   tarifPerM3: z.number().int().min(0).optional(),
@@ -25,7 +20,7 @@ const SettingSchema = z.object({
   dendaTelatBulanSama: z.number().int().min(0).optional(),
   dendaTelatBulanBerbeda: z.number().int().min(0).optional(),
 
-  // Profil sistem
+  // Profil
   namaPerusahaan: z.string().max(120).optional().nullable(),
   alamat: z.string().max(255).optional().nullable(),
   telepon: z.string().max(30).optional().nullable(),
@@ -39,12 +34,8 @@ const SettingSchema = z.object({
   namaBendahara: z.string().max(120).optional().nullable(),
   whatsappCs: z.string().max(30).optional().nullable(),
 
-  // Jadwal
-  tanggalCatatDefault: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .optional()
-    .nullable(),
+  // Jadwal — sekarang integer hari 1..31
+  tanggalCatatDefault: z.number().int().min(1).max(31).optional().nullable(),
 });
 
 // GET
@@ -61,29 +52,24 @@ export async function GET() {
           tglJatuhTempo: 15,
           dendaTelatBulanSama: 5000,
           dendaTelatBulanBerbeda: 10000,
-
           namaPerusahaan: "Tirta Bening",
           alamat: "",
           telepon: "",
           email: "",
           logoUrl: "",
-
-          // field baru default kosong
           namaBankPembayaran: "",
           norekPembayaran: "",
           anNorekPembayaran: "",
           namaBendahara: "",
           whatsappCs: "",
-
-          tanggalCatatDefault: null,
+          tanggalCatatDefault: null, // integer
         },
       }));
 
     return NextResponse.json({
       ...row,
-      tanggalCatatDefault: row.tanggalCatatDefault
-        ? row.tanggalCatatDefault.toISOString().slice(0, 10)
-        : null,
+      // langsung kirim integer atau null
+      tanggalCatatDefault: row.tanggalCatatDefault ?? null,
     });
   } catch (err) {
     console.error("GET /api/setting error:", err);
@@ -106,14 +92,7 @@ export async function PUT(req: Request) {
       );
     }
 
-    const data = cleanData(parsed.data) as any;
-
-    if ("tanggalCatatDefault" in data) {
-      data.tanggalCatatDefault =
-        data.tanggalCatatDefault == null
-          ? null
-          : new Date(`${data.tanggalCatatDefault}T00:00:00.000Z`);
-    }
+    const data = cleanData(parsed.data);
 
     const updated = await prisma.setting.upsert({
       where: { id: 1 },
@@ -126,20 +105,16 @@ export async function PUT(req: Request) {
         tglJatuhTempo: 15,
         dendaTelatBulanSama: 5000,
         dendaTelatBulanBerbeda: 10000,
-
         namaPerusahaan: "",
         alamat: "",
         telepon: "",
         email: "",
         logoUrl: "",
-
-        // field baru default
         namaBankPembayaran: "",
         norekPembayaran: "",
         anNorekPembayaran: "",
         namaBendahara: "",
         whatsappCs: "",
-
         tanggalCatatDefault: null,
         ...data,
       },
@@ -147,9 +122,7 @@ export async function PUT(req: Request) {
 
     return NextResponse.json({
       ...updated,
-      tanggalCatatDefault: updated.tanggalCatatDefault
-        ? updated.tanggalCatatDefault.toISOString().slice(0, 10)
-        : null,
+      tanggalCatatDefault: updated.tanggalCatatDefault ?? null,
     });
   } catch (err) {
     console.error("PUT /api/setting error:", err);

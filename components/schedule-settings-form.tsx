@@ -1,6 +1,5 @@
 // components/schedule-settings-form.tsx
 "use client";
-
 import type React from "react";
 import { useEffect, useState } from "react";
 import { CalendarDays, Save } from "lucide-react";
@@ -15,20 +14,18 @@ export function ScheduleSettingsForm() {
     useScheduleSettingsStore();
   const { toast } = useToast();
 
-  // hanya pegang tanggalCatatDefault
   const [formData, setFormData] = useState<{
-    tanggalCatatDefault: string | null;
-  }>({ tanggalCatatDefault: settings.tanggalCatatDefault });
+    tanggalCatatDefault: number | null;
+  }>({
+    tanggalCatatDefault: settings.tanggalCatatDefault ?? null,
+  });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    // load 1x
     loadSettings().catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
   useEffect(() => {
-    setFormData({ tanggalCatatDefault: settings.tanggalCatatDefault });
+    setFormData({ tanggalCatatDefault: settings.tanggalCatatDefault ?? null });
   }, [settings]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -38,14 +35,11 @@ export function ScheduleSettingsForm() {
       await updateSettings({
         tanggalCatatDefault: formData.tanggalCatatDefault,
       });
-      toast({
-        title: "Berhasil",
-        description: "Pengaturan jadwal pencatatan berhasil disimpan",
-      });
+      toast({ title: "Berhasil", description: "Pengaturan jadwal disimpan" });
     } catch (err: any) {
       toast({
         title: "Gagal",
-        description: err?.message ?? "Tidak bisa menyimpan pengaturan",
+        description: err?.message ?? "Tidak bisa menyimpan",
         variant: "destructive",
       });
     } finally {
@@ -64,19 +58,26 @@ export function ScheduleSettingsForm() {
 
       <div className="space-y-4">
         <div>
-          <Label htmlFor="tanggal-catat">Tanggal Catat Meter</Label>
+          <Label htmlFor="tanggal-catat">Hari Pencatatan (1–31)</Label>
           <Input
             id="tanggal-catat"
-            type="date"
+            type="number"
+            min={1}
+            max={31}
             value={formData.tanggalCatatDefault ?? ""}
             onChange={(e) =>
-              setFormData({ tanggalCatatDefault: e.target.value || null })
+              setFormData({
+                tanggalCatatDefault: e.target.value
+                  ? Math.max(1, Math.min(31, Number(e.target.value)))
+                  : null,
+              })
             }
             className="w-full"
             disabled={isLoading || saving}
           />
           <p className="text-xs text-muted-foreground mt-1">
-            Tanggal ini akan dipakai otomatis pada menu Jadwal Pencatatan.
+            Sistem akan otomatis menyesuaikan jika bulan tidak punya tanggal tsb
+            (mis. 30/31 → jatuh ke 28/29 di Februari).
           </p>
         </div>
       </div>

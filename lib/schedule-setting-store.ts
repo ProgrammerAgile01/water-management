@@ -1,14 +1,10 @@
 // lib/schedule-settings-store.ts
 "use client";
-
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 type Settings = {
-  // dipakai UI form
-  // periode: string; // "YYYY-MM"
-  tanggalCatatDefault: string; // "YYYY-MM-DD"
-  // field lain dari Setting boleh ditambah jika perlu
+  tanggalCatatDefault: number | null; // 1..31
 };
 
 interface ScheduleSettingsStore {
@@ -22,9 +18,7 @@ export const useScheduleSettingsStore = create<ScheduleSettingsStore>()(
   persist(
     (set, get) => ({
       settings: {
-        // default UI jika belum ada di DB
-        // periode: new Date().toISOString().slice(0, 7),
-        tanggalCatatDefault: new Date().toISOString().slice(0, 10),
+        tanggalCatatDefault: new Date().getDate(), // default
       },
       isLoading: false,
 
@@ -37,10 +31,10 @@ export const useScheduleSettingsStore = create<ScheduleSettingsStore>()(
 
           set({
             settings: {
-              // periode:
-              //   j.periodeJadwalAktif ?? new Date().toISOString().slice(0, 7),
               tanggalCatatDefault:
-                j.tanggalCatatDefault ?? new Date().toISOString().slice(0, 10),
+                typeof j.tanggalCatatDefault === "number"
+                  ? j.tanggalCatatDefault
+                  : new Date().getDate(),
             },
           });
         } finally {
@@ -49,10 +43,7 @@ export const useScheduleSettingsStore = create<ScheduleSettingsStore>()(
       },
 
       updateSettings: async (partial) => {
-        // simpan ke DB (pakai field yang API butuhkan)
         const payload: any = {};
-        // if (partial.periode !== undefined)
-        //   payload.periodeJadwalAktif = partial.periode;
         if (partial.tanggalCatatDefault !== undefined)
           payload.tanggalCatatDefault = partial.tanggalCatatDefault;
 
@@ -64,13 +55,9 @@ export const useScheduleSettingsStore = create<ScheduleSettingsStore>()(
         const j = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(j?.message ?? "Gagal menyimpan setting");
 
-        // update state lokal agar UI langsung sinkron
         set((state) => ({
           settings: {
             ...state.settings,
-            // ...(partial.periode !== undefined
-            //   ? { periode: partial.periode }
-            //   : {}),
             ...(partial.tanggalCatatDefault !== undefined
               ? { tanggalCatatDefault: partial.tanggalCatatDefault }
               : {}),

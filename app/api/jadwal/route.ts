@@ -23,13 +23,12 @@ function resolveMonthFromSearchParams(sp: URLSearchParams) {
   return month;
 }
 
-function buildTanggalUntukBulan(month: string, settingDate?: Date | null) {
+function buildTanggalUntukBulan(month: string, settingDay?: number | null) {
   const [y, m] = month.split("-");
-  const dayFromSetting = settingDate ? settingDate.getUTCDate() : 1;
+  const dayFromSetting = settingDay ?? 1; // default 1 kalau null
   const lastDay = new Date(Number(y), Number(m), 0).getDate();
-  const day = Math.min(dayFromSetting, lastDay);
-  const dayStr = String(day).padStart(2, "0");
-  return new Date(`${month}-${dayStr}T00:00:00.000Z`);
+  const day = Math.min(Math.max(1, dayFromSetting), lastDay);
+  return new Date(`${month}-${String(day).padStart(2, "0")}T00:00:00.000Z`);
 }
 
 function mapUiStatus(

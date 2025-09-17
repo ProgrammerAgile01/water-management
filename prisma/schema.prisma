@@ -307,7 +307,7 @@ model Setting {
   whatsappCs         String? @db.VarChar(30)
 
   // ——— Pengaturan Jadwal ———
-  tanggalCatatDefault DateTime?
+  tanggalCatatDefault Int?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
