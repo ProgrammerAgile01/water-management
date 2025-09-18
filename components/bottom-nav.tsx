@@ -1,62 +1,84 @@
 "use client";
 
-import {
-  Home,
-  Users,
-  ClipboardList,
-  CreditCard,
-  Settings,
-  CalendarDays,
-  FileText,
-  RotateCcw,
-  Grid3X3,
-  FolderOpen,
-  BarChart3,
-} from "lucide-react";
+import { Home, Users, FileText } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { GlassCard } from "./glass-card";
 
-const navItems = [
-  { href: "/dashboard", label: "Home", icon: Home },
-  { href: "/pelanggan", label: "Pelanggan", icon: Users },
-  // { href: "/catat-meter", label: "Catat", icon: ClipboardList },
-  // {
-  //   href: "catat-meter-blok",
-  //   label: "Catat Meter Blok",
-  //   icon: Grid3X3,
-  // },
-  // { href: "/jadwal-pencatatan", label: "Jadwal", icon: CalendarDays },
-  // { href: "/reset-meteran", label: "Reset", icon: RotateCcw },
-  // { href: "/pelunasan", label: "Bayar", icon: CreditCard },
-  { href: "/tagihan-pembayaran", label: "Tagihan", icon: FileText },
-  // { href: "/biaya", label: "Biaya", icon: FolderOpen },
-  // { href: "/pengeluaran", label: "Pengeluaran", icon: CreditCard },
-  // {
-  //   href: "/laporan-summary",
-  //   label: "Laporan Summary",
-  //   icon: BarChart3,
-  //   roles: ["ADMIN", "OPERATOR"],
-  // },
-  // { href: "/pengaturan", label: "Setting", icon: Settings },
+// ====== Roles & tipe item ======
+type Role = "ADMIN" | "OPERATOR" | "PETUGAS" | "WARGA";
+
+type BottomItem = {
+  href: string;
+  label: string;
+  icon: React.ComponentType<any>;
+  roles?: Role[]; // siapa yang boleh melihat
+};
+
+// ====== Daftar menu bottom (beri roles di sini) ======
+const NAV_ITEMS: BottomItem[] = [
+  {
+    href: "/dashboard",
+    label: "Home",
+    icon: Home,
+    roles: ["ADMIN", "OPERATOR", "PETUGAS"],
+  },
+  { href: "/warga-dashboard", label: "Home", icon: Home, roles: ["WARGA"] },
+  {
+    href: "/pelanggan",
+    label: "Pelanggan",
+    icon: Users,
+    roles: ["ADMIN", "OPERATOR"],
+  },
+  {
+    href: "/tagihan-pembayaran",
+    label: "Tagihan",
+    icon: FileText,
+    roles: ["ADMIN", "OPERATOR", "WARGA"],
+  },
 ];
 
 export function BottomNav() {
   const pathname = usePathname();
 
-  // Don't show bottom nav on login page
-  if (pathname === "/" || pathname === "/login") {
-    return null;
-  }
+  // sembunyikan di login/landing
+  if (pathname === "/" || pathname === "/login") return null;
+
+  const [role, setRole] = useState<Role | null>(null);
+
+  // ambil role user dari localStorage (hasil login)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("tb_user");
+      if (raw) {
+        const u = JSON.parse(raw) as { role?: Role };
+        if (u?.role) setRole(u.role);
+      }
+    } catch {}
+  }, []);
+
+  // filter item sesuai role
+  const items = useMemo(() => {
+    return NAV_ITEMS.filter((m) => {
+      if (!m.roles || m.roles.length === 0) return true; // default: terlihat semua
+      if (!role) return false;
+      return m.roles.includes(role);
+    });
+  }, [role]);
+
+  // Jika belum tahu role (sebentar saat mount), jangan render agar tidak flicker
+  if (!role) return null;
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 p-4">
       <GlassCard className="mx-auto max-w-md">
         <nav className="flex items-center justify-around py-2">
-          {navItems.map((item) => {
+          {items.map((item) => {
             const Icon = item.icon;
-            const isActive = pathname === item.href;
+            const isActive =
+              pathname === item.href || pathname.startsWith(item.href + "/");
 
             return (
               <Link
@@ -77,6 +99,24 @@ export function BottomNav() {
             );
           })}
         </nav>
+
+        {/* Divider tipis */}
+        <div className="mx-3 h-px bg-black/50" />
+
+        {/* FOOTER dalam BottomNav */}
+        <div className="py-2 text-center text-[11px] leading-none text-muted-foreground">
+          <span className="mr-1">Supported by</span>
+          <Link
+            href="https://agile.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-foreground hover:text-primary transition-colors"
+          >
+            agile.com
+          </Link>
+          <span className="mx-2 opacity-50">•</span>
+          <span className="select-none">© 2025</span>
+        </div>
       </GlassCard>
     </div>
   );

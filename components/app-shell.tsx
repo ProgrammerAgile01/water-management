@@ -14,7 +14,7 @@ export function AppShell({ children, className }: AppShellProps) {
   return (
     <div className="min-h-screen relative">
       <WaterBackground />
-      <main className={cn("relative z-10 p-4 pb-24", className)}>{children}</main>
+      <main className={cn("relative z-10 p-4 pb-32", className)}>{children}</main>
       <BottomNav />
     </div>
   )

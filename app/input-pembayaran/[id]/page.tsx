@@ -93,14 +93,32 @@ export default function InputPembayaranPage() {
   // nominal bayar
   const [nominalBayar, setNominalBayar] = useState<string>("");
 
-  // Set default nominal setelah data tagihan terbaca / pembayaran diambil
+  // Prefill nominal: ambil dari pembayaran terakhir jika ada.
+  // Hanya set sekali (saat nominalBayar masih kosong) agar tidak menimpa input user.
   useEffect(() => {
     if (!t) return;
-    // default: kalau masih ada kekurangan → isi sisaKurang; kalau tidak → isi totalDue
-    const def =
-      Math.max(t.sisaKurang ?? 0, 0) || (t.totalDue ?? t.totalTagihan);
-    setNominalBayar(String(def || 0));
-  }, [t]);
+    if (nominalBayar !== "") return;
+
+    // 1) Jika sudah ada pembayaran tersimpan → pakai jumlah tersebut
+    if (payDB?.jumlahBayar && payDB.jumlahBayar > 0) {
+      setNominalBayar(String(payDB.jumlahBayar));
+      // (opsional) set juga tanggal & metode dari DB agar konsisten
+      if (payDB?.tanggalBayar) {
+        const iso = toISODate(payDB.tanggalBayar);
+        if (iso) setTanggalBayar(iso);
+      }
+      if (payDB.metode) setMetode(payDB.metode);
+      return;
+    }
+
+    // 2) Belum ada pembayaran → isi default sesuai sisa/total
+    // const defaultNominal =
+    //   (t.sisaKurang && t.sisaKurang > 0
+    //     ? t.sisaKurang
+    //     : t.totalDue ?? t.totalTagihan ?? 0) || 0;
+
+    // setNominalBayar(String(defaultNominal));
+  }, [t, payDB, nominalBayar]);
 
   // role dari /api/auth/me (AuthGuard juga akan set localStorage)
   useEffect(() => {
@@ -248,12 +266,8 @@ export default function InputPembayaranPage() {
       // bersihka preview lokal
       removeProof();
 
-      // redirect kemana
-      if (role === "ADMIN") {
-        router.replace("/tagihan-pembayaran");
-      } else {
-        router.replace("/warga-dashboard");
-      }
+      // redirect
+      router.replace("/tagihan-pembayaran");
     } catch (e: any) {
       toast({
         title: "Gagal",
@@ -314,7 +328,6 @@ export default function InputPembayaranPage() {
       minimumFractionDigits: 0,
     }).format(n);
 
-  // format sisa kurang
   // helper format sisa kurang
   function renderSisaKurang(n: number) {
     if (n > 0) {
@@ -324,6 +337,54 @@ export default function InputPembayaranPage() {
       return <span className="text-green-600">Piutang {fmt(-n)}</span>;
     }
     return <span className="text-green-600">Lunas</span>;
+  }
+
+  // --- helpers tanggal ---
+  function toISODate(s: string): string {
+    if (!s) return "";
+    // sudah ISO?
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+    // format dd/mm/yyyy atau dd-mm-yyyy
+    const m = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+    if (m) {
+      const dd = Number(m[1]);
+      const mm = Number(m[2]);
+      const yyyy = Number(m[3]);
+      const d = new Date(yyyy, mm - 1, dd); // no timezone shift (construct local)
+      if (!isNaN(+d))
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+          2,
+          "0"
+        )}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+
+    // fallback: biarkan Date parse; jika valid, kembalikan ISO pendek
+    const d = new Date(s);
+    if (!isNaN(+d)) {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+        2,
+        "0"
+      )}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+    return "";
+  }
+
+  function isoToID(iso: string): string {
+    if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return "";
+    const [y, m, d] = iso.split("-");
+    return `${d}/${m}/${y}`; // "dd/mm/yyyy"
+  }
+
+  function isoToLongID(iso: string): string {
+    if (!iso) return "";
+    const [y, m, d] = iso.split("-");
+    const dt = new Date(Number(y), Number(m) - 1, Number(d));
+    return dt.toLocaleDateString("id-ID", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    });
   }
 
   // preview gambar / bukti
@@ -592,9 +653,7 @@ export default function InputPembayaranPage() {
                         <span className="text-muted-foreground">
                           Tagihan Lalu (+/−):
                         </span>
-                        <span>
-                          {renderSisaKurang(t.tagihanLalu)}
-                        </span>
+                        <span>{renderSisaKurang(t.tagihanLalu)}</span>
                       </div>
 
                       <div className="flex justify-between">
@@ -687,12 +746,12 @@ export default function InputPembayaranPage() {
                             onChange={(e) => setNominalBayar(e.target.value)}
                             className="mt-1"
                             disabled={lockForm}
-                            placeholder="Masukkan nominal sesuai yang anda bayarkan (Rp)"
+                            placeholder="Masukkan jumlah yang dibayar"
                             required
                           />
-                          {/* <p className="mt-1 text-xs text-muted-foreground">
-                            Sisa/Kurang saat ini: <b>{fmt(t.sisaKurang)}</b>
-                          </p> */}
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            *format tanpa titik, contoh: 20000
+                          </p>
                         </div>
 
                         {/* Metode Pembayaran */}
