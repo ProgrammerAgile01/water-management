@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { AppHeader } from "@/components/app-header";
-import { AuthGuard } from "@/components/auth-guard"; // Komponen pembungkus, cek user sudah login/authorized
+import { AuthGuard } from "@/components/auth-guard";
 import { AppShell } from "@/components/app-shell";
 import { GlassCard } from "@/components/glass-card";
 import { useDashboardStore } from "@/lib/dashboard-store";
@@ -31,26 +31,22 @@ import { X } from "lucide-react";
 export default function DashboardLaporanPage() {
   const {
     selectedYear,
+    zoneNames,
     waterUsageData,
     revenueData,
     expenseData,
     profitLossData,
     unpaidBills,
     setSelectedYear,
-    getDataByYear,
   } = useDashboardStore();
 
-  // Auto-load data untuk tahun aktif saat halaman dibuka
   useEffect(() => {
-    // pertama kali buka, load tahun aktif
-    // abaikan kalau store-mu sudah diinisiasi di tempat lain
-    // tidak mengubah UI sama sekali
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // auto-load tahun aktif saat pertama render
     useDashboardStore.getState().getDataByYear();
   }, []);
 
   const formatCurrency = (value: number) =>
-    `Rp ${(value / 1000000).toFixed(1)}M`;
+    `Rp ${(value / 1_000_000).toFixed(1)}M`;
   const formatUsage = (value: number) => `${value} m³`;
 
   return (
@@ -70,8 +66,6 @@ export default function DashboardLaporanPage() {
                   onValueChange={(value) => {
                     const y = Number.parseInt(value);
                     setSelectedYear(y);
-                    // kalau mau explicit fetch juga bisa:
-                    // getDataByYear(y);
                   }}
                 >
                   <SelectTrigger className="w-32">
@@ -87,7 +81,7 @@ export default function DashboardLaporanPage() {
             </GlassCard>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Water Usage Chart */}
+              {/* Water Usage Chart (6 zona) */}
               <GlassCard className="p-6">
                 <h3 className="text-lg font-semibold text-foreground mb-4">
                   📈 Grafik Pemakaian Air
@@ -130,7 +124,7 @@ export default function DashboardLaporanPage() {
                       dataKey="blokA"
                       stroke="#4CAF50"
                       strokeWidth={2}
-                      name="Blok A"
+                      name={zoneNames[0] ?? "Blok A"}
                       dot={{ fill: "#4CAF50", strokeWidth: 2, r: 3 }}
                     />
                     <Line
@@ -138,7 +132,7 @@ export default function DashboardLaporanPage() {
                       dataKey="blokB"
                       stroke="#FF9800"
                       strokeWidth={2}
-                      name="Blok B"
+                      name={zoneNames[1] ?? "Blok B"}
                       dot={{ fill: "#FF9800", strokeWidth: 2, r: 3 }}
                     />
                     <Line
@@ -146,14 +140,38 @@ export default function DashboardLaporanPage() {
                       dataKey="blokC"
                       stroke="#2196F3"
                       strokeWidth={2}
-                      name="Blok C"
+                      name={zoneNames[2] ?? "Blok C"}
                       dot={{ fill: "#2196F3", strokeWidth: 2, r: 3 }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="blokD"
+                      stroke="#9C27B0"
+                      strokeWidth={2}
+                      name={zoneNames[3] ?? "Blok D"}
+                      dot={{ fill: "#9C27B0", strokeWidth: 2, r: 3 }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="blokE"
+                      stroke="#795548"
+                      strokeWidth={2}
+                      name={zoneNames[4] ?? "Blok E"}
+                      dot={{ fill: "#795548", strokeWidth: 2, r: 3 }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="blokF"
+                      stroke="#607D8B"
+                      strokeWidth={2}
+                      name={zoneNames[5] ?? "Blok F"}
+                      dot={{ fill: "#607D8B", strokeWidth: 2, r: 3 }}
                     />
                   </LineChart>
                 </ResponsiveContainer>
               </GlassCard>
 
-              {/* Revenue Chart */}
+              {/* Revenue */}
               <GlassCard className="p-6">
                 <h3 className="text-lg font-semibold text-foreground mb-4">
                   💰 Grafik Pendapatan
@@ -351,7 +369,7 @@ export default function DashboardLaporanPage() {
 
               {/* Mobile Card List */}
               <div className="md:hidden space-y-3">
-                {unpaidBills.map((bill, index) => (
+                {unpaidBills.map((bill) => (
                   <div
                     key={bill.id}
                     className="bg-white/50 rounded-lg p-4 border border-gray-200"

@@ -1,108 +1,115 @@
-import { create } from "zustand"
-import { persist } from "zustand/middleware"
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 export interface WaterIssue {
-  id: string
-  issue: string
-  description: string
-  status: "unresolved" | "solved"
-  date: string
-  reporter: string
-  phone: string
-  address: string
-  priority: "high" | "medium" | "low"
-  solvedDate?: string
-  solution?: string
-  customerId?: string
-  source: "meter_reading" | "manual_report"
+  id: string;
+  issue: string;
+  description: string;
+  status: "unresolved" | "solved";
+  date: string; // YYYY-MM-DD
+  reporter: string;
+  phone: string;
+  address: string;
+  priority: "high" | "medium" | "low";
+  solvedDate?: string | null;
+  solution?: string | null;
+  customerId?: string | null;
+  // ⬇️ tambahkan blok agar kompatibel dengan data API
+  source: "meter_reading" | "meter_reading_blok" | "manual_report";
 }
 
 interface WaterIssuesStore {
-  issues: WaterIssue[]
+  issues: WaterIssue[];
 
-  // Actions
-  addIssue: (issue: Omit<WaterIssue, "id" | "date">) => void
-  updateIssue: (id: string, updates: Partial<WaterIssue>) => void
-  solveIssue: (id: string, solution: string) => void
-  deleteIssue: (id: string) => void
-  getIssuesByStatus: (status: "unresolved" | "solved") => WaterIssue[]
-  getIssuesByCustomer: (customerId: string) => WaterIssue[]
+  /** Replace/merge data dari API */
+  setIssues: (items: WaterIssue[], keepManual?: boolean) => void;
+
+  /** Tambah 1 issue (dipakai form manual); id & date auto jika tidak disediakan */
+  addIssue: (
+    issue: Omit<WaterIssue, "id" | "date"> &
+      Partial<Pick<WaterIssue, "id" | "date">>
+  ) => void;
+
+  /** Upsert satu atau banyak issue (id sama → update, id baru → insert) */
+  upsertIssue: (item: WaterIssue) => void;
+  upsertMany: (items: WaterIssue[]) => void;
+
+  updateIssue: (id: string, updates: Partial<WaterIssue>) => void;
+  solveIssue: (id: string, solution: string) => void;
+  deleteIssue: (id: string) => void;
+
+  getIssuesByStatus: (status: "unresolved" | "solved") => WaterIssue[];
+  getIssuesByCustomer: (customerId: string) => WaterIssue[];
+  clear: () => void;
 }
 
 export const useWaterIssuesStore = create<WaterIssuesStore>()(
   persist(
     (set, get) => ({
-      issues: [
-        {
-          id: "1",
-          issue: "Pipa bocor di Jl. Merdeka",
-          description: "Pipa utama bocor di depan rumah, air menggenang di jalan",
-          status: "unresolved",
-          date: "2024-01-15",
-          reporter: "Budi Santoso",
-          phone: "081234567890",
-          address: "Jl. Merdeka No. 12",
-          priority: "high",
-          customerId: "TB240001",
-          source: "meter_reading",
-        },
-        {
-          id: "2",
-          issue: "Tekanan air rendah di RT 05",
-          description: "Tekanan air sangat rendah sejak 3 hari yang lalu, mempengaruhi 15 rumah",
-          status: "unresolved",
-          date: "2024-01-18",
-          reporter: "Ketua RT 05",
-          phone: "081234567891",
-          address: "RT 05 RW 02",
-          priority: "medium",
-          source: "manual_report",
-        },
-        {
-          id: "3",
-          issue: "Meter rusak - Budi Santoso",
-          description: "Meter air tidak berputar, kemungkinan rusak atau tersumbat",
-          status: "unresolved",
-          date: "2024-01-20",
-          reporter: "Budi Santoso",
-          phone: "081234567890",
-          address: "Jl. Merdeka No. 12",
-          priority: "low",
-          customerId: "TB240001",
-          source: "meter_reading",
-        },
-        {
-          id: "4",
-          issue: "Air keruh di Jl. Sudirman",
-          description: "Air yang keluar keruh dan berbau, sudah 2 hari",
-          status: "solved",
-          date: "2024-01-10",
-          reporter: "Siti Aminah",
-          phone: "081234567892",
-          address: "Jl. Sudirman No. 8",
-          priority: "high",
-          customerId: "TB240002",
-          source: "manual_report",
-          solvedDate: "2024-01-12",
-          solution: "Dilakukan pembersihan pipa distribusi dan penggantian filter",
-        },
-      ],
+      // ⛔️ mulai TANPA mock
+      issues: [],
+
+      setIssues: (items, keepManual = true) =>
+        set((state) => {
+          if (!keepManual) return { issues: items };
+          const manual = state.issues.filter(
+            (i) => i.source === "manual_report"
+          );
+          const map = new Map<string, WaterIssue>();
+          for (const it of items) map.set(it.id, it);
+          for (const m of manual) map.set(m.id, m);
+          return { issues: Array.from(map.values()) };
+        }),
 
       addIssue: (issueData) =>
-        set((state) => ({
-          issues: [
-            ...state.issues,
-            {
-              ...issueData,
-              id: Date.now().toString(),
-              date: new Date().toISOString().split("T")[0],
-            },
-          ],
-        })),
+        set((state) => {
+          const id = issueData.id ?? `manual-${Date.now()}`;
+          const date = issueData.date ?? new Date().toISOString().slice(0, 10);
+          const item: WaterIssue = {
+            id,
+            date,
+            issue: issueData.issue,
+            description: issueData.description ?? "",
+            status: "unresolved",
+            reporter: issueData.reporter,
+            phone: issueData.phone,
+            address: issueData.address,
+            priority: issueData.priority,
+            customerId: issueData.customerId ?? null,
+            source: issueData.source ?? "manual_report",
+            solution: null,
+            solvedDate: null,
+          };
+          // jika sudah ada id yg sama → replace
+          const others = state.issues.filter((i) => i.id !== id);
+          return { issues: [item, ...others] };
+        }),
+
+      upsertIssue: (item) =>
+        set((state) => {
+          const idx = state.issues.findIndex((i) => i.id === item.id);
+          if (idx === -1) return { issues: [item, ...state.issues] };
+          const next = state.issues.slice();
+          next[idx] = { ...next[idx], ...item };
+          return { issues: next };
+        }),
+
+      upsertMany: (items) =>
+        set((state) => {
+          const map = new Map<string, WaterIssue>();
+          // seed dengan existing
+          for (const i of state.issues) map.set(i.id, i);
+          // overwrite/insert dari batch
+          for (const it of items)
+            map.set(it.id, { ...(map.get(it.id) ?? ({} as any)), ...it });
+          return { issues: Array.from(map.values()) };
+        }),
 
       updateIssue: (id, updates) =>
         set((state) => ({
-          issues: state.issues.map((issue) => (issue.id === id ? { ...issue, ...updates } : issue)),
+          issues: state.issues.map((issue) =>
+            issue.id === id ? { ...issue, ...updates } : issue
+          ),
         })),
 
       solveIssue: (id, solution) =>
@@ -111,11 +118,11 @@ export const useWaterIssuesStore = create<WaterIssuesStore>()(
             issue.id === id
               ? {
                   ...issue,
-                  status: "solved" as const,
+                  status: "solved",
                   solution,
-                  solvedDate: new Date().toISOString().split("T")[0],
+                  solvedDate: new Date().toISOString().slice(0, 10),
                 }
-              : issue,
+              : issue
           ),
         })),
 
@@ -124,16 +131,26 @@ export const useWaterIssuesStore = create<WaterIssuesStore>()(
           issues: state.issues.filter((issue) => issue.id !== id),
         })),
 
-      getIssuesByStatus: (status) => {
-        return get().issues.filter((issue) => issue.status === status)
-      },
+      getIssuesByStatus: (status) =>
+        get().issues.filter((issue) => issue.status === status),
 
-      getIssuesByCustomer: (customerId) => {
-        return get().issues.filter((issue) => issue.customerId === customerId)
-      },
+      getIssuesByCustomer: (customerId) =>
+        get().issues.filter((issue) => issue.customerId === customerId),
+
+      clear: () => set({ issues: [] }),
     }),
     {
       name: "tirta-bening-water-issues",
-    },
-  ),
-)
+      // Bump versi supaya data mock lama (jika ada) dibersihkan saat upgrade
+      version: 2,
+      migrate: (persisted: any, fromVersion) => {
+        if (!persisted) return { issues: [] };
+        if (fromVersion < 2) {
+          // reset penuh dari versi lama (yang seeded mock)
+          return { issues: [] };
+        }
+        return persisted;
+      },
+    }
+  )
+);

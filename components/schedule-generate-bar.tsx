@@ -90,12 +90,13 @@ export function ScheduleGenerateBar() {
 
   return (
     <GlassCard className="p-4 mb-4">
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-3">
+        {/* Buttons row */}
+        <div className="flex flex-col md:flex-row gap-2 w-full">
           <Button
             onClick={handleGenerate}
             disabled={loading}
-            className="bg-emerald-600 hover:bg-emerald-700"
+            className="bg-emerald-600 hover:bg-emerald-700 w-full md:w-auto"
           >
             <Plus className="h-4 w-4 mr-2" />
             {loading ? "Generating..." : "Generate Jadwal"}
@@ -105,6 +106,7 @@ export function ScheduleGenerateBar() {
             onClick={handleSyncTanggal}
             disabled={syncing}
             variant="outline"
+            className="w-full md:w-auto"
           >
             <RefreshCw
               className={`h-4 w-4 mr-2 ${syncing ? "animate-spin" : ""}`}

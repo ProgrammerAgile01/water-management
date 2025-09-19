@@ -7,6 +7,9 @@ export interface WaterUsageData {
   blokA: number;
   blokB: number;
   blokC: number;
+  blokD: number;
+  blokE: number;
+  blokF: number;
 }
 export interface RevenueData {
   month: string;
@@ -32,6 +35,7 @@ export interface UnpaidBill {
 
 interface DashboardStore {
   selectedYear: number;
+  zoneNames: string[]; // maks 6 label zona untuk legend
   waterUsageData: WaterUsageData[];
   revenueData: RevenueData[];
   expenseData: ExpenseData[];
@@ -57,14 +61,33 @@ const MONTHS = [
   "Nov",
   "Dec",
 ];
-const emptyWater = () =>
-  MONTHS.map((m) => ({ month: m, total: 0, blokA: 0, blokB: 0, blokC: 0 }));
-const emptyRevenue = () => MONTHS.map((m) => ({ month: m, amount: 0 }));
-const emptyExpenses = () =>
+const emptyWater = (): WaterUsageData[] =>
+  MONTHS.map((m) => ({
+    month: m,
+    total: 0,
+    blokA: 0,
+    blokB: 0,
+    blokC: 0,
+    blokD: 0,
+    blokE: 0,
+    blokF: 0,
+  }));
+const emptyRevenue = (): RevenueData[] =>
+  MONTHS.map((m) => ({ month: m, amount: 0 }));
+const emptyExpenses = (): ExpenseData[] =>
   MONTHS.map((m) => ({ month: m, operasional: 0, lainnya: 0 }));
+const defaultZoneNames = [
+  "Blok A",
+  "Blok B",
+  "Blok C",
+  "Blok D",
+  "Blok E",
+  "Blok F",
+];
 
 export const useDashboardStore = create<DashboardStore>((set, get) => ({
   selectedYear: new Date().getFullYear(),
+  zoneNames: defaultZoneNames,
   waterUsageData: emptyWater(),
   revenueData: emptyRevenue(),
   expenseData: emptyExpenses(),
@@ -86,10 +109,13 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
         cache: "no-store",
       });
       if (!res.ok) throw new Error(await res.text());
-
       const data = await res.json();
 
       set({
+        zoneNames:
+          Array.isArray(data.zoneNames) && data.zoneNames.length
+            ? data.zoneNames.slice(0, 6)
+            : defaultZoneNames,
         waterUsageData: data.waterUsageData ?? emptyWater(),
         revenueData: data.revenueData ?? emptyRevenue(),
         expenseData: data.expenseData ?? emptyExpenses(),
@@ -114,6 +140,7 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
       });
       // fallback kosong supaya UI tetap jalan
       set({
+        zoneNames: defaultZoneNames,
         waterUsageData: emptyWater(),
         revenueData: emptyRevenue(),
         expenseData: emptyExpenses(),

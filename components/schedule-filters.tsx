@@ -159,21 +159,35 @@ export function ScheduleFilters() {
         </div>
       </div>
 
-      {/* Second Row - Status Tabs */}
+      {/* Second Row - Status Tabs (responsive, left align desktop) */}
       <div className="space-y-2">
         <label className="text-sm font-medium text-foreground">Status</label>
         <Tabs value={filters.status} onValueChange={handleStatusChange}>
-          <TabsList className="bg-white/30 p-1">
-            {statusTabs.map((tab) => (
-              <TabsTrigger
-                key={tab.value}
-                value={tab.value}
-                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+          <div className="-mx-4 px-4 md:m-0 md:p-0">
+            <div className="overflow-x-auto md:overflow-visible">
+              <TabsList
+                className="
+            bg-white/30 p-1
+            inline-flex gap-1
+            md:flex md:flex-wrap md:justify-start
+          "
               >
-                {tab.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+                {statusTabs.map((tab) => (
+                  <TabsTrigger
+                    key={tab.value}
+                    value={tab.value}
+                    className="
+                h-8 px-3 shrink-0 whitespace-nowrap
+                data-[state=active]:bg-primary
+                data-[state=active]:text-primary-foreground
+              "
+                  >
+                    {tab.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
+          </div>
         </Tabs>
       </div>
     </GlassCard>
