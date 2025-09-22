@@ -99,10 +99,6 @@ function waText(p: {
     .filter(Boolean)
     .join("\n");
 
-  const totalGabungan = (p.tagihanLalu || 0) + (p.tagihanBulanIni || 0);
-  const renderSisaKurangText = (n: number) =>
-    n > 0 ? `Kurang ${formatRp(n)}` : n < 0 ? `Sisa ${formatRp(Math.abs(n))}` : "Rp 0";
-
   const sections: string[] = [];
   sections.push(
     [
@@ -165,7 +161,10 @@ async function sendWaAndLog(tujuanRaw: string, text: string) {
   const t = setTimeout(() => ac.abort(), 10000);
   fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...(apiKey ? { "x-api-key": apiKey } : {}) },
+    headers: {
+      "Content-Type": "application/json",
+      ...(apiKey ? { "x-api-key": apiKey } : {}),
+    },
     body: JSON.stringify({ to, text }),
     signal: ac.signal,
   })
@@ -183,7 +182,12 @@ async function sendWaImageAndLog(tujuanRaw: string, tagihanId: string, caption?:
       data: {
         tujuan: to,
         tipe: "TAGIHAN_IMG",
-        payload: JSON.stringify({ to, tagihanId, caption, err: "WA_SENDER_URL empty" }),
+        payload: JSON.stringify({
+          to,
+          tagihanId,
+          caption,
+          err: "WA_SENDER_URL empty",
+        }),
         status: "FAILED",
       },
     });
@@ -204,7 +208,10 @@ async function sendWaImageAndLog(tujuanRaw: string, tagihanId: string, caption?:
 
     const r = await fetch(`${base}/send-image`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...(apiKey ? { "x-api-key": apiKey } : {}) },
+      headers: {
+        "Content-Type": "application/json",
+        ...(apiKey ? { "x-api-key": apiKey } : {}),
+      },
       body: JSON.stringify({
         to,
         base64: buffer.toString("base64"),
@@ -218,7 +225,11 @@ async function sendWaImageAndLog(tujuanRaw: string, tagihanId: string, caption?:
       data: {
         tujuan: to,
         tipe: "TAGIHAN_IMG",
-        payload: JSON.stringify({ to, tagihanId, http: { ok: r.ok, status: r.status } }),
+        payload: JSON.stringify({
+          to,
+          tagihanId,
+          http: { ok: r.ok, status: r.status },
+        }),
         status: r.ok ? "SENT" : "FAILED",
       },
     });
@@ -227,7 +238,12 @@ async function sendWaImageAndLog(tujuanRaw: string, tagihanId: string, caption?:
       data: {
         tujuan: to,
         tipe: "TAGIHAN_IMG",
-        payload: JSON.stringify({ to, tagihanId, caption, err: String(e?.message || e) }),
+        payload: JSON.stringify({
+          to,
+          tagihanId,
+          caption,
+          err: String(e?.message || e),
+        }),
         status: "FAILED",
       },
     });
@@ -246,7 +262,9 @@ export async function POST(req: NextRequest) {
       where: { id },
       include: {
         periode: true,
-        pelanggan: { select: { id: true, nama: true, wa: true, kode: true, userId: true } },
+        pelanggan: {
+          select: { id: true, nama: true, wa: true, kode: true, userId: true },
+        },
       },
     });
     if (!row || row.deletedAt) return NextResponse.json({ ok: false, message: "Data tidak ditemukan" }, { status: 404 });
@@ -275,7 +293,12 @@ export async function POST(req: NextRequest) {
     // Carry-over dari bulan sebelum billing
     const prevCode = prevPeriod(billingPeriode);
     const prevBill = await prisma.tagihan.findUnique({
-      where: { pelangganId_periode: { pelangganId: row.pelangganId, periode: prevCode } },
+      where: {
+        pelangganId_periode: {
+          pelangganId: row.pelangganId,
+          periode: prevCode,
+        },
+      },
       select: { sisaKurang: true },
     });
     const carryFromPrev = prevBill?.sisaKurang ?? 0;
@@ -452,7 +475,10 @@ export async function POST(req: NextRequest) {
           periode: billingPeriode, // kirim periode billing (+1)
           meterAwal: row.meterAwal,
           meterAkhir: Math.max(row.meterAkhir ?? row.meterAwal, row.meterAwal),
-          pemakaian: Math.max(0, (row.meterAkhir ?? row.meterAwal) - row.meterAwal),
+          pemakaian: Math.max(
+            0,
+            (row.meterAkhir ?? row.meterAwal) - row.meterAwal
+          ),
           tarifPerM3: tarif,
           abonemen: abon,
           biayaAdmin,

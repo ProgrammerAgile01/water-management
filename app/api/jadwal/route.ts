@@ -8,9 +8,6 @@ function isYm(x?: string | null) {
   return !!x && /^\d{4}-\d{2}$/.test(x);
 }
 
-// Ambil month dari query:
-// - Prioritas: month=YYYY-MM
-// - Kompat lama: year=YYYY & month=1..12 -> YYYY-MM
 function resolveMonthFromSearchParams(sp: URLSearchParams) {
   let month = (sp.get("month") ?? "").slice(0, 7);
   if (!isYm(month)) {
@@ -25,7 +22,7 @@ function resolveMonthFromSearchParams(sp: URLSearchParams) {
 
 function buildTanggalUntukBulan(month: string, settingDay?: number | null) {
   const [y, m] = month.split("-");
-  const dayFromSetting = settingDay ?? 1; // default 1 kalau null
+  const dayFromSetting = settingDay ?? 1;
   const lastDay = new Date(Number(y), Number(m), 0).getDate();
   const day = Math.min(Math.max(1, dayFromSetting), lastDay);
   return new Date(`${month}-${String(day).padStart(2, "0")}T00:00:00.000Z`);
@@ -78,7 +75,6 @@ export async function GET(req: NextRequest) {
       ];
     }
 
-    // Ambil jadwalnya dulu
     const [rows, total] = await Promise.all([
       prisma.jadwalPencatatan.findMany({
         where,
@@ -94,10 +90,8 @@ export async function GET(req: NextRequest) {
     ]);
 
     // === Hitung progress Live dari CatatMeter ===
-    // Prefer pakai snapshot zonaIdSnapshot (lebih cepat untuk groupBy).
     const zonaIds = rows.map((r) => r.zonaId).filter(Boolean) as string[];
 
-    // 1) Coba groupBy zonaIdSnapshot
     let progressMap = new Map<string, number>();
     if (zonaIds.length) {
       const grouped = await prisma.catatMeter.groupBy({
@@ -106,7 +100,7 @@ export async function GET(req: NextRequest) {
           status: "DONE",
           deletedAt: null,
           zonaIdSnapshot: { in: zonaIds },
-          periode: { kodePeriode: month }, // CatatMeter → CatatPeriode (relasi)
+          periode: { kodePeriode: month },
         },
         _count: { _all: true },
       });
@@ -115,7 +109,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // 2) Fallback jika snapshot kosong: hitung per-zona via relasi pelanggan.zonaId
+    // Fallback pakai relasi pelanggan.zonaId
     if (
       [...progressMap.values()].reduce((a, b) => a + b, 0) === 0 &&
       zonaIds.length
@@ -136,15 +130,56 @@ export async function GET(req: NextRequest) {
       progressMap = new Map(perZonaCounts);
     }
 
-    // Timpa progress di rows dengan hasil hitung live
-    const rowsWithProgress = rows.map((r) => ({
-      ...r,
-      progress: progressMap.get(r.zonaId ?? "") ?? r.progress ?? 0,
-    }));
+    // Turunkan status baru berdasar progress vs target
+    type Row = (typeof rows)[number];
+    const toDerivedStatus = (r: Row, progress: number) => {
+      const target = r.target ?? 0;
+      // NON_PROGRESS / OVERDUE tetap dipertahankan bila manual set
+      if (r.status === "NON_PROGRESS" || r.status === "OVERDUE")
+        return r.status;
+      if (target > 0 && progress >= target) return "DONE";
+      if (progress > 0) return "IN_PROGRESS";
+      return "WAITING";
+    };
+
+    const needDoneIds: string[] = [];
+    const needInProgressIds: string[] = [];
+    const rowsWithDerived = rows.map((r) => {
+      const progress = progressMap.get(r.zonaId ?? "") ?? r.progress ?? 0;
+      const derived = toDerivedStatus(r, progress);
+      // Kumpulkan yang perlu disimpan ke DB (hindari write berlebihan)
+      if (derived !== r.status) {
+        if (derived === "DONE") needDoneIds.push(r.id);
+        else if (derived === "IN_PROGRESS") needInProgressIds.push(r.id);
+      }
+      return { ...r, progress, status: derived };
+    });
+
+    // Persist perubahan status (jika ada)
+    if (needDoneIds.length || needInProgressIds.length) {
+      const tx: any[] = [];
+      if (needDoneIds.length) {
+        tx.push(
+          prisma.jadwalPencatatan.updateMany({
+            where: { id: { in: needDoneIds } },
+            data: { status: "DONE" },
+          })
+        );
+      }
+      if (needInProgressIds.length) {
+        tx.push(
+          prisma.jadwalPencatatan.updateMany({
+            where: { id: { in: needInProgressIds } },
+            data: { status: "IN_PROGRESS" },
+          })
+        );
+      }
+      if (tx.length) await prisma.$transaction(tx);
+    }
 
     return NextResponse.json({
       ok: true,
-      data: rowsWithProgress,
+      data: rowsWithDerived,
       pagination: { page, pageSize, total, pages: Math.ceil(total / pageSize) },
     });
   } catch (e) {
@@ -161,7 +196,6 @@ export async function POST(req: NextRequest) {
   try {
     const sp = req.nextUrl.searchParams;
 
-    // Terima month=YYYY-MM atau year+month numerik
     let month = resolveMonthFromSearchParams(sp);
     if (!isYm(month)) {
       const body = await req.json().catch(() => ({}));

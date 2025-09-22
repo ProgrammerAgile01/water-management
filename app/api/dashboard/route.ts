@@ -68,6 +68,13 @@ export async function GET(req: Request) {
       amount: billingByMonth[i],
     }));
 
+    // helper kecil
+    function nextYM(year: number, month1to12: number) {
+      const d = new Date(Date.UTC(year, month1to12 - 1, 1));
+      d.setUTCMonth(d.getUTCMonth() + 1);
+      return { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1 };
+    }
+
     // ==== TABLE: 5 periode terakhir tahun ini ====
     const periods = await prisma.catatPeriode.findMany({
       where: { deletedAt: null, tahun: year },
@@ -77,17 +84,25 @@ export async function GET(req: Request) {
     });
     const kode = (y: number, m: number) => `${y}-${pad2(m)}`;
     const tableData: any[] = [];
-    for (const p of periods) {
-      const kPeriode = p.kodePeriode || kode(p.tahun, p.bulan);
 
+    for (const p of periods) {
+      // periode catat (mis. Juli 2025)
+      const kPeriodeCatat = p.kodePeriode || kode(p.tahun, p.bulan);
+
+      // 🔁 periode TAGIHAN = bulan berikutnya (mis. Agustus 2025)
+      const { y: billY, m: billM } = nextYM(p.tahun, p.bulan);
+      const kPeriodeTagihan = kode(billY, billM);
+
+      // total m³ tetap dari CATAT bulan ini (Juli)
       const cmRows = await prisma.catatMeter.findMany({
         where: { deletedAt: null, periode: { tahun: p.tahun, bulan: p.bulan } },
         select: { pemakaianM3: true },
       });
       const totalM3 = cmRows.reduce((s, r) => s + (r.pemakaianM3 || 0), 0);
 
+      // ⬇️ Tagihan & pembayaran untuk PERIODE TAGIHAN (Agustus)
       const tg = await prisma.tagihan.findMany({
-        where: { deletedAt: null, periode: kPeriode },
+        where: { deletedAt: null, periode: kPeriodeTagihan },
         select: { totalTagihan: true, statusBayar: true, id: true },
       });
       const tagihan = tg.reduce((s, r) => s + (r.totalTagihan || 0), 0);
@@ -95,7 +110,7 @@ export async function GET(req: Request) {
       const paidRows = await prisma.pembayaran.findMany({
         where: {
           deletedAt: null,
-          tagihan: { periode: kPeriode, deletedAt: null },
+          tagihan: { periode: kPeriodeTagihan, deletedAt: null },
         },
         select: { jumlahBayar: true },
       });
@@ -109,7 +124,8 @@ export async function GET(req: Request) {
           ? ("partial" as const)
           : ("unpaid" as const);
 
-      const periodeLabel = new Date(p.tahun, p.bulan - 1, 1).toLocaleDateString(
+      // 🏷️ Tampilkan label bulan PENAGIHAN (Agustus), bukan bulan catat (Juli)
+      const periodeLabel = new Date(billY, billM - 1, 1).toLocaleDateString(
         "id-ID",
         {
           month: "long",
@@ -118,10 +134,10 @@ export async function GET(req: Request) {
       );
 
       tableData.push({
-        id: kPeriode,
-        periode: periodeLabel,
-        totalM3,
-        tagihan,
+        id: kPeriodeTagihan, // id baris = kode periode TAGIHAN
+        periode: periodeLabel, // contoh: "Agustus 2025"
+        totalM3, // dari catat Juli
+        tagihan, // total tagihan Agustus
         sudahBayar,
         belumBayar,
         status,
@@ -188,14 +204,38 @@ export async function GET(req: Request) {
     }));
 
     // ==== STAT CARDS + TREND ====
-    const currY = year;
-    const currM = now.getMonth() + 1;
-    const { y: prevY, m: prevM } = prevYM(currY, currM);
 
-    const periodeNow = `${currY}-${pad2(currM)}`;
-    const periodePrev = `${prevY}-${pad2(prevM)}`;
+    // ambil 2 periode catat terakhir di tahun ini
+    const lastTwo = await prisma.catatPeriode.findMany({
+      where: { deletedAt: null, tahun: year },
+      orderBy: [{ tahun: "desc" }, { bulan: "desc" }],
+      take: 2,
+      select: { tahun: true, bulan: true },
+    });
 
-    // 1) Tagihan bulan ini & bulan lalu
+    // periode tagihan = next dari periode catat
+    let periodeNow: string, periodePrev: string;
+    if (lastTwo.length) {
+      const { y: cy, m: cm } = nextYM(lastTwo[0].tahun, lastTwo[0].bulan);
+      periodeNow = `${cy}-${pad2(cm)}`;
+      if (lastTwo[1]) {
+        const { y: py, m: pm } = nextYM(lastTwo[1].tahun, lastTwo[1].bulan);
+        periodePrev = `${py}-${pad2(pm)}`;
+      } else {
+        const { y: py, m: pm } = prevYM(cy, cm);
+        periodePrev = `${py}-${pad2(pm)}`;
+      }
+    } else {
+      // fallback ke bulan kalender (kalau belum ada data catat)
+      const now = new Date();
+      const cy = now.getFullYear(),
+        cm = now.getMonth() + 1;
+      const { y: py, m: pm } = prevYM(cy, cm);
+      periodeNow = `${cy}-${pad2(cm)}`;
+      periodePrev = `${py}-${pad2(pm)}`;
+    }
+
+    // 1) Tagihan periodeNow & periodePrev
     const tagihanCurr = await prisma.tagihan.aggregate({
       where: { deletedAt: null, periode: periodeNow },
       _sum: { totalTagihan: true },
@@ -207,7 +247,7 @@ export async function GET(req: Request) {
       _count: true,
     });
 
-    // 2) Belum bayar (hanya untuk masing-masing periode)
+    // 2) Belum bayar per-periode
     const belumBayarCurr = await prisma.tagihan.aggregate({
       where: {
         deletedAt: null,
@@ -227,14 +267,13 @@ export async function GET(req: Request) {
       _count: true,
     });
 
-    // 3) Total pelanggan aktif (bandingkan MoM — nilai biasanya sama)
+    // 3) Total pelanggan aktif (tetap)
     const totalPelangganNow = await prisma.pelanggan.count({
       where: { deletedAt: null, statusAktif: true },
     });
-    // heuristik: anggap sama dengan sekarang (atau kamu bisa hitung createdAt<=cutoff bila ada field itu)
     const totalPelangganPrev = totalPelangganNow;
 
-    // 4) Paying rate per-periode (bulan ini vs bulan lalu)
+    // 4) Paying rate per-periode (pakai periodeNow/Prev di atas)
     const paidCurr = await prisma.pembayaran.aggregate({
       where: {
         deletedAt: null,
@@ -280,7 +319,7 @@ export async function GET(req: Request) {
         ),
         isPositive:
           (belumBayarCurr._sum.totalTagihan ?? 0) <=
-          (belumBayarPrev._sum.totalTagihan ?? 0), // turun = bagus
+          (belumBayarPrev._sum.totalTagihan ?? 0),
       },
       pelanggan: {
         value: Math.round(pctChange(totalPelangganNow, totalPelangganPrev)),

@@ -4,8 +4,9 @@ import { prisma } from "@/lib/prisma";
 
 export async function POST(_: Request, { params }: { params: { id: string } }) {
   try {
-    await prisma.jadwalPencatatan.update({
-      where: { id: params.id },
+    // Hanya update bila belum DONE
+    await prisma.jadwalPencatatan.updateMany({
+      where: { id: params.id, NOT: { status: "DONE" } },
       data: { status: "IN_PROGRESS" },
     });
     return NextResponse.json({ ok: true, message: "Pencatatan dimulai." });
