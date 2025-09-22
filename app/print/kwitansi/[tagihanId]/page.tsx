@@ -85,74 +85,73 @@ export default async function KwitansiPage({
         <meta name="viewport" content="width=device-width,initial-scale=1" />
         <title>Kwitansi Pembayaran</title>
         <style>{`
-          /* ukuran struk + margin */
-          @page { size: 95mm 170mm; margin: 6mm; }
+          /* ==== Tampilan struk untuk layar HP & screenshot ==== */
 
-          html, body {
-            margin: 0; padding: 0;
-            height: 100%;
-            font-family: "Segoe UI", Roboto, Arial, sans-serif;
-            background: #f3f4f6; color: #0f172a;
-            -webkit-print-color-adjust: exact;
-          }
+/* jangan pakai @page di sini—bikin area kosong saat screenshot */
+html, body {
+  margin: 0; padding: 0;
+  height: 100%;
+  font-family: "Segoe UI", Roboto, Arial, sans-serif;
+  background: #f5f6f8; color: #0f172a;
+  -webkit-print-color-adjust: exact;
+}
 
-          /* --- Isolasi konten: hanya #kwitansi-root yang tampil --- */
-          body > *:not(#kwitansi-root) { display: none !important; }
+/* isolasi konten di dalam wrapper Next */
+#__next > *:not(#kwitansi-root) { display: none !important; }
 
-          /* layout */
-          #kwitansi-root { width: 100%; display: flex; justify-content: center; }
-          .paper { width: 100%; overflow: hidden; background:#fff; box-shadow: 0 4px 10px rgba(0,0,0,.08); }
+/* kanvas kwitansi */
+#kwitansi-root {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 8px;
+  background: transparent;
+}
 
-          .paper{
+/* lebar “kertas” diset ke 380px (ukuran ponsel); ini yang di-screenshot */
+.paper{
+  width: 380px;                    /* <— inti: lebih sempit = teks tampak besar */
+  background:#fff;
+  box-shadow: 0 4px 12px rgba(0,0,0,.08);
   display:flex;
   flex-direction:column;
-  /* 170mm - (margin @page 6mm atas + 6mm bawah) = area konten cetak */
-  min-height: calc(170mm - 12mm);
-  /* jaga sudut kasus overflow */
   box-sizing: border-box;
+  overflow: hidden;
 }
-  
-          /* header hijau */
-          .header {
-            display: flex; align-items: center; gap: 12px;
-            padding: 14px;
-            color: #fff;
-            background: linear-gradient(135deg, #16a34a, #22c55e);
-          }
-          .logo {
-            width:44px; height:44px; border-radius:8px;
-            background: url('/logo.png') center/cover no-repeat;
-            flex-shrink:0;
-          }
-          .brand { display:flex; flex-direction:column; line-height:1.2 }
-          .brand .company { font-weight: 800; font-size: 14px; letter-spacing: .2px; }
-          .brand .subtitle { font-size: 11px; opacity: .95 }
 
-          /* card section */
-          .section { padding: 14px; }
-          .card {
-            border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; background:#fff;
-            box-shadow: 0 1px 2px rgba(0,0,0,.04);
-          }
-          .card + .card { margin-top: 10px; }
-
-          /* rows */
-          .row { display:flex; justify-content:space-between; gap:10px; margin:8px 0; font-size: 13px; }
-          .key { color:#6b7280; }
-          .val { color:#111827; font-weight: 600; text-align:right; }
-
-          .divider { height:1px; background:#e5e7eb; margin: 10px 0; }
-
-          .badge {
-            display:inline-block; border-radius: 999px; background:#dcfce7; color:#166534;
-            padding: 4px 10px; font-size: 11px; font-weight: 700;
-          }
-
-          .muted { color:#6b7280; font-size: 11px; }
-          .foot  { text-align:center; color:#6b7280; font-size:11px; padding: 12px; border-top:1px solid #e5e7eb;  margin-top: auto; }
-          @media screen{
-  .paper{ min-height: 100vh; }
+/* header lebih tegas */
+.header{
+  display:flex; align-items:center; gap:12px;
+  padding:16px;
+  color:#fff;
+  background: linear-gradient(135deg, #16a34a, #22c55e);
 }
+.logo{ width:50px; height:50px; border-radius:10px; background:url('/logo.png') center/cover no-repeat; flex-shrink:0; }
+.brand{ line-height:1.25 }
+.brand .company{ font-weight:800; font-size:18px; letter-spacing:.2px; }
+.brand .subtitle{ font-size:12px; opacity:.95 }
+
+/* section & card */
+.section{ padding: 14px; }
+.card{
+  border:1px solid #e5e7eb; border-radius:12px; padding:14px; background:#fff;
+  box-shadow:0 1px 2px rgba(0,0,0,.04);
+}
+.card + .card{ margin-top:12px; }
+
+/* baris data — perbesar font */
+.row{
+  display:flex; justify-content:space-between; gap:12px;
+  margin:10px 0; font-size:16px;               /* <— lebih besar */
+}
+.key{ color:#6b7280; }
+.val{ color:#111827; font-weight:600; text-align:right; max-width:60%; }
+
+/* elemen kecil */
+.divider{ height:1px; background:#e5e7eb; margin:12px 0; }
+.badge{ display:inline-block; border-radius:999px; background:#dcfce7; color:#166534; padding:5px 12px; font-size:12px; font-weight:800; }
+.muted{ color:#6b7280; font-size:12px; }
+.foot{ text-align:center; color:#6b7280; font-size:12px; padding:14px; border-top:1px solid #e5e7eb; margin-top:auto; }
         `}</style>
       </head>
       <body>
@@ -166,9 +165,6 @@ export default async function KwitansiPage({
                 <div className="subtitle">
                   {data.alamatPerusahaan}
                 </div>
-                <div className="subtitle font-semibold">
-                  Kwitansi Pembayaran
-                </div>
                 <div className="subtitle">
                   No. {data.nomorKwitansi}
                 </div>
@@ -176,6 +172,7 @@ export default async function KwitansiPage({
             </div>
 
             {/* CARD: Info Pelanggan & Tagihan */}
+            <h1 className="text-center mt-2 font-semibold text-xl">Kwitansi Pembayaran</h1>
             <div className="section">
               <div className="card">
                 <div className="row">

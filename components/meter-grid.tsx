@@ -747,7 +747,7 @@ export function MeterGrid() {
                                   <Save className="w-4 h-4" />
                                 </Button>
 
-                                <Button
+                                {/* <Button
                                   size="sm"
                                   variant="outline"
                                   onClick={() => setDeleteTarget(r)}
@@ -756,7 +756,7 @@ export function MeterGrid() {
                                   disabled={rowLocked}
                                 >
                                   <Trash2 className="w-4 h-4" />
-                                </Button>
+                                </Button> */}
                               </>
                             )}
 

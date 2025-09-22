@@ -24,7 +24,7 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  // Back-relation 1↔1 ke Pelanggan (User PUNYA/terkait 1 Pelanggan)
+  // Back-relation 1â†”1 ke Pelanggan (User PUNYA/terkait 1 Pelanggan)
   // Field FK-nya berada di model Pelanggan (userId), jadi di sini hanya back-relation.
   pelanggan Pelanggan? @relation("UserPelanggan")
 
@@ -36,12 +36,12 @@ model User {
   deletedCatatPeriode CatatPeriode[] @relation("DeletedByUserCatatPeriode")
   lockedPeriods       CatatPeriode[] @relation("LockedByUser")
   petugasCatat        CatatPeriode[] @relation("PetugasCatatPeriode")
-  // 🔹 back-relation: 1 petugas bisa pegang banyak zona
+  // ðŸ”¹ back-relation: 1 petugas bisa pegang banyak zona
   zonasDipegang       Zona[]         @relation("UserZonaPetugas")
 
   // Soft delete untuk User itu sendiri
-  deletedAt        DateTime? // kapan user “dihapus”
-  deletedBy        String? // FK → User.id yang menghapus
+  deletedAt        DateTime? // kapan user â€œdihapusâ€
+  deletedBy        String? // FK â†’ User.id yang menghapus
   deletedByUser    User?              @relation("DeletedByUserSelf", fields: [deletedBy], references: [id])
   deletedUsers     User[]             @relation("DeletedByUserSelf") // daftar user yang dia hapus
   JadwalPencatatan JadwalPencatatan[]
@@ -150,11 +150,11 @@ model CatatPeriode {
 model CatatMeter {
   id String @id @default(cuid())
 
-  // FK → master periode
+  // FK â†’ master periode
   periodeId String
   periode   CatatPeriode @relation(fields: [periodeId], references: [id])
 
-  // FK → pelanggan
+  // FK â†’ pelanggan
   pelangganId String
   pelanggan   Pelanggan @relation(fields: [pelangganId], references: [id])
 
@@ -168,7 +168,7 @@ model CatatMeter {
   abonemen   Int @default(0)
   total      Int @default(0) // (tarifPerM3 * pemakaianM3) + abonemen
 
-  kendala String? @db.Text // <— TAMBAH BARIS INI
+  kendala String? @db.Text // <â€” TAMBAH BARIS INI
 
   // status entri
   status CatatStatus @default(PENDING)
@@ -177,13 +177,13 @@ model CatatMeter {
   waTerkirim Boolean   @default(false)
   waSentAt   DateTime?
 
-  // Tambahan untuk “lock per pelanggan”
+  // Tambahan untuk â€œlock per pelangganâ€
   isLocked   Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
-  // ⬇️ SIMPAN SNAPSHOT ZONA SAAT ENTRY DIBUAT
+  // â¬‡ï¸ SIMPAN SNAPSHOT ZONA SAAT ENTRY DIBUAT
   zonaIdSnapshot   String?
   zonaNamaSnapshot String?
 
@@ -191,6 +191,8 @@ model CatatMeter {
   deletedAt     DateTime? @db.DateTime(3)
   deletedBy     String?
   deletedByUser User?     @relation("DeletedByUserCatatMeter", fields: [deletedBy], references: [id])
+
+  tagihan Tagihan? @relation("TagihanToCatat")
 
   // unik per (periode, pelanggan)
   @@unique([periodeId, pelangganId])
@@ -216,9 +218,9 @@ model Tagihan {
   denda         Int      @default(0)
   totalTagihan  Int      // nominal bulan ini (tanpa carry): tarif*pemakaian + abonemen + denda
 
-  // 🔽 Tambahan untuk carry-over tagihan lalu dan sisa/kurang
-  tagihanLalu   Int      @default(0) // saldo bulan lalu (boleh + atau −)
-  sisaKurang    Int      @default(0) // saldo akhir bulan ini (boleh + atau −)
+  // ðŸ”½ Tambahan untuk carry-over tagihan lalu dan sisa/kurang
+  tagihanLalu   Int      @default(0) // saldo bulan lalu (boleh + atau âˆ’)
+  sisaKurang    Int      @default(0) // saldo akhir bulan ini (boleh + atau âˆ’)
   
   statusBayar   String   @default("UNPAID")
   statusVerif   String   @default("UNVERIFIED")
@@ -228,12 +230,15 @@ model Tagihan {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  // FK → Pelanggan (banyak Tagihan milik 1 Pelanggan)
+  // FK â†’ Pelanggan (banyak Tagihan milik 1 Pelanggan)
   pelangganId String
   pelanggan   Pelanggan @relation(fields: [pelangganId], references: [id])
 
   // 1 tagihan punya banyak pembayaran
   pembayarans Pembayaran[]
+
+  catatMeterId String?            @unique   // <-- agar benar2 1:1
+  catatMeter   CatatMeter? @relation("TagihanToCatat", fields: [catatMeterId], references: [id])
 
   // Soft delete tagihan
   deletedAt     DateTime? @db.DateTime(3)
@@ -247,6 +252,7 @@ model Tagihan {
   @@index([statusBayar, statusVerif])
   @@index([deletedAt])
   @@index([deletedBy])
+  @@index([catatMeterId])
 
   // back-relation ke MagicLinkToken (opsional)
   magicLinkTokens MagicLinkToken[] @relation("TagihanMagicLinks")
@@ -267,13 +273,13 @@ model Pembayaran {
   buktiUrl     String?
   adminBayar   String? // misal nama admin yang memproses
 
-  // FK → Tagihan (banyak Pembayaran milik 1 Tagihan)
+  // FK â†’ Tagihan (banyak Pembayaran milik 1 Tagihan)
   tagihanId String
   tagihan   Tagihan @relation(fields: [tagihanId], references: [id])
 
   metode    MetodeBayar    @default(TUNAI)
 
-  // ✅ Catatan/keterangan pelunasan
+  // âœ… Catatan/keterangan pelunasan
   keterangan   String?  @db.Text
 
   // Soft delete pembayaran
@@ -291,7 +297,7 @@ model Pembayaran {
 model Setting {
   id                     Int      @id @default(1)
 
-  // ——— Tarif & penagihan ———
+  // â€”â€”â€” Tarif & penagihan â€”â€”â€”
   tarifPerM3             Int      @default(3000)
   abonemen               Int      @default(10000)
   biayaAdmin             Int      @default(2500)
@@ -299,21 +305,21 @@ model Setting {
   dendaTelatBulanSama    Int      @default(5000)
   dendaTelatBulanBerbeda Int      @default(10000)
 
-  // ——— Profil sistem ———
+  // â€”â€”â€” Profil sistem â€”â€”â€”
   namaPerusahaan String? @db.VarChar(120)
   alamat         String? @db.VarChar(255)
   telepon        String? @db.VarChar(30)
   email          String? @db.VarChar(120)
   logoUrl        String? @db.VarChar(255)
 
-  // ——— Informasi pembayaran & kontak ———
+  // â€”â€”â€” Informasi pembayaran & kontak â€”â€”â€”
   namaBankPembayaran String? @db.VarChar(120)
   norekPembayaran    String? @db.VarChar(50)
   anNorekPembayaran  String? @db.VarChar(120)
   namaBendahara      String? @db.VarChar(120)
   whatsappCs         String? @db.VarChar(30)
 
-  // ——— Pengaturan Jadwal ———
+  // â€”â€”â€” Pengaturan Jadwal â€”â€”â€”
   tanggalCatatDefault Int?
 
   createdAt DateTime @default(now())

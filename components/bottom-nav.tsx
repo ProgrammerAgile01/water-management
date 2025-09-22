@@ -107,7 +107,7 @@ export function BottomNav() {
         <div className="py-2 text-center text-[11px] leading-none text-muted-foreground">
           <span className="mr-1">Supported by</span>
           <Link
-            href="https://agile.com"
+            href="#"
             target="_blank"
             rel="noopener noreferrer"
             className="font-semibold text-foreground hover:text-primary transition-colors"

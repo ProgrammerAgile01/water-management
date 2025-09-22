@@ -334,9 +334,9 @@ export default function InputPembayaranPage() {
       return <span className="text-red-600">Kurang {fmt(n)}</span>;
     }
     if (n < 0) {
-      return <span className="text-green-600">Piutang {fmt(-n)}</span>;
+      return <span className="text-green-600">Sisa {fmt(-n)}</span>;
     }
-    return <span className="text-green-600">Lunas</span>;
+    return <span className="text-green-600">Rp 0</span>;
   }
 
   // --- helpers tanggal ---

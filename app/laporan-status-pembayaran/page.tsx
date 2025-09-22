@@ -157,15 +157,15 @@ export default function LaporanStatusPembayaranPage() {
       return <span className="text-red-600">Kurang Rp {fmtRp(n)}</span>;
     }
     if (n < 0) {
-      return <span className="text-green-600">Piutang Rp {fmtRp(-n)}</span>;
+      return <span className="text-green-600">Sisa Rp {fmtRp(-n)}</span>;
     }
-    return <span className="text-green-600">Lunas</span>;
+    return <span className="text-green-600">Rp 0</span>;
   }
 
   function labelSisaKurang(n: number) {
     if (n > 0) return `Kurang Rp ${fmtRp(n)}`;
-    if (n < 0) return `Piutang Rp ${fmtRp(-n)}`;
-    return "Lunas";
+    if (n < 0) return `Sisa Rp ${fmtRp(-n)}`;
+    return "Rp 0";
   }
 
   function todayLabel() {
@@ -428,9 +428,9 @@ export default function LaporanStatusPembayaranPage() {
                       <td className="py-3 px-2 text-center">
                         Rp {fmtRp(summary.sudahBayar)}
                       </td>
-                      {/* <td className="py-3 px-2 text-center">
+                      <td className="py-3 px-2 text-center">
                         Rp {fmtRp(summary.sisaKurang)}
-                      </td> */}
+                      </td>
                       {/* <td className="py-3 px-2">
                         Rp {fmtRp(summary.belumBayar)}
                       </td> */}
@@ -560,7 +560,7 @@ export default function LaporanStatusPembayaranPage() {
         </div>
 
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent className="sm:max-w-2xl backdrop-blur-xl bg-background/70">
+          <DialogContent className="sm:max-w-2xl overflow-y-auto backdrop-blur-xl bg-background/70">
             <DialogHeader>
               <DialogTitle className="text-emerald-700">
                 Detail Tagihan
@@ -671,7 +671,7 @@ export default function LaporanStatusPembayaranPage() {
                         <tr className="border-b text-muted-foreground">
                           <th className="text-left py-2 px-3">Tanggal</th>
                           <th className="text-left py-2 px-3">Metode</th>
-                          <th className="text-left py-2 px-3">Keterangan</th>
+                          {/* <th className="text-left py-2 px-3">Keterangan</th> */}
                           <th className="text-right py-2 px-3">Jumlah</th>
                         </tr>
                       </thead>
@@ -696,9 +696,9 @@ export default function LaporanStatusPembayaranPage() {
                                   : "-"}
                               </td>
                               <td className="py-2 px-3">{p.metode}</td>
-                              <td className="py-2 px-3">
+                              {/* <td className="py-2 px-3">
                                 {p.keterangan || "-"}
-                              </td>
+                              </td> */}
                               <td className="py-2 px-3 text-right">
                                 Rp {fmtRp(p.jumlahBayar)}
                               </td>
@@ -706,7 +706,7 @@ export default function LaporanStatusPembayaranPage() {
                           ))
                         )}
                         <tr className="font-semibold">
-                          <td className="py-2 px-3" colSpan={3}>
+                          <td className="py-2 px-3" colSpan={2}>
                             Total Dibayar
                           </td>
                           <td className="py-2 px-3 text-right">

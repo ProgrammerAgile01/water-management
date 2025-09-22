@@ -156,9 +156,9 @@ export function BillingTable() {
       return <span className="text-red-600">Kurang Rp {fmtRp(n)}</span>;
     }
     if (n < 0) {
-      return <span className="text-green-600">Piutang Rp {fmtRp(-n)}</span>;
+      return <span className="text-green-600">Sisa Rp {fmtRp(-n)}</span>;
     }
-    return <span className="text-green-600">Lunas</span>;
+    return <span className="text-green-600">Rp 0</span>;
   }
 
   const StatusBadge = ({ s }: { s: "lunas" | "belum-lunas" }) =>

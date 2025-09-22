@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
 
-    // ===== query filters & pagination =====
+    // ===== filters & pagination =====
     const q = url.searchParams.get("q") || undefined;
     const periodeQ = url.searchParams.get("periode") || undefined; // jika tidak ada → pakai latest
     const statusQRaw = url.searchParams.get("status") || undefined;
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
     const role  = (roleHeader || roleQuery || "ADMIN") as "ADMIN"|"PETUGAS"|"WARGA";
     const userId = uidHeader || uidQuery || null;
 
-    // ===== 1) tentukan scope periode & cari "latestPeriode" dahulu =====
+    // ===== 1) scope periode & latestPeriode =====
     const wherePeriodsScope: any = { deletedAt: null };
     if (role === "WARGA" && userId) {
       const pel = await prisma.pelanggan.findUnique({ where: { userId }, select: { id: true } });
@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
     periodesUnique.sort(comparePeriodeDesc);
     const latestPeriode = periodesUnique[0] ?? "";
 
-    // ===== 2) build where untuk data (default ke latestPeriode bila tidak kirim "periode") =====
+    // ===== 2) build where (default ke latestPeriode bila tidak kirim "periode") =====
     const where: any = { deletedAt: null };
 
     if (statusQRaw) {
@@ -83,7 +83,6 @@ export async function GET(req: NextRequest) {
       else if (s === "UNPAID" || s === "BELUM-LUNAS") where.statusBayar = { not: "PAID" };
     }
 
-    // default: latestPeriode
     if (periodeQ) where.periode = periodeQ;
     else if (latestPeriode) where.periode = latestPeriode;
 
@@ -132,37 +131,14 @@ export async function GET(req: NextRequest) {
             buktiUrl: true, metode: true, keterangan: true,
           },
         },
+        // ★ ambil angka meter langsung dari relasi 1:1
+        catatMeter: {
+          select: { meterAwal: true, meterAkhir: true, pemakaianM3: true },
+        },
       },
     });
 
-    // ===== catat meter (opsional) =====
-    const periodeSet   = Array.from(new Set(tagihans.map(t => t.periode)));
-    const pelangganSet = Array.from(new Set(tagihans.map(t => t.pelangganId)));
-    const catats =
-      periodeSet.length && pelangganSet.length
-        ? await prisma.catatMeter.findMany({
-            where: {
-              pelangganId: { in: pelangganSet },
-              deletedAt: null,
-              periode: { is: { kodePeriode: { in: periodeSet } } },
-            },
-            select: {
-              pelangganId: true,
-              meterAwal: true, meterAkhir: true, pemakaianM3: true,
-              periode: { select: { kodePeriode: true } },
-            },
-          })
-        : [];
-
-    const cmMap = new Map<string, { meterAwal:number; meterAkhir:number; pemakaianM3:number }>();
-    for (const c of catats) {
-      cmMap.set(`${c.pelangganId}|${c.periode.kodePeriode}`, {
-        meterAwal: c.meterAwal, meterAkhir: c.meterAkhir, pemakaianM3: c.pemakaianM3,
-      });
-    }
-
     const data = tagihans.map(t => {
-      const cm = cmMap.get(`${t.pelangganId}|${t.periode}`);
       const last = t.pembayarans[0] || null;
       const tagihanBulanIni = t.totalTagihan || 0;
       const totalDue = (t.tagihanLalu || 0) + tagihanBulanIni;
@@ -177,9 +153,10 @@ export async function GET(req: NextRequest) {
         namaWarga: t.pelanggan?.nama ?? "-",
         zona: t.pelanggan?.zona?.nama ?? "-",
 
-        meterAwal: cm?.meterAwal ?? null,
-        meterAkhir: cm?.meterAkhir ?? null,
-        pemakaian: cm?.pemakaianM3 ?? null,
+        // ← langsung dari Tagihan.catatMeter
+        meterAwal:  t.catatMeter?.meterAwal ?? null,
+        meterAkhir: t.catatMeter?.meterAkhir ?? null,
+        pemakaian:  t.catatMeter?.pemakaianM3 ?? null,
 
         tarifPerM3: t.tarifPerM3,
         abonemen: t.abonemen,

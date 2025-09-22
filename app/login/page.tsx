@@ -28,7 +28,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <div className="text-center text-sm text-muted-foreground">
-          <p>© 2024 Tirta Bening. Semua hak dilindungi.</p>
+          <p>© 2025 Tirta Bening. Semua hak dilindungi.</p>
         </div>
       </div>
     </AppShell>
