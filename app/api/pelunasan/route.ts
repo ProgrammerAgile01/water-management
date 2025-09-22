@@ -1,11 +1,10 @@
 // import { NextRequest, NextResponse } from "next/server";
 // import { prisma } from "@/lib/prisma";
 // import { MetodeBayar } from "@prisma/client";
-// import fs from "node:fs/promises";
-// import path from "node:path";
 // import { getAuthUserId } from "@/lib/auth";
 // import { randomToken } from "@/lib/auth-utils";
 // import { nextMonth } from "@/lib/period";
+// import { saveUploadFile } from "@/lib/uploads"; // ⬅️ tambah ini
 
 // export const runtime = "nodejs";
 
@@ -16,17 +15,23 @@
 //     process.env.APP_ORIGIN ||
 //     process.env.NEXT_PUBLIC_APP_URL ||
 //     h.get("origin") ||
-//     `${h.get("x-forwarded-proto") || "http"}://${h.get("x-forwarded-host") || h.get("host") || ""}`
+//     `${h.get("x-forwarded-proto") || "http"}://${
+//       h.get("x-forwarded-host") || h.get("host") || ""
+//     }`
 //   )?.replace(/\/$/, "");
 // }
 
-// // ====== util kecil untuk WA (dipertahankan seperti versi kamu) ======
+// // ====== util kecil untuk WA ======
 // function formatRp(n: number) {
 //   return "Rp " + Number(n || 0).toLocaleString("id-ID");
 // }
 // function fmtTanggalID(d: Date | string) {
 //   const dd = typeof d === "string" ? new Date(d) : d;
-//   return dd.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" });
+//   return dd.toLocaleDateString("id-ID", {
+//     day: "2-digit",
+//     month: "long",
+//     year: "numeric",
+//   });
 // }
 // function adminWaText(p: {
 //   perusahaan?: string | null;
@@ -39,12 +44,17 @@
 //   tagihanId: string;
 //   link?: string;
 // }) {
-//   const periodeLabel = new Date(p.periode + "-01").toLocaleDateString("id-ID", { month: "long", year: "numeric" });
+//   const periodeLabel = new Date(p.periode + "-01").toLocaleDateString("id-ID", {
+//     month: "long",
+//     year: "numeric",
+//   });
 //   return [
 //     `*Notifikasi Pembayaran Masuk*${p.perusahaan ? `\n${p.perusahaan}` : ""}`,
 //     "",
 //     "----------------------------------",
-//     `• Pelanggan : ${p.pelangganNama}${p.pelangganKode ? ` (${p.pelangganKode})` : ""}`,
+//     `• Pelanggan : ${p.pelangganNama}${
+//       p.pelangganKode ? ` (${p.pelangganKode})` : ""
+//     }`,
 //     `• Periode      : ${periodeLabel}`,
 //     `• Nominal     : ${formatRp(p.nominal)}`,
 //     `• Metode      : ${p.metode}`,
@@ -52,7 +62,9 @@
 //     "----------------------------------",
 //     "",
 //     p.link ? `Tinjau & verifikasi:\n${p.link}` : undefined,
-//   ].filter(Boolean).join("\n");
+//   ]
+//     .filter(Boolean)
+//     .join("\n");
 // }
 
 // async function sendWaAndLog(tujuanRaw: string, text: string) {
@@ -60,17 +72,26 @@
 //   const base = (process.env.WA_SENDER_URL || "").replace(/\/$/, "");
 //   const apiKey = process.env.WA_SENDER_API_KEY || "";
 
-//   // kalau belum setting → catat FAILED tapi jangan gagalkan transaksi
 //   if (!base) {
 //     await prisma.waLog.create({
-//       data: { tujuan: to, tipe: "APPROVAL PEMBAYARAN", payload: JSON.stringify({ to, text }), status: "FAILED" },
+//       data: {
+//         tujuan: to,
+//         tipe: "APPROVAL PEMBAYARAN",
+//         payload: JSON.stringify({ to, text }),
+//         status: "FAILED",
+//       },
 //     });
 //     return;
 //   }
 
 //   const url = `${base}/send`;
 //   const log = await prisma.waLog.create({
-//     data: { tujuan: to, tipe: "APPROVAL PEMBAYARAN", payload: JSON.stringify({ to, text }), status: "PENDING" },
+//     data: {
+//       tujuan: to,
+//       tipe: "APPROVAL PEMBAYARAN",
+//       payload: JSON.stringify({ to, text }),
+//       status: "PENDING",
+//     },
 //   });
 
 //   const ac = new AbortController();
@@ -78,24 +99,23 @@
 
 //   fetch(url, {
 //     method: "POST",
-//     headers: { "Content-Type": "application/json", ...(apiKey ? { "x-api-key": apiKey } : {}) },
+//     headers: {
+//       "Content-Type": "application/json",
+//       ...(apiKey ? { "x-api-key": apiKey } : {}),
+//     },
 //     body: JSON.stringify({ to, text }),
 //     signal: ac.signal,
 //   })
-//     .then((r) => prisma.waLog.update({ where: { id: log.id }, data: { status: r.ok ? "SENT" : "FAILED" } }))
-//     .catch(() => prisma.waLog.update({ where: { id: log.id }, data: { status: "FAILED" } }))
+//     .then((r) =>
+//       prisma.waLog.update({
+//         where: { id: log.id },
+//         data: { status: r.ok ? "SENT" : "FAILED" },
+//       })
+//     )
+//     .catch(() =>
+//       prisma.waLog.update({ where: { id: log.id }, data: { status: "FAILED" } })
+//     )
 //     .finally(() => clearTimeout(t));
-// }
-
-// async function saveUpload(file: File | null): Promise<string | undefined> {
-//   if (!file || file.size === 0) return undefined;
-//   const buf = Buffer.from(await file.arrayBuffer());
-//   const ext = (file.name.split(".").pop() || "dat").toLowerCase();
-//   const name = `bukti-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-//   const dir = path.join(process.cwd(), "public", "uploads", "payment", "bukti-bayar");
-//   await fs.mkdir(dir, { recursive: true });
-//   await fs.writeFile(path.join(dir, name), buf);
-//   return `/uploads/payment/bukti-bayar/${name}`;
 // }
 
 // // ================ HANDLER ================
@@ -110,7 +130,10 @@
 //     const file = form.get("buktiFile") as File | null;
 
 //     if (!tagihanId || !nominalBayar || !metodeRaw || !file) {
-//       return NextResponse.json({ ok: false, message: "Data wajib belum lengkap" }, { status: 400 });
+//       return NextResponse.json(
+//         { ok: false, message: "Data wajib belum lengkap" },
+//         { status: 400 }
+//       );
 //     }
 
 //     const allow = ["TUNAI", "TRANSFER", "EWALLET", "QRIS"] as const;
@@ -118,14 +141,20 @@
 //       ? (metodeRaw as MetodeBayar)
 //       : MetodeBayar.TUNAI;
 
-//     const buktiUrl = await saveUpload(file);
+//     // ⬇️ simpan bukti ke UPLOAD_DIR & dapatkan URL publik
+//     const saved = await saveUploadFile(file, "payment/bukti-bayar");
+//     const buktiUrl = saved.publicUrl; // contoh: /api/file/payment/bukti-bayar/xxxxx.png
+
 //     const tanggalBayar = tanggalStr ? new Date(tanggalStr) : new Date();
 
 //     let adminName: string | null = null;
 //     try {
 //       const uid = await getAuthUserId(req);
 //       if (uid) {
-//         const u = await prisma.user.findUnique({ where: { id: uid }, select: { name: true, role: true } });
+//         const u = await prisma.user.findUnique({
+//           where: { id: uid },
+//           select: { name: true, role: true },
+//         });
 //         if (u && u.role !== "WARGA") adminName = u.name ?? null;
 //       }
 //     } catch {}
@@ -138,7 +167,7 @@
 //           tagihanId,
 //           jumlahBayar: Math.round(nominalBayar),
 //           tanggalBayar,
-//           buktiUrl: buktiUrl!,
+//           buktiUrl, // ⬅️ simpan URL API, bukan path /public
 //           adminBayar: adminName,
 //           metode,
 //           keterangan: keterangan || null,
@@ -153,12 +182,18 @@
 
 //       const t = await tx.tagihan.findUnique({
 //         where: { id: tagihanId },
-//         select: { id: true, pelangganId: true, periode: true, totalTagihan: true, tagihanLalu: true },
+//         select: {
+//           id: true,
+//           pelangganId: true,
+//           periode: true,
+//           totalTagihan: true,
+//           tagihanLalu: true,
+//         },
 //       });
 //       if (!t) throw new Error("Tagihan tidak ditemukan (recalc)");
 
 //       const totalBulanIni = t.totalTagihan ?? 0;
-//       const carry = t.tagihanLalu ?? 0;    // denda dimatikan
+//       const carry = t.tagihanLalu ?? 0;
 //       const totalDue = totalBulanIni + carry;
 //       const totalPaid = agg._sum.jumlahBayar ?? 0;
 //       const sisaKurang = totalDue - totalPaid;
@@ -168,18 +203,24 @@
 //         data: { sisaKurang, statusBayar: sisaKurang <= 0 ? "PAID" : "UNPAID" },
 //       });
 
-//       // 3) sinkronkan ke BULAN BERIKUT (jika sdh ada tagihannya)
+//       // 3) sinkronkan ke BULAN BERIKUT (jika sudah ada tagihannya)
 //       const periodeNext = nextMonth(t.periode);
 //       const nextT = await tx.tagihan.findUnique({
-//         where: { pelangganId_periode: { pelangganId: t.pelangganId, periode: periodeNext } },
+//         where: {
+//           pelangganId_periode: {
+//             pelangganId: t.pelangganId,
+//             periode: periodeNext,
+//           },
+//         },
 //         select: { id: true, totalTagihan: true },
 //       });
 
 //       if (nextT) {
-//         // set carry bulan berikut = sisa bulan ini
-//         await tx.tagihan.update({ where: { id: nextT.id }, data: { tagihanLalu: sisaKurang } });
+//         await tx.tagihan.update({
+//           where: { id: nextT.id },
+//           data: { tagihanLalu: sisaKurang },
+//         });
 
-//         // hitung saldo bulan berikut (kalau sudah ada pembayaran)
 //         const aggNext = await tx.pembayaran.aggregate({
 //           where: { tagihanId: nextT.id, deletedAt: null },
 //           _sum: { jumlahBayar: true },
@@ -189,21 +230,32 @@
 
 //         await tx.tagihan.update({
 //           where: { id: nextT.id },
-//           data: { sisaKurang: sisaNext, statusBayar: sisaNext <= 0 ? "PAID" : "UNPAID" },
+//           data: {
+//             sisaKurang: sisaNext,
+//             statusBayar: sisaNext <= 0 ? "PAID" : "UNPAID",
+//           },
 //         });
 //       }
 
 //       return pay;
 //     });
 
-//     // ==== kirim WA admin (sama persis seperti punyamu) ====
+//     // ==== kirim WA admin ====
 //     try {
 //       const origin = getAppOrigin(req);
 //       const tFull = await prisma.tagihan.findUnique({
 //         where: { id: String(pembayaran.tagihanId) },
-//         select: { id: true, periode: true, totalTagihan: true, pelanggan: { select: { nama: true, kode: true } } },
+//         select: {
+//           id: true,
+//           periode: true,
+//           totalTagihan: true,
+//           pelanggan: { select: { nama: true, kode: true } },
+//         },
 //       });
-//       const setting = await prisma.setting.findUnique({ where: { id: 1 }, select: { namaPerusahaan: true } });
+//       const setting = await prisma.setting.findUnique({
+//         where: { id: 1 },
+//         select: { namaPerusahaan: true },
+//       });
 //       const admins = await prisma.user.findMany({
 //         where: { role: "ADMIN", isActive: true, phone: { not: null } },
 //         select: { id: true, phone: true, name: true },
@@ -215,11 +267,23 @@
 //         const token = randomToken(32);
 //         const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 //         await prisma.magicLinkToken.create({
-//           data: { token, userId: a.id, tagihanId: String(pembayaran.tagihanId), purpose: "admin-review", expiresAt },
+//           data: {
+//             token,
+//             userId: a.id,
+//             tagihanId: String(pembayaran.tagihanId),
+//             purpose: "admin-review",
+//             expiresAt,
+//           },
 //         });
 
-//         const next = `/input-pembayaran/${encodeURIComponent(String(pembayaran.tagihanId))}`;
-//         const link = origin ? `${origin}/api/auth/magic?token=${encodeURIComponent(token)}&next=${encodeURIComponent(next)}` : undefined;
+//         const next = `/input-pembayaran/${encodeURIComponent(
+//           String(pembayaran.tagihanId)
+//         )}`;
+//         const link = origin
+//           ? `${origin}/api/auth/magic?token=${encodeURIComponent(
+//               token
+//             )}&next=${encodeURIComponent(next)}`
+//           : undefined;
 
 //         const text = adminWaText({
 //           perusahaan: setting?.namaPerusahaan,
@@ -233,7 +297,7 @@
 //           link,
 //         });
 
-//         await sendWaAndLog(a.phone, text);
+//         await sendWaAndLog(a.phone!, text);
 //       }
 //     } catch (err) {
 //       console.error("[notify-admin-wa]", err);
@@ -241,7 +305,10 @@
 
 //     return NextResponse.json({ ok: true, pembayaran });
 //   } catch (e: any) {
-//     return NextResponse.json({ ok: false, message: e?.message ?? "Server error" }, { status: 500 });
+//     return NextResponse.json(
+//       { ok: false, message: e?.message ?? "Server error" },
+//       { status: 500 }
+//     );
 //   }
 // }
 
@@ -251,7 +318,7 @@ import { MetodeBayar } from "@prisma/client";
 import { getAuthUserId } from "@/lib/auth";
 import { randomToken } from "@/lib/auth-utils";
 import { nextMonth } from "@/lib/period";
-import { saveUploadFile } from "@/lib/uploads"; // ⬅️ tambah ini
+import { saveUploadFile } from "@/lib/uploads"; // ⬅️ simpan bukti
 
 export const runtime = "nodejs";
 
@@ -445,9 +512,15 @@ export async function POST(req: NextRequest) {
       const totalPaid = agg._sum.jumlahBayar ?? 0;
       const sisaKurang = totalDue - totalPaid;
 
+      // === Opsi 1: statusBayar = PAID jika sudah ada pembayaran (berapa pun)
+      const statusBayar = totalPaid > 0 ? "PAID" : "UNPAID";
+
       await tx.tagihan.update({
         where: { id: t.id },
-        data: { sisaKurang, statusBayar: sisaKurang <= 0 ? "PAID" : "UNPAID" },
+        data: {
+          sisaKurang,     // untuk menentukan "lunas" (sisaKurang <= 0)
+          statusBayar,    // hanya menandai "sudah bayar" vs "belum bayar"
+        },
       });
 
       // 3) sinkronkan ke BULAN BERIKUT (jika sudah ada tagihannya)
@@ -463,6 +536,7 @@ export async function POST(req: NextRequest) {
       });
 
       if (nextT) {
+        // propagate kredit/debit ke bulan berikut
         await tx.tagihan.update({
           where: { id: nextT.id },
           data: { tagihanLalu: sisaKurang },
@@ -472,14 +546,19 @@ export async function POST(req: NextRequest) {
           where: { tagihanId: nextT.id, deletedAt: null },
           _sum: { jumlahBayar: true },
         });
+
+        const totalPaidNext = aggNext._sum.jumlahBayar ?? 0;
         const totalDueNext = (nextT.totalTagihan ?? 0) + sisaKurang;
-        const sisaNext = totalDueNext - (aggNext._sum.jumlahBayar ?? 0);
+        const sisaNext = totalDueNext - totalPaidNext;
+
+        // === Opsi 1 untuk bulan berikut: statusBayar = PAID jika ada pembayaran di bulan tsb
+        const statusNext = totalPaidNext > 0 ? "PAID" : "UNPAID";
 
         await tx.tagihan.update({
           where: { id: nextT.id },
           data: {
             sisaKurang: sisaNext,
-            statusBayar: sisaNext <= 0 ? "PAID" : "UNPAID",
+            statusBayar: statusNext,
           },
         });
       }

@@ -267,7 +267,7 @@ export default function InputPembayaranPage() {
     return <span className="text-green-600">Rp 0</span>;
   }
 
-  const totalBayar = t?.totalTagihan ?? 0;
+  const tagihanFinal = t?.totalTagihan + t?.tagihanLalu ?? 0;
 
   // lock form kalau sudah PAID dan misal ditambah or Verified
   const lockForm = t?.statusBayar === "PAID";
@@ -481,14 +481,16 @@ export default function InputPembayaranPage() {
                           Status:{" "}
                           <span
                             className={
-                              t.statusBayar === "PAID"
+                              t.statusBayar === "PAID" && t.sisaKurang <= 0
                                 ? "text-green-600"
                                 : "text-red-600"
                             }
                           >
-                            {t.statusBayar === "PAID"
-                              ? "Dibayar"
-                              : "Belum Dibayar"}
+                            {t.statusBayar === "PAID" && t.sisaKurang <= 0
+                              ? "Dibayar Lunas"
+                              : t.sisaKurang > 0 && t.statusBayar === "PAID"
+                              ? "Belum Lunas"
+                              : "Belum Bayar"}
                           </span>
                           {" | "}
                           <span
@@ -737,7 +739,10 @@ export default function InputPembayaranPage() {
                         </div>
 
                         <div>
-                          <Label htmlFor="bukti" className="text-sm font-medium">
+                          <Label
+                            htmlFor="bukti"
+                            className="text-sm font-medium"
+                          >
                             Bukti Pembayaran
                             <span className="text-red-600">*</span>
                           </Label>
@@ -753,7 +758,9 @@ export default function InputPembayaranPage() {
 
                             {payDB?.buktiUrl ? (
                               <div className="p-3 border rounded-lg bg-muted/20">
-                                {payDB.buktiUrl.toLowerCase().endsWith(".pdf") ? (
+                                {payDB.buktiUrl
+                                  .toLowerCase()
+                                  .endsWith(".pdf") ? (
                                   <object
                                     data={payDB.buktiUrl}
                                     type="application/pdf"
@@ -780,7 +787,9 @@ export default function InputPembayaranPage() {
                                 ) : (
                                   <div className="flex items-center justify-between gap-3">
                                     <div className="text-sm">
-                                      <p className="font-medium">File PDF terunggah</p>
+                                      <p className="font-medium">
+                                        File PDF terunggah
+                                      </p>
                                       <p className="text-muted-foreground">
                                         {paymentProof?.name}
                                       </p>
@@ -798,7 +807,12 @@ export default function InputPembayaranPage() {
                                 <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
                                   <span>
                                     {paymentProof?.name} •{" "}
-                                    {(Number(paymentProof?.size || 0) / 1024 / 1024).toFixed(2)} MB
+                                    {(
+                                      Number(paymentProof?.size || 0) /
+                                      1024 /
+                                      1024
+                                    ).toFixed(2)}{" "}
+                                    MB
                                   </span>
                                   <Button
                                     type="button"
@@ -822,7 +836,8 @@ export default function InputPembayaranPage() {
                                 <div className="text-center">
                                   <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
                                   <p className="text-sm text-muted-foreground text-wrap">
-                                    Klik untuk upload bukti pembayaran (JPG/PNG/PDF)
+                                    Klik untuk upload bukti pembayaran
+                                    (JPG/PNG/PDF)
                                   </p>
                                 </div>
                               </Button>
