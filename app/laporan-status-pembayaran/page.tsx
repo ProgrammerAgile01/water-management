@@ -162,9 +162,25 @@ export default function LaporanStatusPembayaranPage() {
     return <span className="text-green-600">Rp 0</span>;
   }
 
+  function renderTotalSisaKurang(n: number) {
+    if (n > 0) {
+      return <span>Rp {fmtRp(n)}</span>;
+    }
+    if (n < 0) {
+      return <span>Rp {fmtRp(n)}</span>;
+    }
+    return <span>Rp 0</span>;
+  }
+
   function labelSisaKurang(n: number) {
     if (n > 0) return `Kurang Rp ${fmtRp(n)}`;
     if (n < 0) return `Sisa Rp ${fmtRp(-n)}`;
+    return "Rp 0";
+  }
+
+  function labelTotalSisaKurang(n: number) {
+    if (n > 0) return `Rp ${fmtRp(n)}`;
+    if (n < 0) return `Rp ${fmtRp(n)}`;
     return "Rp 0";
   }
 
@@ -219,7 +235,7 @@ export default function LaporanStatusPembayaranPage() {
         "",
         summary.totalTagihan,
         summary.sudahBayar,
-        "",
+        labelTotalSisaKurang(summary.sisaKurang),
       ],
     ];
 
@@ -251,7 +267,7 @@ export default function LaporanStatusPembayaranPage() {
       totalTagihan: fmtRp(summary.totalTagihan),
       sudahBayar: fmtRp(summary.sudahBayar),
       belumBayar: fmtRp(summary.belumBayar),
-      sisaKurang: fmtRp(summary.sisaKurang),
+      sisaKurang: renderTotalSisaKurang(summary.sisaKurang),
     }),
     [summary]
   );
@@ -378,7 +394,7 @@ export default function LaporanStatusPembayaranPage() {
                         Rp {fmtRp(r.tagihanAwal)}
                       </td>
                       {/* <td className="py-3 px-2">Rp {fmtRp(r.abonemen)}</td> */}
-                      <td>
+                      <td className="text-center">
                         {renderSisaKurang(r.tagihanLalu)}
                       </td>
                       <td className="py-3 px-2 font-semibold text-center">
@@ -388,7 +404,7 @@ export default function LaporanStatusPembayaranPage() {
                       <td className="py-3 px-2 text-center">
                         Rp {fmtRp(r.sudahBayar)}
                       </td>
-                      <td>
+                      <td className="text-center">
                         {renderSisaKurang(r.sisaKurang)}
                       </td>
                       <td className="py-3 px-2">
@@ -429,7 +445,7 @@ export default function LaporanStatusPembayaranPage() {
                         Rp {fmtRp(summary.sudahBayar)}
                       </td>
                       <td className="py-3 px-2 text-center">
-                        Rp {fmtRp(summary.sisaKurang)}
+                        {renderTotalSisaKurang(summary.sisaKurang)}
                       </td>
                       {/* <td className="py-3 px-2">
                         Rp {fmtRp(summary.belumBayar)}
@@ -549,10 +565,10 @@ export default function LaporanStatusPembayaranPage() {
                     <span>Total Dibayar</span>
                     <b>Rp {footerTotals.sudahBayar}</b>
                   </div>
-                  {/* <div className="flex justify-between">
+                  <div className="flex justify-between">
                     <span>Total Sisa/Kurang</span>
-                    <b className="">Rp {footerTotals.sisaKurang}</b>
-                  </div> */}
+                    <b className="">{footerTotals.sisaKurang}</b>
+                  </div>
                 </div>
               </GlassCard>
             )}

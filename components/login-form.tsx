@@ -36,6 +36,7 @@ export function LoginForm() {
       });
 
       if (data.user.role === "WARGA") router.push("/warga-dashboard");
+      if (data.user.role === "PETUGAS") router.push("/jadwal-pencatatan")
       else router.push("/dashboard");
     } catch (err) {
       const message =

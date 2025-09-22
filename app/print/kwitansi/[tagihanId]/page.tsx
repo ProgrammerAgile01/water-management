@@ -221,7 +221,7 @@ html, body {
                 <div className="row">
                   <div className="key">Status</div>
                   <div className="val">
-                    <span className="badge">TERVERIFIKASI</span>
+                    <span className="badge">LUNAS</span>
                   </div>
                 </div>
                 {data.keterangan ? (

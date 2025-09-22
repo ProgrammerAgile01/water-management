@@ -22,9 +22,10 @@ import { AuthGuard } from "@/components/auth-guard";
 import { AppShell } from "@/components/app-shell";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ApprovePaymentModal } from "@/components/approve-payment-modal";
+// NEW: import modal konfirmasi upload
+import { ConfirmUploadModal } from "@/components/confirm-upload-modal";
 
 type AppRole = "ADMIN" | "PETUGAS" | "WARGA";
-
 type Metode = "TUNAI" | "TRANSFER" | "EWALLET" | "QRIS";
 
 type TagihanDetail = {
@@ -37,11 +38,11 @@ type TagihanDetail = {
   tarifPerM3: number;
   abonemen: number;
   denda: number;
-  totalTagihan: number; // = tagihan bulan ini
-  tagihanLalu: number; // (+/-) baru
-  totalDue: number; // baru = tagihanLalu + totalTagihan
-  dibayar: number; // baru (akumulasi pembayaran)
-  sisaKurang: number; // baru (totalDue - dibayar)
+  totalTagihan: number;
+  tagihanLalu: number;
+  totalDue: number;
+  dibayar: number;
+  sisaKurang: number;
 
   statusBayar: "PAID" | "UNPAID";
   statusVerif: "VERIFIED" | "UNVERIFIED";
@@ -69,8 +70,6 @@ export default function InputPembayaranPage() {
   const [role, setRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
   const [t, setT] = useState<TagihanDetail | null>(null);
-  // const [denda1, setDenda1] = useState(0);
-  // const [denda2, setDenda2] = useState(0);
 
   // pembayaran dari DB (kalau sudah pernah upload)
   const [payDB, setPayDB] = useState<PembayaranLite | null>(null);
@@ -93,16 +92,17 @@ export default function InputPembayaranPage() {
   // nominal bayar
   const [nominalBayar, setNominalBayar] = useState<string>("");
 
-  // Prefill nominal: ambil dari pembayaran terakhir jika ada.
-  // Hanya set sekali (saat nominalBayar masih kosong) agar tidak menimpa input user.
+  // NEW: modal konfirmasi upload
+  const [openConfirmUpload, setOpenConfirmUpload] = useState(false);
+  const [loadingUpload, setLoadingUpload] = useState(false);
+
+  // Prefill nominal (sekali)
   useEffect(() => {
     if (!t) return;
     if (nominalBayar !== "") return;
 
-    // 1) Jika sudah ada pembayaran tersimpan → pakai jumlah tersebut
     if (payDB?.jumlahBayar && payDB.jumlahBayar > 0) {
       setNominalBayar(String(payDB.jumlahBayar));
-      // (opsional) set juga tanggal & metode dari DB agar konsisten
       if (payDB?.tanggalBayar) {
         const iso = toISODate(payDB.tanggalBayar);
         if (iso) setTanggalBayar(iso);
@@ -110,17 +110,9 @@ export default function InputPembayaranPage() {
       if (payDB.metode) setMetode(payDB.metode);
       return;
     }
-
-    // 2) Belum ada pembayaran → isi default sesuai sisa/total
-    // const defaultNominal =
-    //   (t.sisaKurang && t.sisaKurang > 0
-    //     ? t.sisaKurang
-    //     : t.totalDue ?? t.totalTagihan ?? 0) || 0;
-
-    // setNominalBayar(String(defaultNominal));
   }, [t, payDB, nominalBayar]);
 
-  // role dari /api/auth/me (AuthGuard juga akan set localStorage)
+  // role
   useEffect(() => {
     (async () => {
       try {
@@ -145,8 +137,6 @@ export default function InputPembayaranPage() {
           throw new Error(data?.message || "Gagal mengambil tagihan");
         if (!alive) return;
         setT(data.tagihan);
-        // setDenda1(data.dendaFirstMonth || 0);
-        // setDenda2(data.dendaNextMonths || 0);
       } catch (e: any) {
         toast({
           title: "Error",
@@ -162,7 +152,7 @@ export default function InputPembayaranPage() {
     };
   }, [id, toast]);
 
-  // ===== load pembayaran terbaru utk tagihan ini =====
+  // load pembayaran terbaru utk tagihan ini
   const refetchPembayaran = async (tagihanId: string) => {
     setLoadingPay(true);
     try {
@@ -185,181 +175,22 @@ export default function InputPembayaranPage() {
     refetchPembayaran(String(id));
   }, [id]);
 
-  // helper tanggalan
-  // parse "dd/mm/yyyy" -> Date
-  function parseTanggalDMY(s: string): Date | null {
-    const [dd, mm, yyyy] = s.split(/[/-]/).map(Number);
-    if (!dd || !mm || !yyyy) return null;
-    const d = new Date(yyyy, mm - 1, dd);
-    // validasi sederhana
-    return d.getMonth() === mm - 1 ? d : null;
-  }
-
-  // format ke "15 Juli 2025" atau "Selasa, 15 Juli 2025"
-  function formatTanggalID(input: string | Date, withWeekday = false): string {
-    const d = typeof input === "string" ? parseTanggalDMY(input) : input;
-    if (!d) return "";
-    const opts: Intl.DateTimeFormatOptions = {
-      day: "2-digit",
-      month: "long",
-      year: "numeric",
-      ...(withWeekday ? { weekday: "long" } : {}),
-    };
-    return d.toLocaleDateString("id-ID", opts);
-  }
-
-  // hitung denda dinamis (client) berdasar tanggal input
-  // const dendaHitung = useMemo(() => {
-  //   if (!t?.tglJatuhTempo) return 0;
-  //   const due = new Date(t.tglJatuhTempo);
-  //   const pay = new Date(tanggalBayar);
-  //   if (!(due instanceof Date) || !(pay instanceof Date)) return 0;
-  //   if (pay <= due) return 0;
-  //   const diffDays = Math.ceil((+pay - +due) / (1000 * 60 * 60 * 24));
-  //   const diffMonths = Math.floor(diffDays / 30);
-  //   if (diffMonths === 0) return denda1;
-  //   return denda2;
-  // }, [t?.tglJatuhTempo, tanggalBayar, denda1, denda2]);
-
-  // const totalPlusDenda = (t?.totalTagihan ?? 0) + dendaHitung;
-
-  const totalBayar = t?.totalTagihan ?? 0;
-
-  // ===== lock form kalau sudah APPROVE / VERIVIED =====
-  const lockForm = t?.statusVerif === "VERIFIED";
-
-  const onSubmit = async () => {
-    try {
-      const nominal = Number(nominalBayar || 0);
-
-      if (!t) throw new Error("Tagihan tidak ditemukan");
-      if (!metode) throw new Error("Pilih metode pembayaran");
-      if (!paymentProof) throw new Error("Wajib upload bukti pembayaran");
-      if (!nominal || nominal <= 0)
-        throw new Error("Nominal bayar harus diisi dan lebih dari 0");
-
-      const fd = new FormData();
-      fd.set("tagihanId", t.id);
-      fd.set("nominalBayar", String(nominal));
-      fd.set("tanggalBayar", tanggalBayar);
-      fd.set("metodeBayar", metode);
-      fd.set("keterangan", keterangan);
-      fd.set("buktiFile", paymentProof);
-
-      const r = await fetch("/api/pelunasan", { method: "POST", body: fd });
-      const data = await r.json();
-      if (!r.ok || !data?.ok)
-        throw new Error(data?.message || "Gagal menyimpan");
-
-      toast({
-        title: "Berhasil",
-        description: "Bukti tersimpan & status tagihan ter-update.",
-      });
-
-      // refetch pembayaran → kunci form + tampilkan preview dari server
-      await refetchPembayaran(t.id);
-      // opsional: update statusBayar lokal jika sudah lunas
-      setT((prev) =>
-        prev ? ({ ...prev, statusBayar: "PAID" } as TagihanDetail) : prev
-      );
-
-      // bersihka preview lokal
-      removeProof();
-
-      // redirect
-      router.replace("/tagihan-pembayaran");
-    } catch (e: any) {
-      toast({
-        title: "Gagal",
-        description: e?.message || "Terjadi kesalahan",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // approve
-  const summary = t && {
-    tagihanId: t.id,
-    pelangganNama: t.pelangganNama,
-    pelangganKode: t.pelangganKode,
-    periode: t.periode,
-    totalTagihan: t.totalTagihan, // tanpa denda
-    tanggalBayar, // state dari formmu
-    metodeBayar: metode, // state dari formmu
-    keterangan, // state dari formmu
-  };
-
-  async function handleConfirmApprove() {
-    try {
-      setLoadingApprove(true);
-      if (!t) return;
-      const r = await fetch(`/api/tagihan/${t.id}/verify`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "APPROVE", sendWa: true }),
-      });
-      const data = await r.json();
-      if (!r.ok || !data?.ok) throw new Error(data?.message || "Gagal approve");
-      toast({
-        title: "Approved",
-        description: "Status verifikasi diset ke VERIFIED.",
-      });
-      // reload status verif
-      setT((prev) =>
-        prev ? ({ ...prev, statusVerif: "VERIFIED" } as TagihanDetail) : prev
-      );
-      router.replace("/tagihan-pembayaran");
-    } catch (e: any) {
-      toast({
-        title: "Gagal",
-        description: e?.message || "Terjadi kesalahan",
-        variant: "destructive",
-      });
-    } finally {
-      setLoadingApprove(false);
-      setOpenApprove(false);
-    }
-  }
-
-  const fmt = (n: number) =>
-    new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      minimumFractionDigits: 0,
-    }).format(n);
-
-  // helper format sisa kurang
-  function renderSisaKurang(n: number) {
-    if (n > 0) {
-      return <span className="text-red-600">Kurang {fmt(n)}</span>;
-    }
-    if (n < 0) {
-      return <span className="text-green-600">Sisa {fmt(-n)}</span>;
-    }
-    return <span className="text-green-600">Rp 0</span>;
-  }
-
   // --- helpers tanggal ---
   function toISODate(s: string): string {
     if (!s) return "";
-    // sudah ISO?
     if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-
-    // format dd/mm/yyyy atau dd-mm-yyyy
     const m = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
     if (m) {
       const dd = Number(m[1]);
       const mm = Number(m[2]);
       const yyyy = Number(m[3]);
-      const d = new Date(yyyy, mm - 1, dd); // no timezone shift (construct local)
+      const d = new Date(yyyy, mm - 1, dd);
       if (!isNaN(+d))
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
           2,
           "0"
         )}-${String(d.getDate()).padStart(2, "0")}`;
     }
-
-    // fallback: biarkan Date parse; jika valid, kembalikan ISO pendek
     const d = new Date(s);
     if (!isNaN(+d)) {
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
@@ -370,23 +201,6 @@ export default function InputPembayaranPage() {
     return "";
   }
 
-  function isoToID(iso: string): string {
-    if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return "";
-    const [y, m, d] = iso.split("-");
-    return `${d}/${m}/${y}`; // "dd/mm/yyyy"
-  }
-
-  function isoToLongID(iso: string): string {
-    if (!iso) return "";
-    const [y, m, d] = iso.split("-");
-    const dt = new Date(Number(y), Number(m) - 1, Number(d));
-    return dt.toLocaleDateString("id-ID", {
-      day: "2-digit",
-      month: "long",
-      year: "numeric",
-    });
-  }
-
   // preview gambar / bukti
   const onPickProof = () => {
     document.getElementById("bukti")?.click();
@@ -394,9 +208,7 @@ export default function InputPembayaranPage() {
 
   const onChangeProof = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    // supaya bisa pilih file yang sama lagi setelah dihapus
     e.currentTarget.value = "";
-
     if (!file) return;
 
     const allowed = ["image/jpeg", "image/png", "image/jpg", "application/pdf"];
@@ -419,7 +231,6 @@ export default function InputPembayaranPage() {
       return;
     }
 
-    // bersihkan preview lama
     if (proofPreview) URL.revokeObjectURL(proofPreview);
     const url = URL.createObjectURL(file);
     setPaymentProof(file);
@@ -432,13 +243,166 @@ export default function InputPembayaranPage() {
     setProofPreview(null);
   };
 
-  // cleanup saat unmount
   useEffect(
     () => () => {
       if (proofPreview) URL.revokeObjectURL(proofPreview);
     },
     [proofPreview]
   );
+
+  const fmt = (n: number) =>
+    new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      minimumFractionDigits: 0,
+    }).format(n);
+
+  function renderSisaKurang(n: number) {
+    if (n > 0) {
+      return <span className="text-red-600">Kurang {fmt(n)}</span>;
+    }
+    if (n < 0) {
+      return <span className="text-green-600">Sisa {fmt(-n)}</span>;
+    }
+    return <span className="text-green-600">Rp 0</span>;
+  }
+
+  const totalBayar = t?.totalTagihan ?? 0;
+
+  // lock form kalau sudah PAID dan misal ditambah or Verified
+  const lockForm = t?.statusBayar === "PAID";
+
+  // === SUBMIT HANDLERS ===
+
+  // NEW: validasi ringan sebelum buka modal
+  const handleClickSimpan = () => {
+    try {
+      if (!t) throw new Error("Tagihan tidak ditemukan");
+      const nominal = Number(nominalBayar || 0);
+      if (!paymentProof) throw new Error("Wajib upload bukti pembayaran");
+      if (!nominal || nominal <= 0)
+        throw new Error("Nominal bayar harus diisi dan lebih dari 0");
+      if (!metode) throw new Error("Pilih metode pembayaran");
+      setOpenConfirmUpload(true);
+    } catch (e: any) {
+      toast({
+        title: "Gagal",
+        description: e?.message || "Lengkapi data pembayaran terlebih dahulu",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // NEW: proses upload (dipanggil setelah konfirmasi)
+  const performUpload = async () => {
+    try {
+      const nominal = Number(nominalBayar || 0);
+      if (!t) throw new Error("Tagihan tidak ditemukan");
+      if (!paymentProof) throw new Error("Bukti pembayaran belum dipilih");
+
+      const fd = new FormData();
+      fd.set("tagihanId", t.id);
+      fd.set("nominalBayar", String(nominal));
+      fd.set("tanggalBayar", tanggalBayar);
+      fd.set("metodeBayar", metode);
+      fd.set("keterangan", keterangan);
+      fd.set("buktiFile", paymentProof);
+
+      const r = await fetch("/api/pelunasan", { method: "POST", body: fd });
+      const data = await r.json();
+      if (!r.ok || !data?.ok)
+        throw new Error(data?.message || "Gagal menyimpan");
+
+      toast({
+        title: "Berhasil",
+        description: "Bukti tersimpan & status tagihan ter-update.",
+      });
+
+      await refetchPembayaran(t.id);
+      setT((prev) =>
+        prev ? ({ ...prev, statusBayar: "PAID" } as TagihanDetail) : prev
+      );
+      removeProof();
+
+      router.replace("/tagihan-pembayaran");
+    } catch (e: any) {
+      toast({
+        title: "Gagal",
+        description: e?.message || "Terjadi kesalahan",
+        variant: "destructive",
+      });
+      throw e;
+    }
+  };
+
+  // NEW: konfirmasi dari modal → jalankan performUpload
+  async function handleConfirmUpload() {
+    try {
+      setLoadingUpload(true);
+      await performUpload();
+    } finally {
+      setLoadingUpload(false);
+      setOpenConfirmUpload(false);
+    }
+  }
+
+  // approve (modal yang sudah ada)
+  const summary = t && {
+    tagihanId: t.id,
+    pelangganNama: t.pelangganNama,
+    pelangganKode: t.pelangganKode,
+    periode: t.periode,
+    totalTagihan: t.totalTagihan,
+    tanggalBayar,
+    metodeBayar: metode,
+    keterangan,
+  };
+
+  async function handleConfirmApprove() {
+    try {
+      setLoadingApprove(true);
+      if (!t) return;
+      const r = await fetch(`/api/tagihan/${t.id}/verify`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "APPROVE", sendWa: true }),
+      });
+      const data = await r.json();
+      if (!r.ok || !data?.ok) throw new Error(data?.message || "Gagal approve");
+      toast({
+        title: "Approved",
+        description: "Status verifikasi diset ke VERIFIED.",
+      });
+      setT((prev) =>
+        prev ? ({ ...prev, statusVerif: "VERIFIED" } as TagihanDetail) : prev
+      );
+      router.replace("/tagihan-pembayaran");
+    } catch (e: any) {
+      toast({
+        title: "Gagal",
+        description: e?.message || "Terjadi kesalahan",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingApprove(false);
+      setOpenApprove(false);
+    }
+  }
+
+  // NEW: data ringkasan untuk modal konfirmasi upload
+  const confirmData =
+    t && paymentProof
+      ? {
+          pelangganNama: t.pelangganNama,
+          pelangganKode: t.pelangganKode,
+          periode: t.periode,
+          nominal: Number(nominalBayar || 0),
+          metodeBayar: metode as Metode,
+          tanggalBayar,
+          fileName: paymentProof?.name || null,
+          note: keterangan || null,
+        }
+      : null;
 
   return (
     <div className="space-y-6">
@@ -487,11 +451,10 @@ export default function InputPembayaranPage() {
                 </div>
               </GlassCard>
 
-              {/* MAIN GRID: md => 2 kolom */}
+              {/* MAIN GRID */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* KIRI: Total Tagihan + Rincian (rincian di bawah total untuk desktop) */}
+                {/* KIRI */}
                 <div className="space-y-4">
-                  {/* Total Tagihan */}
                   <GlassCard className="p-6">
                     <div className="space-y-4">
                       <div>
@@ -503,22 +466,25 @@ export default function InputPembayaranPage() {
                         </p>
                         <p className="text-sm text-muted-foreground mt-1">
                           Jatuh Tempo{" "}
-                          {formatTanggalID(
-                            t.tglJatuhTempo
-                              ? new Date(t.tglJatuhTempo).toLocaleDateString(
-                                  "id-ID"
-                                )
-                              : "-"
-                          )}
+                          {t.tglJatuhTempo
+                            ? new Date(t.tglJatuhTempo).toLocaleDateString(
+                                "id-ID",
+                                {
+                                  day: "2-digit",
+                                  month: "long",
+                                  year: "numeric",
+                                }
+                              )
+                            : "-"}
                         </p>
                         <p className="text-sm text-muted-foreground mt-1">
                           Status:{" "}
                           <span
-                            className={`${
+                            className={
                               t.statusBayar === "PAID"
                                 ? "text-green-600"
                                 : "text-red-600"
-                            }`}
+                            }
                           >
                             {t.statusBayar === "PAID"
                               ? "Dibayar"
@@ -526,11 +492,11 @@ export default function InputPembayaranPage() {
                           </span>
                           {" | "}
                           <span
-                            className={`${
+                            className={
                               t.statusVerif === "VERIFIED"
                                 ? "text-green-600"
                                 : "text-orange-600"
-                            }`}
+                            }
                           >
                             {t.statusVerif === "VERIFIED"
                               ? "Diverifikasi"
@@ -541,7 +507,6 @@ export default function InputPembayaranPage() {
                     </div>
                   </GlassCard>
 
-                  {/* Rincian */}
                   <GlassCard className="p-6">
                     <h3 className="font-semibold text-foreground mb-4">
                       Rincian
@@ -569,86 +534,6 @@ export default function InputPembayaranPage() {
                         <span className="text-muted-foreground">Abonemen:</span>
                         <span className="font-medium">{fmt(t.abonemen)}</span>
                       </div>
-                      {/* <div className="flex justify-between">
-                        <span className="text-muted-foreground">Subtotal:</span>
-                        <span className="font-medium">
-                          {fmt(t.totalTagihan)}
-                        </span>
-                      </div> */}
-                      {/* <div className="flex justify-between">
-                        <span className="text-muted-foreground">Denda:</span>
-                        <span className="font-medium">{fmt(dendaHitung)}</span>
-                      </div> */}
-                      {/* Info Denda */}
-                      {/* <div className="mt-3 rounded-lg border border-yellow-200/60 bg-yellow-50/60 p-3">
-                        <div className="flex items-start gap-2">
-                          <svg
-                            viewBox="0 0 24 24"
-                            className="w-4 h-4 text-yellow-700 mt-0.5"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                          >
-                            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-                            <path d="M12 9v4" />
-                            <path d="M12 17h.01" />
-                          </svg>
-
-                          <div className="text-sm leading-relaxed text-yellow-800">
-                            <p className="font-medium">Informasi Denda</p>
-                            <ul className="mt-1 list-disc pl-5 space-y-1">
-                              <li>
-                                Telat ≤ 30 hari: denda bulan ke-1 sebesar{" "}
-                                <span className="font-semibold">
-                                  {fmt(denda1)}
-                                </span>
-                                .
-                              </li>
-                              <li>
-                                Telat &gt; 30 hari: denda bulan ke-2+ sebesar{" "}
-                                <span className="font-semibold">
-                                  {fmt(denda2)}
-                                </span>
-                                .
-                              </li>
-                              <li>
-                                Denda dihitung otomatis dan menambah total
-                                tagihan.
-                              </li>
-                            </ul>
-
-                            * badge “terlambat X hari” (opsional kalau punya due date & tanggal bayar)
-                            {(() => {
-                              // kalau punya variabel jatuh tempo & tanggal bayar, ini akan tampil.
-                              // Ganti `tglJatuhTempo` & `tanggalBayar` dgn variabelmu.
-                              try {
-                                const due = t.tglJatuhTempo
-                                  ? new Date(t.tglJatuhTempo)
-                                  : null;
-                                const pay = tanggalBayar
-                                  ? new Date(tanggalBayar)
-                                  : null;
-                                const terlambatHari =
-                                  due && pay
-                                    ? Math.max(
-                                        0,
-                                        Math.ceil((+pay - +due) / 86400000)
-                                      )
-                                    : 0;
-
-                                if (terlambatHari > 0) {
-                                  return (
-                                    <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-yellow-100 px-2.5 py-1 text-xs font-medium text-yellow-800">
-                                      Terlambat {terlambatHari} hari
-                                    </div>
-                                  );
-                                }
-                              } catch {}
-                              return null;
-                            })()}
-                          </div>
-                        </div>
-                      </div> */}
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">
                           Tagihan Lalu (+/−):
@@ -699,7 +584,7 @@ export default function InputPembayaranPage() {
                   </GlassCard>
                 </div>
 
-                {/* KANAN: Upload Bukti + Tombol Simpan di bawahnya */}
+                {/* KANAN */}
                 <div className="space-y-4">
                   <GlassCard className="p-6">
                     <div className="space-y-4">
@@ -707,7 +592,6 @@ export default function InputPembayaranPage() {
                         <h3 className="font-semibold text-foreground">
                           Unggah Bukti Pembayaran
                         </h3>
-                        {/* <Plus className="h-5 w-5 text-muted-foreground" /> */}
                       </div>
 
                       <div className="space-y-4">
@@ -728,7 +612,6 @@ export default function InputPembayaranPage() {
                           />
                         </div>
 
-                        {/* input nominal */}
                         <div>
                           <Label
                             htmlFor="nominal"
@@ -767,14 +650,7 @@ export default function InputPembayaranPage() {
                             className="grid grid-cols-1 sm:grid-cols-2 gap-3"
                             disabled={lockForm}
                           >
-                            {/* TUNAI */}
-                            <label
-                              className={`
-        flex items-start gap-3 rounded-xl border bg-card/50 p-3 cursor-pointer
-        hover:bg-muted/40 transition
-        data-[state=checked]:border-primary data-[state=checked]:bg-primary/5 data-[state=checked]:ring-1 data-[state=checked]:ring-primary/60
-      `}
-                            >
+                            <label className="flex items-start gap-3 rounded-xl border bg-card/50 p-3 cursor-pointer hover:bg-muted/40 transition data-[state=checked]:border-primary data-[state=checked]:bg-primary/5 data-[state=checked]:ring-1 data-[state=checked]:ring-primary/60">
                               <RadioGroupItem
                                 value="TUNAI"
                                 id="metode-tunai"
@@ -795,14 +671,7 @@ export default function InputPembayaranPage() {
                               </div>
                             </label>
 
-                            {/* TRANSFER */}
-                            <label
-                              className={`
-        flex items-start gap-3 rounded-xl border bg-card/50 p-3 cursor-pointer
-        hover:bg-muted/40 transition
-        data-[state=checked]:border-primary data-[state=checked]:bg-primary/5 data-[state=checked]:ring-1 data-[state=checked]:ring-primary/60
-      `}
-                            >
+                            <label className="flex items-start gap-3 rounded-xl border bg-card/50 p-3 cursor-pointer hover:bg-muted/40 transition data-[state=checked]:border-primary data-[state=checked]:bg-primary/5 data-[state=checked]:ring-1 data-[state=checked]:ring-primary/60">
                               <RadioGroupItem
                                 value="TRANSFER"
                                 id="metode-transfer"
@@ -823,14 +692,7 @@ export default function InputPembayaranPage() {
                               </div>
                             </label>
 
-                            {/* EWALLET */}
-                            <label
-                              className={`
-        flex items-start gap-3 rounded-xl border bg-card/50 p-3 cursor-pointer
-        hover:bg-muted/40 transition
-        data-[state=checked]:border-primary data-[state=checked]:bg-primary/5 data-[state=checked]:ring-1 data-[state=checked]:ring-primary/60
-      `}
-                            >
+                            <label className="flex items-start gap-3 rounded-xl border bg-card/50 p-3 cursor-pointer hover:bg-muted/40 transition data-[state=checked]:border-primary data-[state=checked]:bg-primary/5 data-[state=checked]:ring-1 data-[state=checked]:ring-primary/60">
                               <RadioGroupItem
                                 value="EWALLET"
                                 id="metode-ewallet"
@@ -851,14 +713,7 @@ export default function InputPembayaranPage() {
                               </div>
                             </label>
 
-                            {/* QRIS */}
-                            <label
-                              className={`
-        flex items-start gap-3 rounded-xl border bg-card/50 p-3 cursor-pointer
-        hover:bg-muted/40 transition
-        data-[state=checked]:border-primary data-[state=checked]:bg-primary/5 data-[state=checked]:ring-1 data-[state=checked]:ring-primary/60
-      `}
-                            >
+                            <label className="flex items-start gap-3 rounded-xl border bg-card/50 p-3 cursor-pointer hover:bg-muted/40 transition data-[state=checked]:border-primary data-[state=checked]:bg-primary/5 data-[state=checked]:ring-1 data-[state=checked]:ring-primary/60">
                               <RadioGroupItem
                                 value="QRIS"
                                 id="metode-qris"
@@ -882,10 +737,7 @@ export default function InputPembayaranPage() {
                         </div>
 
                         <div>
-                          <Label
-                            htmlFor="bukti"
-                            className="text-sm font-medium"
-                          >
+                          <Label htmlFor="bukti" className="text-sm font-medium">
                             Bukti Pembayaran
                             <span className="text-red-600">*</span>
                           </Label>
@@ -899,12 +751,9 @@ export default function InputPembayaranPage() {
                               disabled={lockForm}
                             />
 
-                            {/* Jika sudah ada di DB → tampilkan server preview, sembunyikan uploader */}
                             {payDB?.buktiUrl ? (
                               <div className="p-3 border rounded-lg bg-muted/20">
-                                {payDB.buktiUrl
-                                  .toLowerCase()
-                                  .endsWith(".pdf") ? (
+                                {payDB.buktiUrl.toLowerCase().endsWith(".pdf") ? (
                                   <object
                                     data={payDB.buktiUrl}
                                     type="application/pdf"
@@ -920,7 +769,6 @@ export default function InputPembayaranPage() {
                                 )}
                               </div>
                             ) : proofPreview ? (
-                              // Preview lokal (sebelum submit)
                               <div className="p-3 border rounded-lg bg-muted/20">
                                 {paymentProof?.type.startsWith("image/") ? (
                                   // eslint-disable-next-line @next/next/no-img-element
@@ -932,9 +780,7 @@ export default function InputPembayaranPage() {
                                 ) : (
                                   <div className="flex items-center justify-between gap-3">
                                     <div className="text-sm">
-                                      <p className="font-medium">
-                                        File PDF terunggah
-                                      </p>
+                                      <p className="font-medium">File PDF terunggah</p>
                                       <p className="text-muted-foreground">
                                         {paymentProof?.name}
                                       </p>
@@ -952,12 +798,7 @@ export default function InputPembayaranPage() {
                                 <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
                                   <span>
                                     {paymentProof?.name} •{" "}
-                                    {(
-                                      (paymentProof?.size || 0) /
-                                      1024 /
-                                      1024
-                                    ).toFixed(2)}{" "}
-                                    MB
+                                    {(Number(paymentProof?.size || 0) / 1024 / 1024).toFixed(2)} MB
                                   </span>
                                   <Button
                                     type="button"
@@ -981,8 +822,7 @@ export default function InputPembayaranPage() {
                                 <div className="text-center">
                                   <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
                                   <p className="text-sm text-muted-foreground text-wrap">
-                                    Klik untuk upload bukti pembayaran
-                                    (JPG/PNG/PDF)
+                                    Klik untuk upload bukti pembayaran (JPG/PNG/PDF)
                                   </p>
                                 </div>
                               </Button>
@@ -1005,18 +845,19 @@ export default function InputPembayaranPage() {
                     </div>
                   </GlassCard>
 
-                  {/* Tombol Simpan (berada di bawah upload card untuk desktop & mobile) */}
+                  {/* Tombol Simpan */}
                   <div className="pb-6 md:pb-0">
                     <Button
-                      onClick={onSubmit}
+                      onClick={handleClickSimpan} // NEW: buka modal konfirmasi
                       className="w-full h-12 text-base font-semibold"
                       disabled={
                         lockForm || !paymentProof || !metode || !nominalBayar
                       }
                     >
                       <Upload className="w-4 h-4 mr-2" />
-                      {lockForm ? "Sudah Diupload" : "Simpan"}
+                      {lockForm ? "Sudah Diupload" : "Upload & Simpan"}
                     </Button>
+
                     {role === "ADMIN" && (
                       <Button
                         variant="outline"
@@ -1029,12 +870,23 @@ export default function InputPembayaranPage() {
                           : "Approve Pembayaran"}
                       </Button>
                     )}
+
+                    {/* Modal approve (yang sudah ada) */}
                     <ApprovePaymentModal
                       open={openApprove}
                       onClose={() => setOpenApprove(false)}
                       onConfirm={handleConfirmApprove}
                       isLoading={loadingApprove}
                       data={summary}
+                    />
+
+                    {/* NEW: Modal konfirmasi upload */}
+                    <ConfirmUploadModal
+                      open={openConfirmUpload}
+                      onClose={() => setOpenConfirmUpload(false)}
+                      onConfirm={handleConfirmUpload}
+                      isLoading={loadingUpload}
+                      data={confirmData}
                     />
                   </div>
                 </div>

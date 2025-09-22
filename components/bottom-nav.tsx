@@ -1,6 +1,6 @@
 "use client";
 
-import { Home, Users, FileText } from "lucide-react";
+import { Home, Users, FileText, CalendarDays, ClipboardList } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -23,7 +23,7 @@ const NAV_ITEMS: BottomItem[] = [
     href: "/dashboard",
     label: "Home",
     icon: Home,
-    roles: ["ADMIN", "OPERATOR", "PETUGAS"],
+    roles: ["ADMIN", "OPERATOR"],
   },
   { href: "/warga-dashboard", label: "Home", icon: Home, roles: ["WARGA"] },
   {
@@ -37,6 +37,18 @@ const NAV_ITEMS: BottomItem[] = [
     label: "Tagihan",
     icon: FileText,
     roles: ["ADMIN", "OPERATOR", "WARGA"],
+  },
+  {
+    href: "/jadwal-pencatatan",
+    label: "Jadwal Pencatatan",
+    icon: CalendarDays,
+    roles: ["PETUGAS"],
+  },
+  {
+    href: "/catat-meter",
+    label: "Catat Meter",
+    icon: ClipboardList,
+    roles: ["PETUGAS"],
   },
 ];
 

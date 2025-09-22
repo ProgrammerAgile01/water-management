@@ -58,7 +58,7 @@ const MENU_ITEMS: MenuItem[] = [
     href: "/dashboard",
     label: "Dashboard",
     icon: Home,
-    roles: ["ADMIN", "OPERATOR", "PETUGAS"],
+    roles: ["ADMIN", "OPERATOR"],
   },
   {
     href: "/warga-dashboard",
@@ -74,6 +74,12 @@ const MENU_ITEMS: MenuItem[] = [
   },
   { href: "/zona", label: "Zona", icon: MapPin, roles: ["ADMIN", "OPERATOR"] },
   {
+    href: "/jadwal-pencatatan",
+    label: "Jadwal Pencatatan",
+    icon: CalendarDays,
+    roles: ["ADMIN", "PETUGAS"],
+  },
+  {
     href: "/catat-meter",
     label: "Catat Meter",
     icon: ClipboardList,
@@ -85,12 +91,6 @@ const MENU_ITEMS: MenuItem[] = [
   //   icon: Grid3X3,
   //   roles: ["ADMIN", "OPERATOR"],
   // },
-  {
-    href: "/jadwal-pencatatan",
-    label: "Jadwal Pencatatan",
-    icon: CalendarDays,
-    roles: ["ADMIN"],
-  },
   // {
   //   href: "/pelunasan",
   //   label: "Pelunasan",
@@ -137,7 +137,7 @@ const MENU_ITEMS: MenuItem[] = [
     href: "/laporan-status-pembayaran",
     label: "Laporan Status Pembayaran",
     icon: FileText,
-    roles: ["ADMIN"]
+    roles: ["ADMIN"],
   },
   {
     href: "/pengaturan",
