@@ -85,6 +85,12 @@ const MENU_ITEMS: MenuItem[] = [
     icon: ClipboardList,
     roles: ["ADMIN", "OPERATOR", "PETUGAS"],
   },
+  {
+    href: "/laporan-catat-meter",
+    label: "Laporan Catat Meter",
+    icon: FileText,
+    roles: ["ADMIN", "PETUGAS"],
+  },
   // {
   //   href: "catat-meter-blok",
   //   label: "Catat Meter Blok",

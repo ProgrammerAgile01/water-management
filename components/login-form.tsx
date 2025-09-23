@@ -35,9 +35,19 @@ export function LoginForm() {
         description: `Selamat datang, ${data.user.name}`,
       });
 
-      if (data.user.role === "WARGA") router.push("/warga-dashboard");
-      if (data.user.role === "PETUGAS") router.push("/jadwal-pencatatan")
-      else router.push("/dashboard");
+      switch (data?.user?.role) {
+        case "WARGA":
+          router.replace("/warga-dashboard");
+          break;
+        case "PETUGAS":
+          router.replace("/jadwal-pencatatan");
+          break;
+        case "ADMIN":
+          router.replace("/dashboard");
+          break;
+        default:
+          router.replace("/dashboard");
+      }
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Username / password salah";

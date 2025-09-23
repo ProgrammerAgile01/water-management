@@ -94,10 +94,18 @@ function waText(p: {
     `• ${p.setting?.namaBankPembayaran} ${p.setting?.norekPembayaran} a.n. ${p.setting?.anNorekPembayaran}.`,
   ].join("\n");
   const kontakLine = [
-    p.setting?.whatsappCs ? `WhatsApp: ${p.setting.whatsappCs}` : null,
+    p.setting?.whatsappCs ? `WhatsApp:\nKlik nomor berikut -> ${p.setting.whatsappCs}` : null,
   ]
     .filter(Boolean)
     .join("\n");
+
+  const totalGabungan = (p.tagihanLalu || 0) + (p.tagihanBulanIni || 0);
+  const renderSisaKurangText = (n: number) =>
+    n > 0
+      ? `Kurang ${formatRp(n)}`
+      : n < 0
+      ? `Sisa ${formatRp(Math.abs(n))}`
+      : "Rp 0";
 
   const sections: string[] = [];
   sections.push(
@@ -149,13 +157,23 @@ async function sendWaAndLog(tujuanRaw: string, text: string) {
   const apiKey = process.env.WA_SENDER_API_KEY || "";
   if (!base) {
     await prisma.waLog.create({
-      data: { tujuan: to, tipe: "TAGIHAN", payload: JSON.stringify({ to, text }), status: "FAILED" },
+      data: {
+        tujuan: to,
+        tipe: "TAGIHAN",
+        payload: JSON.stringify({ to, text }),
+        status: "FAILED",
+      },
     });
     return;
   }
   const url = `${base}/send`;
   const log = await prisma.waLog.create({
-    data: { tujuan: to, tipe: "TAGIHAN", payload: JSON.stringify({ to, text }), status: "PENDING" },
+    data: {
+      tujuan: to,
+      tipe: "TAGIHAN",
+      payload: JSON.stringify({ to, text }),
+      status: "PENDING",
+    },
   });
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), 10000);
@@ -168,12 +186,23 @@ async function sendWaAndLog(tujuanRaw: string, text: string) {
     body: JSON.stringify({ to, text }),
     signal: ac.signal,
   })
-    .then((r) => prisma.waLog.update({ where: { id: log.id }, data: { status: r.ok ? "SENT" : "FAILED" } }))
-    .catch(() => prisma.waLog.update({ where: { id: log.id }, data: { status: "FAILED" } }))
+    .then((r) =>
+      prisma.waLog.update({
+        where: { id: log.id },
+        data: { status: r.ok ? "SENT" : "FAILED" },
+      })
+    )
+    .catch(() =>
+      prisma.waLog.update({ where: { id: log.id }, data: { status: "FAILED" } })
+    )
     .finally(() => clearTimeout(t));
 }
 
-async function sendWaImageAndLog(tujuanRaw: string, tagihanId: string, caption?: string) {
+async function sendWaImageAndLog(
+  tujuanRaw: string,
+  tagihanId: string,
+  caption?: string
+) {
   const to = tujuanRaw.replace(/\D/g, "").replace(/^0/, "62");
   const base = (process.env.WA_SENDER_URL || "").replace(/\/$/, "");
   const apiKey = (process.env as any).WA_SENDER_API_KEY || "";
@@ -197,13 +226,22 @@ async function sendWaImageAndLog(tujuanRaw: string, tagihanId: string, caption?:
   try {
     const browser = await puppeteer.launch({ headless: "new" });
     const page = await browser.newPage();
-    const origin = process.env.APP_ORIGIN || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    await page.goto(`${origin}/print/tagihan/${tagihanId}?compact=1`, { waitUntil: "networkidle0" });
+    const origin =
+      process.env.APP_ORIGIN ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      "http://localhost:3000";
+    await page.goto(`${origin}/print/tagihan/${tagihanId}?compact=1`, {
+      waitUntil: "networkidle0",
+    });
     await page.setViewport({ width: 380, height: 800, deviceScaleFactor: 2 });
     await page.evaluate(() => {
       document.body.style.background = "#ffffff";
     });
-    const buffer = await page.screenshot({ type: "jpeg", quality: 85, fullPage: true });
+    const buffer = await page.screenshot({
+      type: "jpeg",
+      quality: 85,
+      fullPage: true,
+    });
     await browser.close();
 
     const r = await fetch(`${base}/send-image`, {
@@ -256,7 +294,11 @@ async function sendWaImageAndLog(tujuanRaw: string, tagihanId: string, caption?:
 export async function POST(req: NextRequest) {
   try {
     const { id, sendWa }: { id?: string; sendWa?: boolean } = await req.json();
-    if (!id) return NextResponse.json({ ok: false, message: "id wajib" }, { status: 400 });
+    if (!id)
+      return NextResponse.json(
+        { ok: false, message: "id wajib" },
+        { status: 400 }
+      );
 
     const row = await prisma.catatMeter.findUnique({
       where: { id },
@@ -267,13 +309,30 @@ export async function POST(req: NextRequest) {
         },
       },
     });
-    if (!row || row.deletedAt) return NextResponse.json({ ok: false, message: "Data tidak ditemukan" }, { status: 404 });
-    if (row.periode.isLocked) return NextResponse.json({ ok: false, message: "Periode sudah dikunci" }, { status: 423 });
-    if (row.isLocked) return NextResponse.json({ ok: true, locked: true, message: "Row sudah dikunci" });
+    if (!row || row.deletedAt)
+      return NextResponse.json(
+        { ok: false, message: "Data tidak ditemukan" },
+        { status: 404 }
+      );
+    if (row.periode.isLocked)
+      return NextResponse.json(
+        { ok: false, message: "Periode sudah dikunci" },
+        { status: 423 }
+      );
+    if (row.isLocked)
+      return NextResponse.json({
+        ok: true,
+        locked: true,
+        message: "Row sudah dikunci",
+      });
 
     const periodeStr = row.periode.kodePeriode; // "YYYY-MM" (bulan catat)
     const setting = await prisma.setting.findUnique({ where: { id: 1 } });
-    if (!setting) return NextResponse.json({ ok: false, message: "Setting tidak ditemukan" }, { status: 500 });
+    if (!setting)
+      return NextResponse.json(
+        { ok: false, message: "Setting tidak ditemukan" },
+        { status: 500 }
+      );
 
     // Periode tagihan = +1 bulan
     const billingPeriode = nextPeriod(periodeStr);
@@ -307,121 +366,149 @@ export async function POST(req: NextRequest) {
     const now = new Date();
 
     // Transaksi
-    const { periodeId, pelanggan, tagihan } = await prisma.$transaction(async (tx) => {
-      // Lock row — TIDAK menyimpan tglCatat
-      const updated = await tx.catatMeter.update({
-        where: { id: row.id },
-        data: {
-          isLocked: true,
-          status: CatatStatus.DONE,
-          meterAkhir: akhir,
-          pemakaianM3: pem,
-          total,
-          tarifPerM3: tarif,
-          abonemen: abon,
-        },
-        select: { periodeId: true },
-      });
-
-      // Total pembayaran yang sudah ada untuk PERIODE BILLING (+1)
-      const paidAgg = await tx.pembayaran.aggregate({
-        where: { tagihan: { pelangganId: row.pelangganId, periode: billingPeriode }, deletedAt: null },
-        _sum: { jumlahBayar: true },
-      });
-      const alreadyPaid = paidAgg._sum.jumlahBayar ?? 0;
-
-      // Upsert tagihan untuk PERIODE BILLING (+1)
-      const t = await tx.tagihan.upsert({
-        where: { pelangganId_periode: { pelangganId: row.pelangganId, periode: billingPeriode } },
-        update: {
-          tarifPerM3: tarif,
-          abonemen: abon,
-          totalTagihan: total,
-          denda: 0,
-          tagihanLalu: carryFromPrev,
-          sisaKurang: total + carryFromPrev - alreadyPaid,
-          statusBayar: total + carryFromPrev - alreadyPaid <= 0 ? "PAID" : "UNPAID",
-          statusVerif: "UNVERIFIED",
-          tglJatuhTempo: due,
-          catatMeterId: row.id, // ★ relasi ke catat meter
-        },
-        create: {
-          pelangganId: row.pelangganId,
-          periode: billingPeriode,
-          tarifPerM3: tarif,
-          abonemen: abon,
-          totalTagihan: total,
-          denda: 0,
-          tagihanLalu: carryFromPrev,
-          sisaKurang: total + carryFromPrev - alreadyPaid,
-          statusBayar: total + carryFromPrev - alreadyPaid <= 0 ? "PAID" : "UNPAID",
-          statusVerif: "UNVERIFIED",
-          tglJatuhTempo: due,
-          catatMeterId: row.id, // ★ relasi ke catat meter
-        },
-      });
-
-      /* =======================
-         Update progress + auto FINAL & lock periode
-         ======================= */
-      const agg = await tx.catatMeter.groupBy({
-        by: ["status"],
-        where: { periodeId: updated.periodeId, deletedAt: null },
-        _count: { _all: true },
-      });
-
-      const selesai = agg.find((a) => a.status === CatatStatus.DONE)?._count._all ?? 0;
-      const pending = agg.find((a) => a.status === CatatStatus.PENDING)?._count._all ?? 0;
-
-      // Pastikan benar2 tidak ada row isLocked=false (lebih ketat)
-      const unlockedCount = await tx.catatMeter.count({
-        where: { periodeId: updated.periodeId, deletedAt: null, isLocked: false },
-      });
-
-      // Semua baris terkunci bila:
-      // - tidak ada pending,
-      // - ada minimal 1 selesai,
-      // - dan tidak ada row yang masih isLocked=false
-      const allLocked = pending === 0 && selesai > 0 && unlockedCount === 0;
-
-      await tx.catatPeriode.update({
-        where: { id: updated.periodeId },
-        data: {
-          totalPelanggan: selesai + pending,
-          selesai,
-          pending,
-          ...(allLocked
-            ? {
-                status: "FINAL",
-                isLocked: true,
-                lockedAt: new Date(),
-                // lockedBy: currentUserId, // ← isi kalau kamu punya user id di context
-              }
-            : {}),
-        },
-      });
-
-      /* ======================= */
-
-      // Dorong carry ke bulan setelah billing
-      const nextCode = nextPeriod(billingPeriode);
-      const nextExists = await tx.tagihan.findUnique({
-        where: { pelangganId_periode: { pelangganId: row.pelangganId, periode: nextCode } },
-        select: { id: true, totalTagihan: true },
-      });
-      if (nextExists) {
-        await tx.tagihan.update({
-          where: { id: nextExists.id },
+    const { periodeId, pelanggan, tagihan } = await prisma.$transaction(
+      async (tx) => {
+        // Lock row — TIDAK menyimpan tglCatat
+        const updated = await tx.catatMeter.update({
+          where: { id: row.id },
           data: {
-            tagihanLalu: t.sisaKurang,
-            sisaKurang: nextExists.totalTagihan + t.sisaKurang,
-            statusBayar: nextExists.totalTagihan + t.sisaKurang <= 0 ? "PAID" : "UNPAID",
+            isLocked: true,
+            status: CatatStatus.DONE,
+            meterAkhir: akhir,
+            pemakaianM3: pem,
+            total,
+            tarifPerM3: tarif,
+            abonemen: abon,
+          },
+          select: { periodeId: true },
+        });
+
+        // Total pembayaran yang sudah ada untuk PERIODE BILLING (+1)
+        const paidAgg = await tx.pembayaran.aggregate({
+          where: {
+            tagihan: { pelangganId: row.pelangganId, periode: billingPeriode },
+            deletedAt: null,
+          },
+          _sum: { jumlahBayar: true },
+        });
+        const alreadyPaid = paidAgg._sum.jumlahBayar ?? 0;
+
+        // Upsert tagihan untuk PERIODE BILLING (+1)
+        const t = await tx.tagihan.upsert({
+          where: {
+            pelangganId_periode: {
+              pelangganId: row.pelangganId,
+              periode: billingPeriode,
+            },
+          },
+          update: {
+            tarifPerM3: tarif,
+            abonemen: abon,
+            totalTagihan: total,
+            denda: 0,
+            tagihanLalu: carryFromPrev,
+            sisaKurang: total + carryFromPrev - alreadyPaid,
+            statusBayar:
+              total + carryFromPrev - alreadyPaid <= 0 ? "PAID" : "UNPAID",
+            statusVerif: "UNVERIFIED",
+            tglJatuhTempo: due,
+            catatMeterId: row.id, // ★ relasi ke catat meter
+          },
+          create: {
+            pelangganId: row.pelangganId,
+            periode: billingPeriode,
+            tarifPerM3: tarif,
+            abonemen: abon,
+            totalTagihan: total,
+            denda: 0,
+            tagihanLalu: carryFromPrev,
+            sisaKurang: total + carryFromPrev - alreadyPaid,
+            statusBayar:
+              total + carryFromPrev - alreadyPaid <= 0 ? "PAID" : "UNPAID",
+            statusVerif: "UNVERIFIED",
+            tglJatuhTempo: due,
+            catatMeterId: row.id, // ★ relasi ke catat meter
           },
         });
-      }
 
-      return { periodeId: updated.periodeId, pelanggan: row.pelanggan, tagihan: t };
-    });
+        /* =======================
+         Update progress + auto FINAL & lock periode
+         ======================= */
+        const agg = await tx.catatMeter.groupBy({
+          by: ["status"],
+          where: { periodeId: updated.periodeId, deletedAt: null },
+          _count: { _all: true },
+        });
+
+        const selesai =
+          agg.find((a) => a.status === CatatStatus.DONE)?._count._all ?? 0;
+        const pending =
+          agg.find((a) => a.status === CatatStatus.PENDING)?._count._all ?? 0;
+
+        // Pastikan benar2 tidak ada row isLocked=false (lebih ketat)
+        const unlockedCount = await tx.catatMeter.count({
+          where: {
+            periodeId: updated.periodeId,
+            deletedAt: null,
+            isLocked: false,
+          },
+        });
+
+        // Semua baris terkunci bila:
+        // - tidak ada pending,
+        // - ada minimal 1 selesai,
+        // - dan tidak ada row yang masih isLocked=false
+        const allLocked = pending === 0 && selesai > 0 && unlockedCount === 0;
+
+        await tx.catatPeriode.update({
+          where: { id: updated.periodeId },
+          data: {
+            totalPelanggan: selesai + pending,
+            selesai,
+            pending,
+            ...(allLocked
+              ? {
+                  status: "FINAL",
+                  isLocked: true,
+                  lockedAt: new Date(),
+                  // lockedBy: currentUserId, // ← isi kalau kamu punya user id di context
+                }
+              : {}),
+          },
+        });
+
+        /* ======================= */
+
+        // Dorong carry ke bulan setelah billing
+        const nextCode = nextPeriod(billingPeriode);
+        const nextExists = await tx.tagihan.findUnique({
+          where: {
+            pelangganId_periode: {
+              pelangganId: row.pelangganId,
+              periode: nextCode,
+            },
+          },
+          select: { id: true, totalTagihan: true },
+        });
+        if (nextExists) {
+          await tx.tagihan.update({
+            where: { id: nextExists.id },
+            data: {
+              tagihanLalu: t.sisaKurang,
+              sisaKurang: nextExists.totalTagihan + t.sisaKurang,
+              statusBayar:
+                nextExists.totalTagihan + t.sisaKurang <= 0 ? "PAID" : "UNPAID",
+            },
+          });
+        }
+
+        return {
+          periodeId: updated.periodeId,
+          pelanggan: row.pelanggan,
+          tagihan: t,
+        };
+      }
+    );
 
     // === Magic link user WARGA ===
     let userId = pelanggan.userId as string | undefined;
@@ -440,16 +527,26 @@ export async function POST(req: NextRequest) {
         select: { id: true },
       });
       userId = user.id;
-      await prisma.pelanggan.update({ where: { id: pelanggan.id }, data: { userId } });
+      await prisma.pelanggan.update({
+        where: { id: pelanggan.id },
+        data: { userId },
+      });
     }
 
     const token = randomToken(32);
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     await prisma.magicLinkToken.create({
-      data: { token, userId: userId!, tagihanId: tagihan.id, purpose: "pembayaran", expiresAt },
+      data: {
+        token,
+        userId: userId!,
+        tagihanId: tagihan.id,
+        purpose: "pembayaran",
+        expiresAt,
+      },
     });
     const origin = getAppOrigin(req);
-    const magicUrl = origin && `${origin}/api/auth/magic?token=${encodeURIComponent(token)}`;
+    const magicUrl =
+      origin && `${origin}/api/auth/magic?token=${encodeURIComponent(token)}`;
 
     // === Kirim WA (teks + gambar) ===
     if (sendWa && pelanggan?.wa) {
@@ -495,7 +592,9 @@ export async function POST(req: NextRequest) {
           await sendWaAndLog(pelanggan.wa!, text);
         } catch {}
         try {
-          const caption = `Tagihan Air Periode ${new Date(`${billingPeriode}-01`).toLocaleDateString("id-ID", {
+          const caption = `Tagihan Air Periode ${new Date(
+            `${billingPeriode}-01`
+          ).toLocaleDateString("id-ID", {
             month: "long",
             year: "numeric",
           })} - ${pelanggan.nama}`;
@@ -506,6 +605,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, locked: true, tagihan });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, message: e?.message ?? "Server error" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, message: e?.message ?? "Server error" },
+      { status: 500 }
+    );
   }
 }

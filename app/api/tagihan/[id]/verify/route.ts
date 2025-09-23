@@ -74,7 +74,8 @@ function waTextPembayaranVerified(p: {
   const kontak: string[] = [];
   // if (p.setting?.telepon) kontak.push(`Telepon: ${p.setting.telepon}`);
   // if (p.setting?.email) kontak.push(`Email: ${p.setting.email}`);
-  if (p.setting?.whatsapp) kontak.push(`Whatsapp: ${p.setting.whatsapp}`);
+  if (p.setting?.whatsapp)
+    kontak.push(`WhatsApp:\nKlik nomor berikut -> ${p.setting.whatsapp}`);
   if (kontak.length) lines.push("", "*Kontak*", kontak.join("\n"));
 
   lines.push("", "Terima kasih 🙏");

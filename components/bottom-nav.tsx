@@ -50,6 +50,12 @@ const NAV_ITEMS: BottomItem[] = [
     icon: ClipboardList,
     roles: ["PETUGAS"],
   },
+  {
+    href: "/laporan-catat-meter",
+    label: "Laporan Catat Meter",
+    icon: FileText,
+    roles: ["PETUGAS"],
+  },
 ];
 
 export function BottomNav() {
