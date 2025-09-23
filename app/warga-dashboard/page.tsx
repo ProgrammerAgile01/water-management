@@ -206,7 +206,7 @@ export default function WargaDashboardPage() {
             </GlassCard>
           )}
 
-          {/* Current Bill */}
+          {/* Current Bill
           {!error && (
             <GlassCard className="p-6">
               <div className="flex items-center justify-between mb-4">
@@ -280,6 +280,98 @@ export default function WargaDashboardPage() {
                   </div>
                 </div>
               </div>
+            </GlassCard>
+          )} */}
+          {/* Current Bill */}
+          {!error && (
+            <GlassCard className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-foreground">
+                  Tagihan Terkini
+                </h2>
+                {current ? getStatusBadge(current.status) : null}
+              </div>
+
+              {current ? (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                    {/* Pemakaian */}
+                    <div className="text-center p-4 bg-primary/10 rounded-lg">
+                      <DropletIcon className="w-8 h-8 text-primary mx-auto mb-2" />
+                      <p className="text-2xl font-bold text-primary">
+                        {current.pemakaian} m³
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Pemakaian {current.period}
+                      </p>
+                    </div>
+
+                    {/* Jatuh Tempo */}
+                    <div className="text-center p-4 bg-blue-50/50 rounded-lg">
+                      <Calendar className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+                      <p className="text-lg font-bold text-blue-600">
+                        {current.jatuhTempo ?? "-"}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Jatuh Tempo
+                      </p>
+                    </div>
+
+                    {/* Rata-rata/Bulan */}
+                    <div className="text-center p-4 bg-green-50/50 rounded-lg">
+                      <TrendingUp className="w-8 h-8 text-green-600 mx-auto mb-2" />
+                      <p className="text-2xl font-bold text-green-600">
+                        {avgUsage} m³
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Rata-rata/Bulan
+                      </p>
+                    </div>
+
+                    {/* Total Tagihan */}
+                    <div className="text-center p-4 bg-red-50/50 rounded-lg">
+                      <CreditCard className="w-8 h-8 text-red-600 mx-auto mb-2" />
+                      <p className="text-2xl font-bold text-red-600">
+                        Rp {current.totalTagihan.toLocaleString("id-ID")}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Total Tagihan
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Detail */}
+                  <div className="bg-muted/20 p-4 rounded-lg">
+                    <h3 className="font-medium text-foreground mb-2">
+                      Detail Pemakaian {current.period}
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <p className="text-muted-foreground">Meter Awal</p>
+                        <p className="font-medium">{current.meterAwal}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Meter Akhir</p>
+                        <p className="font-medium">{current.meterAkhir}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Pemakaian</p>
+                        <p className="font-medium text-primary">
+                          {current.pemakaian} m³
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Status</p>
+                        {getStatusBadge(current.status)}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="p-4 rounded-lg bg-muted/20 text-muted-foreground text-center">
+                  Belum ada tagihan terbaru.
+                </div>
+              )}
             </GlassCard>
           )}
 

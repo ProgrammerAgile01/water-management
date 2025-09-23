@@ -237,84 +237,115 @@ export default function MasterBiayaPage() {
   };
 
   const renderDesktopTable = () => (
-    <GlassCard className="overflow-hidden">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Nama/Jenis Biaya</TableHead>
-            <TableHead>Kode</TableHead>
-            <TableHead>Deskripsi</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Aksi</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filteredBiaya.map((biaya) => (
-            <TableRow key={biaya.id}>
-              <TableCell className="font-medium">{biaya.nama}</TableCell>
-              <TableCell>
-                {biaya.kode && (
-                  <Badge variant="outline" className="font-mono text-xs">
-                    {biaya.kode}
-                  </Badge>
-                )}
-              </TableCell>
-              <TableCell className="max-w-xs truncate">
-                {biaya.deskripsi || "-"}
-              </TableCell>
-              <TableCell>
-                <Badge
-                  variant={biaya.status === "Aktif" ? "default" : "secondary"}
-                  className={
-                    biaya.status === "Aktif"
-                      ? "bg-green-500 hover:bg-green-600"
-                      : ""
-                  }
-                >
-                  {biaya.status}
-                </Badge>
-              </TableCell>
-              <TableCell className="text-right">
-                <div className="flex items-center justify-end gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleOpenForm(biaya)}
-                    className="h-8 w-8 p-0"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleToggleStatus(biaya)}
-                    className="h-8 w-8 p-0"
-                  >
-                    {biaya.status === "Aktif" ? (
-                      <ToggleRight className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <ToggleLeft className="h-4 w-4 text-gray-400" />
-                    )}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDeleteClick(biaya)}
-                    className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </TableCell>
+    <GlassCard className="hidden md:block p-6">
+      <div className="overflow-x-auto">
+        <Table className="w-full border-collapse">
+          {/* Header: garis bawah tipis, tanpa background */}
+          <TableHeader>
+            <TableRow className="border-b border-gray-300">
+              <TableHead className="w-12 text-[13px] font-semibold py-2">
+                No
+              </TableHead>
+              <TableHead className="text-[13px] font-semibold py-2">
+                Nama/Jenis Biaya
+              </TableHead>
+              <TableHead className="text-[13px] font-semibold py-2">
+                Kode
+              </TableHead>
+              <TableHead className="text-[13px] font-semibold py-2">
+                Deskripsi
+              </TableHead>
+              <TableHead className="text-[13px] font-semibold py-2">
+                Status
+              </TableHead>
+              <TableHead className="w-40 text-[13px] font-semibold py-2 text-right">
+                Aksi
+              </TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-      {filteredBiaya.length === 0 && (
-        <div className="p-8 text-center text-muted-foreground">
-          {isLoading ? "Memuat data..." : "Tidak ada data biaya yang ditemukan"}
-        </div>
-      )}
+          </TableHeader>
+
+          {/* Body: tiap baris garis bawah tipis; tanpa hover bg */}
+          <TableBody>
+            {filteredBiaya.map((biaya, idx) => (
+              <TableRow key={biaya.id} className="border-b border-gray-300">
+                <TableCell className="py-2">{idx + 1}</TableCell>
+
+                <TableCell className="py-2 text-slate-800">
+                  {biaya.nama}
+                </TableCell>
+
+                <TableCell className="py-2">
+                  {biaya.kode ? (
+                    <Badge variant="outline" className="font-mono text-xs">
+                      {biaya.kode}
+                    </Badge>
+                  ) : (
+                    "-"
+                  )}
+                </TableCell>
+
+                <TableCell className="py-2 max-w-xs truncate text-slate-700">
+                  {biaya.deskripsi || "-"}
+                </TableCell>
+
+                <TableCell className="py-2">
+                  <Badge
+                    variant="outline"
+                    className={
+                      biaya.status === "Aktif"
+                        ? "border-emerald-300 text-emerald-700 bg-white/60"
+                        : "border-gray-300 text-slate-600 bg-white/60"
+                    }
+                  >
+                    {biaya.status}
+                  </Badge>
+                </TableCell>
+
+                <TableCell className="py-2">
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleOpenForm(biaya)}
+                      className="rounded-lg border-gray-300 text-slate-700 hover:bg-slate-50"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleToggleStatus(biaya)}
+                      className="rounded-lg border-gray-300 text-slate-700 hover:bg-slate-50"
+                    >
+                      {biaya.status === "Aktif" ? (
+                        <ToggleRight className="h-4 w-4" />
+                      ) : (
+                        <ToggleLeft className="h-4 w-4" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDeleteClick(biaya)}
+                      className="rounded-lg border-gray-300 text-red-600 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+
+        {filteredBiaya.length === 0 && (
+          <div className="p-8 text-center text-muted-foreground">
+            {isLoading
+              ? "Memuat data..."
+              : "Tidak ada data biaya yang ditemukan"}
+          </div>
+        )}
+      </div>
     </GlassCard>
   );
 
@@ -412,6 +443,15 @@ export default function MasterBiayaPage() {
           <AppHeader title="Data Biaya" />
 
           <div className="container mx-auto px-4 space-y-6">
+            {/* Add Button for Desktop */}
+            {!isMobile && (
+              <div className="flex justify-end">
+                <Button onClick={() => handleOpenForm()} size="lg">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Tambah Biaya
+                </Button>
+              </div>
+            )}
             {/* Header Section */}
             <GlassCard className="p-6">
               <div className="flex items-start gap-4">
@@ -454,16 +494,6 @@ export default function MasterBiayaPage() {
                 </div>
               </div>
             </GlassCard>
-
-            {/* Add Button for Desktop */}
-            {!isMobile && (
-              <div className="flex justify-end">
-                <Button onClick={() => handleOpenForm()} size="lg">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Tambah Biaya
-                </Button>
-              </div>
-            )}
 
             {/* Content */}
             {isMobile ? renderMobileCards() : renderDesktopTable()}
