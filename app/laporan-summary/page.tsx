@@ -315,7 +315,7 @@ export default function DashboardLaporanPage() {
 
             <GlassCard className="p-6">
               <h3 className="text-lg font-semibold text-foreground mb-4">
-                📋 Tabel Tagihan Belum Lunas
+                Tabel Tagihan Belum Lunas
               </h3>
 
               {/* Desktop Table */}

@@ -406,9 +406,9 @@ export default function MasterBiayaPage() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-teal-50 pb-20">
-      <AuthGuard>
-        <AppShell>
+    <AuthGuard>
+      <AppShell>
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-teal-50 pb-20">
           <AppHeader title="Data Biaya" />
 
           <div className="container mx-auto px-4 space-y-6">
@@ -574,8 +574,8 @@ export default function MasterBiayaPage() {
               </AlertDialogContent>
             </AlertDialog>
           </div>
-        </AppShell>
-      </AuthGuard>
-    </div>
+        </div>
+      </AppShell>
+    </AuthGuard>
   );
 }
