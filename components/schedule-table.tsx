@@ -206,7 +206,7 @@ export function ScheduleTable({ schedules, isLoading }: ScheduleTableProps) {
               <th className="text-left p-4 font-semibold text-foreground">
                 Target
               </th>
-              <th className="text-left p-4 font-semibold text-foreground">
+              <th className="text-left p-4 font-semibold text-foreground w-[100px]">
                 Progress
               </th>
               <th className="text-left p-4 font-semibold text-foreground">
@@ -266,9 +266,9 @@ export function ScheduleTable({ schedules, isLoading }: ScheduleTableProps) {
                     </div>
                   </td>
                   <td className="p-4 text-foreground">{schedule.target}</td>
-                  <td className="p-4">
+                  <td className="p-4 w-[100px] align-middle">
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center justify-start gap-1 text-sm">
                         <span className="text-foreground">
                           {schedule.progress}/{schedule.target}
                         </span>
