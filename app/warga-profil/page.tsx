@@ -1,7 +1,7 @@
 // app/warga/profil/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { AppShell } from "@/components/app-shell";
 import { GlassCard } from "@/components/glass-card";
@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Phone, MapPin, Droplet, Barcode, User } from "lucide-react";
-import { WAButton } from "@/components/wa-button";
 
 type WargaProfile = {
   customerId: string;
@@ -46,16 +45,34 @@ export default function ProfilWargaPage() {
   const [data, setData] = useState<WargaProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   async function loadProfile() {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch("/api/warga/profil", { cache: "no-store" });
-      if (!res.ok) throw new Error("Gagal mengambil profil");
-      const json = await res.json();
-      setData(json.data as WargaProfile);
+
+      // batalkan request sebelumnya jika ada
+      abortRef.current?.abort();
+      const ac = new AbortController();
+      abortRef.current = ac;
+
+      const res = await fetch("/api/warga/profil", {
+        cache: "no-store",
+        signal: ac.signal,
+      });
+
+      if (!res.ok) {
+        // bisa tambahkan handling 401/403 jika dibutuhkan
+        throw new Error("Gagal mengambil profil");
+      }
+
+      const json = (await res.json()) as { data?: WargaProfile };
+      // fallback aman jika API mengembalikan null/undefined
+      const payload = json?.data ?? null;
+      setData(payload);
     } catch (e: any) {
+      if (e?.name === "AbortError") return;
       setError(e?.message || "Terjadi kesalahan");
     } finally {
       setLoading(false);
@@ -64,6 +81,9 @@ export default function ProfilWargaPage() {
 
   useEffect(() => {
     loadProfile();
+    return () => {
+      abortRef.current?.abort();
+    };
   }, []);
 
   return (
@@ -138,29 +158,32 @@ export default function ProfilWargaPage() {
             ) : null}
           </GlassCard>
 
-          {/* Tombol Aksi Desktop */}
+          {/* Tombol Aksi Desktop (Hubungi Admin dihapus) */}
           <div className="hidden md:flex items-center justify-end gap-3">
-            <Button variant="outline">Hubungi Admin</Button>
             <Button
-              onClick={() => (window.location.href = "/warga/profil/edit")}
+              onClick={() => (window.location.href = "/warga-profil/edit")}
             >
               Edit Profil
             </Button>
           </div>
 
-          {/* Tombol Aksi Mobile (Sticky) */}
-          <div className="md:hidden fixed bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-            <div className="mx-auto max-w-6xl p-4 flex items-center gap-3">
-              <Button variant="outline" className="flex-1">
-                Hubungi Admin
-              </Button>
-              <Button
-                className="flex-1"
-                onClick={() => (window.location.href = "/warga/profil/edit")}
-              >
-                Edit Profil
-              </Button>
-            </div>
+          {/* Spacer agar konten tidak ketutup bottom nav (khusus mobile) */}
+          <div className="md:hidden h-28" />
+
+          {/* Floating Edit button (mobile) – center & sedikit di atas bottom nav */}
+          <div
+            className="
+    md:hidden fixed left-0 right-0
+    bottom-[calc(env(safe-area-inset-bottom)+84px)]
+    z-50 flex justify-center
+  "
+          >
+            <Button
+              className="px-6 shadow-lg"
+              onClick={() => (window.location.href = "/warga-profil/edit")}
+            >
+              Edit Profil
+            </Button>
           </div>
         </div>
       </AppShell>

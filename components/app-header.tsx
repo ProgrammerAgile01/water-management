@@ -110,6 +110,12 @@ const MENU_ITEMS: MenuItem[] = [
     roles: ["ADMIN", "OPERATOR", "WARGA"],
   },
   {
+    href: "/warga-profil",
+    label: "Profil Warga",
+    icon: Users,
+    roles: ["WARGA"],
+  },
+  {
     href: "/reset-meteran",
     label: "Reset Meteran",
     icon: RotateCcw,
@@ -163,6 +169,7 @@ const PATH_LABELS: Record<string, string> = {
   "/jadwal-pencatatan": "Jadwal Pencatatan",
   // "/pelunasan": "Pelunasan",
   "/tagihan-pembayaran": "Tagihan & Pembayaran",
+  "/profil-warga": "Profil Warga",
   "/reset-meteran": "Reset Meteran",
   "/biaya": "Biaya",
   "/pengeluaran": "Pengeluaran",
