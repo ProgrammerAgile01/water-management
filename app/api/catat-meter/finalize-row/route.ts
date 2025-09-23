@@ -94,7 +94,9 @@ function waText(p: {
     `• ${p.setting?.namaBankPembayaran} ${p.setting?.norekPembayaran} a.n. ${p.setting?.anNorekPembayaran}.`,
   ].join("\n");
   const kontakLine = [
-    p.setting?.whatsappCs ? `WhatsApp:\nKlik nomor berikut -> ${p.setting.whatsappCs}` : null,
+    p.setting?.whatsappCs
+      ? `WhatsApp:\nKlik nomor berikut -> ${p.setting.whatsappCs}`
+      : null,
   ]
     .filter(Boolean)
     .join("\n");
@@ -347,7 +349,13 @@ export async function POST(req: NextRequest) {
 
     // Due date di bulan billing (+1)
     const [yy, mm] = billingPeriode.split("-").map(Number);
-    const due = new Date(yy, mm - 1, Math.max(1, setting.tglJatuhTempo ?? 15));
+    // const due = new Date(yy, mm - 1, Math.max(1, setting.tglJatuhTempo ?? 15));
+    const day = Math.min(
+      Math.max(1, setting.tglJatuhTempo ?? 15),
+      new Date(yy, mm, 0).getDate()
+    );
+    // versi lokal (WIB): tidak akan nyeret ke hari sebelumnya saat jadi UTC
+    const due = new Date(yy, mm - 1, day, 12, 0, 0, 0);
 
     // Carry-over dari bulan sebelum billing
     const prevCode = prevPeriod(billingPeriode);

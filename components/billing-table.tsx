@@ -13,6 +13,8 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
+  Download,
+  Loader2,
 } from "lucide-react";
 import { useMobile } from "@/hooks/use-mobile";
 import { Input } from "./ui/input";
@@ -136,6 +138,24 @@ export function BillingTable() {
   // latest dari API (untuk enable tombol bayar & set default filter di UI)
   const [latestPeriode, setLatestPeriode] = useState("");
 
+  // ===== LOADING per-baris untuk unduh =====
+  const [loadingTagihan, setLoadingTagihan] = useState<Set<string>>(new Set());
+  const [loadingKwitansi, setLoadingKwitansi] = useState<Set<string>>(
+    new Set()
+  );
+  function setRowLoading(
+    setter: React.Dispatch<React.SetStateAction<Set<string>>>,
+    id: string,
+    on: boolean
+  ) {
+    setter((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
   // ===== FORMAT & HELPER =====
   const fmtRp = (n: number) =>
     new Intl.NumberFormat("id-ID", {
@@ -187,10 +207,7 @@ export function BillingTable() {
   // tombol input pembayaran: tetap batasi hanya periode terakhir
   const canInput = (b: BillingItem) => {
     // const pelunasan = getPelunasanStatus(b);
-    return (
-      (b.canInputPayment ??
-        (latestPeriode && b.periode === latestPeriode))
-    );
+    return b.canInputPayment ?? (latestPeriode && b.periode === latestPeriode);
   };
 
   // status untuk FILTER API (biar kompatibel dgn backend)
@@ -277,6 +294,72 @@ export function BillingTable() {
   }, [authUser, selectedPeriode, selectedStatus, debouncedQ, page, perPage]);
 
   const rows = useMemo(() => items, [items]);
+
+  // ====== Helper download: paksa “save as” ======
+  async function forceDownload(url: string, filename?: string) {
+    try {
+      // Ambil blob agar bisa set 'download' secara konsisten di berbagai browser
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Gagal mengambil file");
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      if (filename) a.download = filename;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      // fallback: buka tab baru
+      window.open(url, "_blank");
+    }
+  }
+
+  // unduh
+  async function handleUnduhTagihan(b: BillingItem) {
+    try {
+      setRowLoading(setLoadingTagihan, b.id, true);
+      const q = new URLSearchParams({ tagihanId: b.id });
+      const res = await fetch(`/api/unduh/tagihan?${q.toString()}`, {
+        cache: "no-store",
+      });
+      const json = await res.json();
+      if (json?.ok && json.url) {
+        const fname = `tagihan-${b.periode}-${b.namaWarga}-${b.pelangganKode || "CUST"}.jpg`;
+        await forceDownload(json.url, fname);
+      } else if (json?.message) {
+        alert(json.message);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setRowLoading(setLoadingTagihan, b.id, false);
+    }
+  }
+
+  async function handleUnduhKwitansi(b: BillingItem) {
+    try {
+      setRowLoading(setLoadingKwitansi, b.id, true);
+      const q = new URLSearchParams({ tagihanId: b.id });
+      // if (b.lastPembayaranId) q.set("payId", b.lastPembayaranId);
+      const res = await fetch(`/api/unduh/kwitansi?${q.toString()}`, {
+        cache: "no-store",
+      });
+      const json = await res.json();
+      if (json?.ok && json.url) {
+        const fname = `kwitansi-${b.periode}-${b.namaWarga}-${b.pelangganKode || "CUST"}.jpg`;
+        await forceDownload(json.url, fname);
+      } else if (json?.message) {
+        alert(json.message);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setRowLoading(setLoadingKwitansi, b.id, false);
+    }
+  }
 
   function PaginationBar() {
     const from = (page - 1) * perPage + (rows.length ? 1 : 0);
@@ -501,7 +584,8 @@ export function BillingTable() {
                     <hr />
                     <p>• Tagihan Bulan Ini = {fmtRp(b.tagihanBulanIni)}</p>
                     <p>
-                      • Tagihan Bulan Lalu (+/-) = {renderSisaKurang(b.tagihanLalu)}
+                      • Tagihan Bulan Lalu (+/-) ={" "}
+                      {renderSisaKurang(b.tagihanLalu)}
                     </p>
                     {/* {!!b.denda && <p>• Denda = {fmtRp(b.denda)}</p>} */}
                     <hr />
@@ -512,7 +596,50 @@ export function BillingTable() {
                 </div>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleUnduhTagihan(b)}
+                  disabled={loadingTagihan.has(b.id)}
+                  className="flex-1"
+                >
+                  {loadingTagihan.has(b.id) ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />{" "}
+                      Menyiapkan…
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="h-4 w-4 mr-2" /> Unduh Tagihan
+                    </>
+                  )}
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleUnduhKwitansi(b)}
+                  disabled={pelunasan !== "lunas" || loadingKwitansi.has(b.id)}
+                  title={
+                    pelunasan !== "lunas"
+                      ? "Kwitansi bisa diunduh setelah lunas"
+                      : undefined
+                  }
+                  className="flex-1"
+                >
+                  {loadingKwitansi.has(b.id) ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />{" "}
+                      Menyiapkan…
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 mr-2" /> Unduh Kwitansi
+                    </>
+                  )}
+                </Button>
+
                 {b.buktiPembayaran && (
                   <Button
                     variant="outline"
@@ -693,7 +820,8 @@ export function BillingTable() {
                         {/* {!!b.denda && <p>Denda = {fmtRp(b.denda)}</p>} */}
                         <p>Tagihan Bulan Ini = {fmtRp(b.tagihanBulanIni)}</p>
                         <p>
-                          Tagihan Bulan Lalu (+/-) = {renderSisaKurang(b.tagihanLalu)}
+                          Tagihan Bulan Lalu (+/-) ={" "}
+                          {renderSisaKurang(b.tagihanLalu)}
                         </p>
                         <hr />
                         <p className="font-semibold">
@@ -701,8 +829,53 @@ export function BillingTable() {
                         </p>
                       </div>
                     </td>
-                    <td className="p-4">
-                      <div className="flex gap-2">
+                    <td className="p-4 w-96">
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleUnduhTagihan(b)}
+                          disabled={loadingTagihan.has(b.id)}
+                        >
+                          {loadingTagihan.has(b.id) ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />{" "}
+                              Menyiapkan…
+                            </>
+                          ) : (
+                            <>
+                              <FileText className="h-4 w-4 mr-2" /> Unduh
+                              Tagihan
+                            </>
+                          )}
+                        </Button>
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleUnduhKwitansi(b)}
+                          disabled={
+                            pelunasan !== "lunas" || loadingKwitansi.has(b.id)
+                          }
+                          title={
+                            pelunasan !== "lunas"
+                              ? "Kwitansi bisa diunduh setelah lunas"
+                              : undefined
+                          }
+                        >
+                          {loadingKwitansi.has(b.id) ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />{" "}
+                              Menyiapkan…
+                            </>
+                          ) : (
+                            <>
+                              <Download className="h-4 w-4 mr-2" /> Unduh
+                              Kwitansi
+                            </>
+                          )}
+                        </Button>
+
                         {b.buktiPembayaran && (
                           <Button
                             variant="outline"
@@ -715,7 +888,9 @@ export function BillingTable() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => router.push(`/input-pembayaran/${b.id}`)}
+                          onClick={() =>
+                            router.push(`/input-pembayaran/${b.id}`)
+                          }
                           disabled={!canInput(b)}
                           title={
                             !canInput(b)
@@ -723,7 +898,8 @@ export function BillingTable() {
                               : undefined
                           }
                         >
-                          <CreditCard className="h-4 w-4 mr-2" /> Input Pembayaran
+                          <CreditCard className="h-4 w-4 mr-2" /> Input
+                          Pembayaran
                         </Button>
                       </div>
                     </td>
