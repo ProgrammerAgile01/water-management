@@ -118,6 +118,22 @@ async function sendWaAndLog(tujuanRaw: string, text: string) {
     .finally(() => clearTimeout(t));
 }
 
+// ================ HELPER TANGGAL BAYAR ================
+
+// helper: kalau input cuma tanggal, pakai jam real saat ini
+function composeWithNowTime(dateStr: string) {
+  const base = new Date(dateStr); // ambil tanggalnya
+  if (isNaN(base.getTime())) return new Date(); // fallback now kalau invalid
+  const now = new Date(); // jam real saat simpan
+  base.setHours(
+    now.getHours(),
+    now.getMinutes(),
+    now.getSeconds(),
+    now.getMilliseconds()
+  );
+  return base;
+}
+
 // ================ HANDLER ================
 export async function POST(req: NextRequest) {
   try {
@@ -145,7 +161,15 @@ export async function POST(req: NextRequest) {
     const saved = await saveUploadFile(file, "payment/bukti-bayar");
     const buktiUrl = saved.publicUrl; // contoh: /api/file/payment/bukti-bayar/xxxxx.png
 
-    const tanggalBayar = tanggalStr ? new Date(tanggalStr) : new Date();
+    // Tanggal bayar versi lama
+    // const tanggalBayar = tanggalStr ? new Date(tanggalStr) : new Date();
+
+    // const tanggalBayar = tanggalStr ? new Date(tanggalStr) : new Date();
+    const tanggalBayar = tanggalStr
+      ? /\d{2}:\d{2}/.test(tanggalStr) // ada jam di string?
+        ? new Date(tanggalStr) // pakai apa adanya
+        : composeWithNowTime(tanggalStr) // cuma tanggal → tambah jam now
+      : new Date(); // kosong → full now
 
     let adminName: string | null = null;
     try {
@@ -204,8 +228,8 @@ export async function POST(req: NextRequest) {
       await tx.tagihan.update({
         where: { id: t.id },
         data: {
-          sisaKurang,     // untuk menentukan "lunas" (sisaKurang <= 0)
-          statusBayar,    // hanya menandai "sudah bayar" vs "belum bayar"
+          sisaKurang, // untuk menentukan "lunas" (sisaKurang <= 0)
+          statusBayar, // hanya menandai "sudah bayar" vs "belum bayar"
         },
       });
 

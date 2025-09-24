@@ -439,7 +439,7 @@ export default function MasterBiayaPage() {
   return (
     <AuthGuard>
       <AppShell>
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-teal-50 pb-20">
+        <div className="min-h-screen pb-20">
           <AppHeader title="Data Biaya" />
 
           <div className="container mx-auto px-4 space-y-6">

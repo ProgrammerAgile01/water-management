@@ -452,7 +452,7 @@ export default function DashboardLaporanPage() {
     (status ?? "").toLowerCase() === "paid";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-teal-50 via-white to-blue-50 pb-24">
+    <div className="min-h-screen">
       <AuthGuard>
         <AppShell>
           <AppHeader title="Dashboard Laporan" />

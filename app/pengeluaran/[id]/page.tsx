@@ -639,7 +639,7 @@ export default function DetailPengeluaranPage() {
     }).format(amount);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-teal-50 via-blue-50 to-indigo-100">
+    <div className="min-h-screen">
       <div className="container mx-auto p-4 space-y-6">
         <AuthGuard>
           <AppShell>

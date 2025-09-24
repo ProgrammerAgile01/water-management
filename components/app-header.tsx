@@ -17,6 +17,9 @@ import {
   Grid3X3,
   FolderOpen,
   BarChart3,
+  DollarSign,
+  IdCard,
+  HistoryIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter, usePathname } from "next/navigation";
@@ -116,6 +119,18 @@ const MENU_ITEMS: MenuItem[] = [
     roles: ["WARGA"],
   },
   {
+    href: "/petugas/riwayat",
+    label: "Riwayat Petugas",
+    icon: HistoryIcon,
+    roles: ["PETUGAS"],
+  },
+  {
+    href: "/petugas/profil",
+    label: "Profil Petugas",
+    icon: IdCard,
+    roles: ["PETUGAS"],
+  },
+  {
     href: "/reset-meteran",
     label: "Reset Meteran",
     icon: RotateCcw,
@@ -152,6 +167,12 @@ const MENU_ITEMS: MenuItem[] = [
     roles: ["ADMIN"],
   },
   {
+    href: "/laporan/keuangan",
+    label: "Laporan Keuangan",
+    icon: DollarSign,
+    roles: ["ADMIN"],
+  },
+  {
     href: "/pengaturan",
     label: "Pengaturan",
     icon: Settings,
@@ -170,11 +191,14 @@ const PATH_LABELS: Record<string, string> = {
   // "/pelunasan": "Pelunasan",
   "/tagihan-pembayaran": "Tagihan & Pembayaran",
   "/profil-warga": "Profil Warga",
+  "/petugas/riwayat": "Riwayat Petugas",
+  "/petugas/profil": "Profil Petugas",
   "/reset-meteran": "Reset Meteran",
   "/biaya": "Biaya",
   "/pengeluaran": "Pengeluaran",
   "/laporan-summary": "Laporan Summary",
   "/laporan-status-pembayaran": "Laporan Status Pembayaran",
+  "/laporan/keuangan": "Laporan Keuangan",
   "/pengaturan": "Pengaturan",
   "/tools/import-export": "Import/Export",
   "/login": "Login",
