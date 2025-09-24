@@ -1,14 +1,22 @@
 import { getBrowser } from "./puppeteer-singleton";
-import path from "node:path";
+// import path from "node:path";
 import fs from "node:fs/promises";
+import { resolveUploadPath } from "./uploads";
 
 export async function renderKwitansiToJPG(opts: { tplUrl: string; outName: string }) {
   const { tplUrl, outName } = opts;
 
-  const imgDir = path.join(process.cwd(), "public", "uploads", "payment", "kwitansi", "img");
-  await fs.mkdir(imgDir, { recursive: true });
-  const outPath = path.join(imgDir, outName);
-  const publicUrl = `/uploads/payment/kwitansi/img/${outName}`;
+  // const imgDir = path.join(process.cwd(), "public", "uploads", "payment", "kwitansi", "img");
+  // await fs.mkdir(imgDir, { recursive: true });
+  // const outPath = path.join(imgDir, outName);
+  // const publicUrl = `/uploads/payment/kwitansi/img/${outName}`;
+
+  // simpan ke .uploads/payment/kwitansi/img
+  const relSegments = ["payment", "kwitansi", "img"];
+  const absDir = resolveUploadPath(...relSegments);
+  await fs.mkdir(absDir, { recursive: true });
+  const absPath = resolveUploadPath(...relSegments, outName);
+  const apiUrl = `/api/file/${relSegments.join("/")}/${outName}`;
 
   const browser = await getBrowser();
   const page = await browser.newPage();
@@ -38,8 +46,8 @@ export async function renderKwitansiToJPG(opts: { tplUrl: string; outName: strin
       ? await el.screenshot({ type: "jpeg", quality: 90 })
       : await page.screenshot({ type: "jpeg", quality: 90, fullPage: true });
 
-    await fs.writeFile(outPath, buffer);
-    return publicUrl;
+    await fs.writeFile(absPath, buffer);
+    return apiUrl;
   } finally {
     try { await page.close(); } catch {}
   }

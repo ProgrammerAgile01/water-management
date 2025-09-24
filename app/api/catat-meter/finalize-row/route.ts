@@ -91,7 +91,7 @@ function waText(p: {
   });
   const bayarLines = [
     `• Tunai ke bendahara (${p.setting?.namaBendahara}).`,
-    `• ${p.setting?.namaBankPembayaran} ${p.setting?.norekPembayaran} a.n. ${p.setting?.anNorekPembayaran}.`,
+    `• Transfer ke Rekening ${p.setting?.namaBankPembayaran} ${p.setting?.norekPembayaran} a.n. ${p.setting?.anNorekPembayaran}.`,
   ].join("\n");
   const kontakLine = [
     p.setting?.whatsappCs
@@ -145,10 +145,15 @@ function waText(p: {
       .filter(Boolean)
       .join("\n")
   );
-  sections.push(["*Informasi Pembayaran*", bayarLines].join("\n"));
+  sections.push(["*Cara Pembayaran*", bayarLines].join("\n"));
   if (kontakLine) sections.push(["*Bantuan*", kontakLine].join("\n"));
   sections.push("Terima kasih 🙏");
-  sections.push(["*NOTE:*"].join("\n"));
+  sections.push(
+    [
+      "*NOTE:*",
+      `Setelah melakukan Transfer, silahkan konfirmasi ke Bp. Masrur di nomor ${p.setting?.whatsappCs}\n\nAtau`,
+    ].join("\n")
+  );
 
   return sections.map((s) => s.replace(/[ \t]+$/g, "")).join("\n\n");
 }
@@ -559,7 +564,7 @@ export async function POST(req: NextRequest) {
     // === Kirim WA (teks + gambar) ===
     if (sendWa && pelanggan?.wa) {
       const linkBaris = magicUrl
-        ? `\n\nBayar/unggah bukti dengan aman via tautan berikut:\n${magicUrl}`
+        ? `\n\nUnggah bukti pembayaran dengan aman via tautan berikut:\n${magicUrl}`
         : "";
 
       const text =

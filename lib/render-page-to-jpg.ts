@@ -1,6 +1,7 @@
 import { getBrowser } from "./puppeteer-singleton";
 import path from "node:path";
 import fs from "node:fs/promises";
+import { resolveUploadPath } from "./uploads";
 
 export async function renderPageToJPG(opts: {
   tplUrl: string;
@@ -10,10 +11,16 @@ export async function renderPageToJPG(opts: {
 }) {
   const { tplUrl, outName, subdir = "billing/img", selector = ".paper" } = opts;
 
-  const imgDir = path.join(process.cwd(), "public", "uploads", subdir);
-  await fs.mkdir(imgDir, { recursive: true });
-  const outPath = path.join(imgDir, outName);
-  const publicUrl = `/uploads/${subdir}/${outName}`;
+  // const imgDir = path.join(process.cwd(), "public", "uploads", subdir);
+  // await fs.mkdir(imgDir, { recursive: true });
+  // const outPath = path.join(imgDir, outName);
+  // const publicUrl = `/uploads/${subdir}/${outName}`;
+
+  const relSegments = subdir.split("/").filter(Boolean);
+  const absDir = resolveUploadPath(...relSegments);
+  await fs.mkdir(absDir, { recursive: true });
+  const absPath = resolveUploadPath(...relSegments, outName);
+  const apiUrl = `/api/file/${relSegments.join("/")}/${outName}`;
 
   const browser = await getBrowser();
   const page = await browser.newPage();
@@ -39,8 +46,8 @@ export async function renderPageToJPG(opts: {
       ? await el.screenshot({ type: "jpeg", quality: 90 })
       : await page.screenshot({ type: "jpeg", quality: 90, fullPage: true });
 
-    await fs.writeFile(outPath, buffer);
-    return publicUrl;
+    await fs.writeFile(absPath, buffer);
+    return apiUrl;
   } finally {
     try {
       await page.close();

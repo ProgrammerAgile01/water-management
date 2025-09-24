@@ -4,6 +4,7 @@ import { getAuthUserId } from "@/lib/auth";
 import { renderKwitansiToJPG } from "@/lib/render-kwitansi";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { resolveUploadPath } from "@/lib/uploads";
 
 export const runtime = "nodejs";
 
@@ -137,7 +138,7 @@ async function sendWaAndLog(tujuanRaw: string, text: string) {
 /** Kirim IMAGE via base64 ke WA Sender */
 async function sendWaImageAndLog(
   tujuanRaw: string,
-  jpgRelPath: string, // contoh: "/uploads/payment/kwitansi/img/kwitansi-....jpg"
+  jpgRef: string, // contoh: "/uploads/payment/kwitansi/img/kwitansi-....jpg" bole api/file
   filename: string,
   caption?: string
 ) {
@@ -152,7 +153,7 @@ async function sendWaImageAndLog(
         tipe: "PEMBAYARAN_IMG APPROVED",
         payload: JSON.stringify({
           to,
-          jpgRelPath,
+          jpgRef,
           filename,
           caption,
           err: "WA_SENDER_URL empty",
@@ -168,19 +169,48 @@ async function sendWaImageAndLog(
     data: {
       tujuan: to,
       tipe: "PEMBAYARAN_IMG APPROVED",
-      payload: JSON.stringify({ to, jpgRelPath, filename, caption }),
+      payload: JSON.stringify({ to, jpgRef, filename, caption }),
       status: "PENDING",
     },
   });
 
+  // ------ ambil buffer gambar secara robust ------
+  async function loadBuffer(j: string): Promise<Buffer> {
+    // absolute URL -> fetch
+    if (/^https?:\/\//i.test(j)) {
+      const r = await fetch(j);
+      if (!r.ok) throw new Error(`fetch ${j} -> ${r.status}`);
+      const ab = await r.arrayBuffer();
+      return Buffer.from(ab);
+    }
+
+    // /api/file/<relPath> -> map ke .uploads/<relPath>
+    if (j.startsWith("/api/file/")) {
+      const rel = j.replace(/^\/api\/file\//, ""); // "payment/kwitansi/img/xxx.jpg"
+      const abs = resolveUploadPath(...rel.split("/"));
+      return fs.readFile(abs);
+    }
+
+    // /uploads/<relPath> -> public/uploads/<relPath>
+    if (j.startsWith("/uploads/")) {
+      const abs = path.join(process.cwd(), "public", j.replace(/^\/+/, ""));
+      return fs.readFile(abs);
+    }
+
+    // fallback: anggap path relatif ke UPLOAD_DIR
+    const abs = resolveUploadPath(...j.replace(/^\/+/, "").split("/"));
+    return fs.readFile(abs);
+  }
   try {
     // 1) baca file dari folder public (jpgRelPath berbentuk "/uploads/...")
-    const filePath = path.join(
-      process.cwd(),
-      "public",
-      jpgRelPath.replace(/^\/+/, "")
-    );
-    const buf = await fs.readFile(filePath);
+    // const filePath = path.join(
+    //   process.cwd(),
+    //   "public",
+    //   jpgRelPath.replace(/^\/+/, "")
+    // );
+    if (!base) throw new Error("WA_SENDER_URL empty");
+
+    const buf = await loadBuffer(jpgRef);
     const b64 = buf.toString("base64"); // ⬅️ base64 murni (tanpa prefix data:)
 
     // 2) kirim ke wa-sender
@@ -205,7 +235,7 @@ async function sendWaImageAndLog(
         status: r.ok ? "SENT" : "FAILED",
         payload: JSON.stringify({
           to,
-          jpgRelPath,
+          jpgRef,
           filename,
           http: { ok: r.ok, status: r.status },
         }),
@@ -218,7 +248,7 @@ async function sendWaImageAndLog(
         status: "FAILED",
         payload: JSON.stringify({
           to,
-          jpgRelPath,
+          jpgRef,
           filename,
           err: String(e?.message || e),
         }),
