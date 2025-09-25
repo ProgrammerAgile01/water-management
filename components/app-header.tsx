@@ -14,12 +14,12 @@ import {
   FileText,
   CalendarDays,
   RotateCcw,
-  Grid3X3,
   FolderOpen,
   BarChart3,
   DollarSign,
   IdCard,
   HistoryIcon,
+  Phone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter, usePathname } from "next/navigation";
@@ -176,6 +176,12 @@ const MENU_ITEMS: MenuItem[] = [
     href: "/pengaturan",
     label: "Pengaturan",
     icon: Settings,
+    roles: ["ADMIN"],
+  },
+  {
+    href: "/whatsapp-setting",
+    label: "WhatsApp Setting",
+    icon: Phone,
     roles: ["ADMIN"],
   },
 ];

@@ -16,6 +16,7 @@ import {
   Banknote,
   Landmark,
   Wallet,
+  Info,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AuthGuard } from "@/components/auth-guard";
@@ -24,6 +25,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ApprovePaymentModal } from "@/components/approve-payment-modal";
 // NEW: import modal konfirmasi upload
 import { ConfirmUploadModal } from "@/components/confirm-upload-modal";
+import { ConfirmSaveRevisionModal } from "@/components/confirm-save-revision-modal";
+import { RevisiPaymentModal } from "@/components/revisi-payment-modal";
 
 type AppRole = "ADMIN" | "PETUGAS" | "WARGA";
 type Metode = "TUNAI" | "TRANSFER" | "EWALLET" | "QRIS";
@@ -92,9 +95,26 @@ export default function InputPembayaranPage() {
   // nominal bayar
   const [nominalBayar, setNominalBayar] = useState<string>("");
 
-  // NEW: modal konfirmasi upload
+  // Modal konfirmasi upload
   const [openConfirmUpload, setOpenConfirmUpload] = useState(false);
   const [loadingUpload, setLoadingUpload] = useState(false);
+
+  // State Revisi oleh admin only
+  const [revisiMode, setRevisiMode] = useState(false);
+  const [openRevisi, setOpenRevisi] = useState(false);
+  const [loadingRevisi, setLoadingRevisi] = useState(false);
+
+  const [openConfirmSaveRevise, setOpenConfirmSaveRevise] = useState(false);
+  const [loadingSaveRevise, setLoadingSaveRevise] = useState(false);
+
+  // refetch tagihan setelah revisi
+  async function refetchTagihan(tagihanId: string) {
+    try {
+      const r = await fetch(`/api/tagihan/${tagihanId}`, { cache: "no-store" });
+      const d = await r.json();
+      if (r.ok && d?.ok) setT(d.tagihan);
+    } catch {}
+  }
 
   // Prefill nominal (sekali)
   useEffect(() => {
@@ -124,6 +144,13 @@ export default function InputPembayaranPage() {
       } catch {}
     })();
   }, []);
+
+  // kalau role warga, pastikan metode bukan TUNAI
+  useEffect(() => {
+    if (role === "WARGA" && metode === "TUNAI") {
+      setMetode("TRANSFER"); // fallback default
+    }
+  }, [role, metode]);
 
   // load tagihan
   useEffect(() => {
@@ -250,6 +277,22 @@ export default function InputPembayaranPage() {
     [proofPreview]
   );
 
+  // kalau selesai revisi, bersihin pilihan file baru biar kembali ke preview lama (payDB)
+  useEffect(() => {
+    if (!revisiMode && (paymentProof || proofPreview)) {
+      if (proofPreview) URL.revokeObjectURL(proofPreview);
+      setPaymentProof(null);
+      setProofPreview(null);
+    }
+  }, [revisiMode]);
+
+  // batal ganti bukti
+  function cancelReplaceProof() {
+    if (proofPreview) URL.revokeObjectURL(proofPreview);
+    setPaymentProof(null);
+    setProofPreview(null);
+  }
+
   const fmt = (n: number) =>
     new Intl.NumberFormat("id-ID", {
       style: "currency",
@@ -269,21 +312,37 @@ export default function InputPembayaranPage() {
 
   const tagihanFinal = t?.totalTagihan + t?.tagihanLalu ?? 0;
 
-  // lock form kalau sudah PAID dan misal ditambah or Verified
-  const lockForm = t?.statusBayar === "PAID";
+  // lock form kalau sudah PAID dan bisa di unlock admin
+  const adminUnlock = role === "ADMIN" && revisiMode;
+  const lockForm = t?.statusBayar === "PAID" && !adminUnlock;
 
   // === SUBMIT HANDLERS ===
+
+  // Tombol simpan: enable/disable
+  const canSave = revisiMode
+    ? Number(nominalBayar || 0) > 0 &&
+      !!metode &&
+      (!!paymentProof || !!payDB?.buktiUrl)
+    : Number(nominalBayar || 0) > 0 && !!metode && !!paymentProof;
 
   // NEW: validasi ringan sebelum buka modal
   const handleClickSimpan = () => {
     try {
       if (!t) throw new Error("Tagihan tidak ditemukan");
       const nominal = Number(nominalBayar || 0);
-      if (!paymentProof) throw new Error("Wajib upload bukti pembayaran");
-      if (!nominal || nominal <= 0)
-        throw new Error("Nominal bayar harus diisi dan lebih dari 0");
       if (!metode) throw new Error("Pilih metode pembayaran");
-      setOpenConfirmUpload(true);
+      if (nominal <= 0) throw new Error("Nominal bayar harus lebih dari 0");
+
+      if (!revisiMode) {
+        // Upload pertama kali (wajib file)
+        if (!paymentProof) throw new Error("Wajib upload bukti pembayaran");
+        setOpenConfirmUpload(true);
+      } else {
+        // Revisi (boleh pakai bukti lama atau ganti file)
+        if (!paymentProof && !payDB?.buktiUrl)
+          throw new Error("Bukti pembayaran belum ada");
+        setOpenConfirmSaveRevise(true);
+      }
     } catch (e: any) {
       toast({
         title: "Gagal",
@@ -376,6 +435,7 @@ export default function InputPembayaranPage() {
       setT((prev) =>
         prev ? ({ ...prev, statusVerif: "VERIFIED" } as TagihanDetail) : prev
       );
+      setRevisiMode(false);
       router.replace("/tagihan-pembayaran");
     } catch (e: any) {
       toast({
@@ -388,6 +448,11 @@ export default function InputPembayaranPage() {
       setOpenApprove(false);
     }
   }
+
+  // sinkronisasi status verifikasi
+  useEffect(() => {
+    if (t?.statusVerif === "VERIFIED" && revisiMode) setRevisiMode(false);
+  }, [t?.statusVerif, revisiMode]);
 
   // NEW: data ringkasan untuk modal konfirmasi upload
   const confirmData =
@@ -403,6 +468,140 @@ export default function InputPembayaranPage() {
           note: keterangan || null,
         }
       : null;
+
+  // Handler masuk mode revisi & simpan revisi
+  async function handleStartRevisi() {
+    if (!t) return;
+    if (!payDB) {
+      toast({
+        title: "Tidak ada pembayaran",
+        description: "Belum ada data untuk direvisi.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      setLoadingRevisi(true);
+      // Set UNVERIFIED agar jelas statusnya & sesuai alur
+      const r = await fetch(`/api/tagihan/${t.id}/verify`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "UNVERIFY" }),
+      });
+      const j = await r.json();
+      if (!r.ok || !j?.ok)
+        throw new Error(j?.message || "Gagal mengubah status verifikasi");
+      setT((prev) =>
+        prev ? ({ ...prev, statusVerif: "UNVERIFIED" } as TagihanDetail) : prev
+      );
+      setRevisiMode(true);
+      toast({
+        title: "Mode Revisi Aktif",
+        description: "Silakan perbaiki data pembayaran lalu simpan & approve.",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Gagal",
+        description: e?.message || "Tidak bisa masuk mode revisi.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingRevisi(false);
+      setOpenRevisi(false);
+    }
+  }
+
+  async function performRevise() {
+    if (!t || !payDB) throw new Error("Data belum siap untuk revisi");
+    const nominal = Number(nominalBayar || 0);
+    if (!nominal || nominal <= 0) throw new Error("Nominal bayar tidak valid");
+
+    const fd = new FormData();
+    fd.set("nominalBayar", String(nominal));
+    fd.set("tanggalBayar", tanggalBayar);
+    fd.set("metodeBayar", metode);
+    fd.set("keterangan", keterangan);
+    if (paymentProof) fd.set("buktiFile", paymentProof); // opsional
+
+    const r = await fetch(`/api/pembayaran/${payDB.id}`, {
+      method: "PATCH",
+      body: fd,
+    });
+    const data = await r.json();
+    if (!r.ok || !data?.ok)
+      throw new Error(data?.message || "Gagal menyimpan revisi");
+
+    toast({
+      title: "Perubahan Tersimpan",
+      description: "Silakan lanjut Approve jika sudah sesuai.",
+    });
+
+    await refetchPembayaran(t.id);
+    await refetchTagihan(t.id);
+  }
+
+  async function handleConfirmSaveRevise() {
+    try {
+      setLoadingSaveRevise(true);
+      await performRevise();
+    } catch (e: any) {
+      toast({
+        title: "Gagal",
+        description: e?.message || "Terjadi kesalahan",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingSaveRevise(false);
+      setOpenConfirmSaveRevise(false);
+    }
+  }
+
+  async function handleCancelRevisiAndApprove() {
+    if (!t) return;
+    try {
+      // Optional: pastikan ada pembayaran yang valid sebelum approve
+      if (!payDB) {
+        toast({
+          title: "Tidak bisa approve",
+          description: "Belum ada pembayaran untuk diverifikasi.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // (Opsional) konfirmasi kecil biar tidak ke-klik tanpa sengaja
+      // if (!confirm("Akan menutup mode revisi dan APPROVE pembayaran. Lanjut?")) return;
+
+      // APPROVE (VERIFIED). Ubah sendWa ke true/false sesuai kebijakanmu:
+      const r = await fetch(`/api/tagihan/${t.id}/verify`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "APPROVE", sendWa: false }), // set false kalau tak mau kirim WA
+      });
+      const j = await r.json();
+      if (!r.ok || !j?.ok) throw new Error(j?.message || "Gagal approve");
+
+      // Tutup mode revisi & perbarui UI
+      setRevisiMode(false);
+      setT((prev) =>
+        prev ? ({ ...prev, statusVerif: "VERIFIED" } as any) : prev
+      );
+
+      toast({
+        title: "Keluar Mode Revisi",
+        description: "Status verifikasi diset ke VERIFIED.",
+      });
+
+      // (Opsional) kembali ke daftar
+      // router.replace("/tagihan-pembayaran");
+    } catch (e: any) {
+      toast({
+        title: "Gagal",
+        description: e?.message || "Terjadi kesalahan",
+        variant: "destructive",
+      });
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -553,7 +752,7 @@ export default function InputPembayaranPage() {
                       </div>
 
                       <div className="border-t border-border/20 pt-2 flex justify-between">
-                        <span className="font-semibold">Total Bayar:</span>
+                        <span className="font-semibold">Total Tagihan:</span>
                         <span className="font-bold text-lg">
                           {fmt(t.totalDue)}
                         </span>
@@ -588,6 +787,29 @@ export default function InputPembayaranPage() {
 
                 {/* KANAN */}
                 <div className="space-y-4">
+                  {/* Banner mode revisi */}
+                  {revisiMode && role === "ADMIN" && (
+                    <GlassCard className="p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="text-md font-semibold flex items-center justify-center text-red-500">
+                          <Info className="h-5 w-5 mr-1" />
+                          Mode Revisi Pembayaran Aktif
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleCancelRevisiAndApprove}
+                          className="bg-transparent"
+                          disabled={
+                            t?.statusVerif === "VERIFIED" || role !== "ADMIN"
+                          }
+                        >
+                          Batal Revisi
+                        </Button>
+                      </div>
+                    </GlassCard>
+                  )}
+
                   <GlassCard className="p-6">
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
@@ -652,26 +874,29 @@ export default function InputPembayaranPage() {
                             className="grid grid-cols-1 sm:grid-cols-2 gap-3"
                             disabled={lockForm}
                           >
-                            <label className="flex items-start gap-3 rounded-xl border bg-card/50 p-3 cursor-pointer hover:bg-muted/40 transition data-[state=checked]:border-primary data-[state=checked]:bg-primary/5 data-[state=checked]:ring-1 data-[state=checked]:ring-primary/60">
-                              <RadioGroupItem
-                                value="TUNAI"
-                                id="metode-tunai"
-                                className="mt-1"
-                              />
-                              <div className="flex items-start gap-3">
-                                <div className="mt-0.5">
-                                  <Banknote className="w-5 h-5 text-foreground/80" />
-                                </div>
-                                <div>
-                                  <div className="font-medium text-foreground">
-                                    Tunai
+                            {/* === TUNAI: hanya selain WARGA === */}
+                            {role !== "WARGA" && (
+                              <label className="flex items-start gap-3 rounded-xl border bg-card/50 p-3 cursor-pointer hover:bg-muted/40 transition data-[state=checked]:border-primary data-[state=checked]:bg-primary/5 data-[state=checked]:ring-1 data-[state=checked]:ring-primary/60">
+                                <RadioGroupItem
+                                  value="TUNAI"
+                                  id="metode-tunai"
+                                  className="mt-1"
+                                />
+                                <div className="flex items-start gap-3">
+                                  <div className="mt-0.5">
+                                    <Banknote className="w-5 h-5 text-foreground/80" />
                                   </div>
-                                  <div className="text-xs text-muted-foreground">
-                                    Bayar langsung
+                                  <div>
+                                    <div className="font-medium text-foreground">
+                                      Tunai
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      Bayar langsung
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            </label>
+                              </label>
+                            )}
 
                             <label className="flex items-start gap-3 rounded-xl border bg-card/50 p-3 cursor-pointer hover:bg-muted/40 transition data-[state=checked]:border-primary data-[state=checked]:bg-primary/5 data-[state=checked]:ring-1 data-[state=checked]:ring-primary/60">
                               <RadioGroupItem
@@ -756,7 +981,74 @@ export default function InputPembayaranPage() {
                               disabled={lockForm}
                             />
 
-                            {payDB?.buktiUrl ? (
+                            {/* 1) PRIORITAS: preview file BARU (paymentProof) */}
+                            {proofPreview && paymentProof ? (
+                              <div className="p-3 border rounded-lg bg-muted/20">
+                                {paymentProof.type.startsWith("image/") ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={proofPreview}
+                                    alt="Bukti pembayaran (baru)"
+                                    className="w-full h-60 object-contain rounded-md bg-background"
+                                  />
+                                ) : (
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="text-sm">
+                                      <p className="font-medium">
+                                        File PDF terunggah (baru)
+                                      </p>
+                                      <p className="text-muted-foreground">
+                                        {paymentProof.name}
+                                      </p>
+                                    </div>
+                                    <a
+                                      href={proofPreview}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="underline text-primary text-sm"
+                                    >
+                                      Buka PDF
+                                    </a>
+                                  </div>
+                                )}
+
+                                <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+                                  <span>
+                                    {paymentProof.name} •{" "}
+                                    {(
+                                      Number(paymentProof.size) /
+                                      1024 /
+                                      1024
+                                    ).toFixed(2)}{" "}
+                                    MB
+                                  </span>
+                                  <div className="flex gap-2">
+                                    {/* Kembali ke bukti lama (payDB) */}
+                                    {payDB?.buktiUrl && (
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={cancelReplaceProof}
+                                        className="bg-transparent"
+                                      >
+                                        <X className="w-4 h-4 mr-1" /> Batal
+                                        Ganti
+                                      </Button>
+                                    )}
+                                    {/* <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={removeProof} // kalau mau hapus total
+                                      className="bg-transparent"
+                                    >
+                                      <X className="w-4 h-4 mr-1" /> Hapus Semua
+                                    </Button> */}
+                                  </div>
+                                </div>
+                              </div>
+                            ) : /* 2) KEDUA: preview bukti LAMA dari DB */ payDB?.buktiUrl ? (
                               <div className="p-3 border rounded-lg bg-muted/20">
                                 {payDB.buktiUrl
                                   .toLowerCase()
@@ -774,58 +1066,24 @@ export default function InputPembayaranPage() {
                                     className="w-full h-60 object-contain rounded-md bg-background"
                                   />
                                 )}
-                              </div>
-                            ) : proofPreview ? (
-                              <div className="p-3 border rounded-lg bg-muted/20">
-                                {paymentProof?.type.startsWith("image/") ? (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img
-                                    src={proofPreview}
-                                    alt="Bukti pembayaran"
-                                    className="w-full h-60 object-contain rounded-md bg-background"
-                                  />
-                                ) : (
-                                  <div className="flex items-center justify-between gap-3">
-                                    <div className="text-sm">
-                                      <p className="font-medium">
-                                        File PDF terunggah
-                                      </p>
-                                      <p className="text-muted-foreground">
-                                        {paymentProof?.name}
-                                      </p>
-                                    </div>
-                                    <a
-                                      href={proofPreview}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="underline text-primary text-sm"
+                                {revisiMode && (
+                                  <div className="mt-3 flex items-center justify-end">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={onPickProof}
+                                      className="bg-transparent"
+                                      disabled={lockForm}
                                     >
-                                      Buka PDF
-                                    </a>
+                                      <Upload className="w-4 h-4 mr-1" /> Ganti
+                                      Bukti
+                                    </Button>
                                   </div>
                                 )}
-                                <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-                                  <span>
-                                    {paymentProof?.name} •{" "}
-                                    {(
-                                      Number(paymentProof?.size || 0) /
-                                      1024 /
-                                      1024
-                                    ).toFixed(2)}{" "}
-                                    MB
-                                  </span>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={removeProof}
-                                    className="bg-transparent"
-                                  >
-                                    <X className="w-4 h-4 mr-1" /> Hapus
-                                  </Button>
-                                </div>
                               </div>
                             ) : (
+                              /* 3) TERAKHIR: tombol pilih file (ketika belum ada apa-apa) */
                               <Button
                                 variant="outline"
                                 onClick={onPickProof}
@@ -863,27 +1121,42 @@ export default function InputPembayaranPage() {
                   {/* Tombol Simpan */}
                   <div className="pb-6 md:pb-0">
                     <Button
-                      onClick={handleClickSimpan} // NEW: buka modal konfirmasi
+                      onClick={handleClickSimpan}
                       className="w-full h-12 text-base font-semibold"
-                      disabled={
-                        lockForm || !paymentProof || !metode || !nominalBayar
-                      }
+                      disabled={lockForm || !canSave}
                     >
                       <Upload className="w-4 h-4 mr-2" />
-                      {lockForm ? "Sudah Diupload" : "Upload & Simpan"}
+                      {revisiMode
+                        ? "Simpan Perubahan"
+                        : lockForm
+                        ? "Sudah Diupload"
+                        : "Upload & Simpan"}
                     </Button>
 
                     {role === "ADMIN" && (
-                      <Button
-                        variant="outline"
-                        onClick={() => setOpenApprove(true)}
-                        className="w-full h-12 text-base border-accent hover:bg-primary bg-transparent text-black hover:text-white mt-3.5"
-                        disabled={t.statusVerif === "VERIFIED"}
-                      >
-                        {t.statusVerif === "VERIFIED"
-                          ? "APPROVED"
-                          : "Approve Pembayaran"}
-                      </Button>
+                      <>
+                        <Button
+                          variant="outline"
+                          onClick={() => setOpenApprove(true)}
+                          className="w-full h-12 text-base border-accent hover:bg-primary bg-transparent text-black hover:text-white mt-3.5"
+                          disabled={t.statusVerif === "VERIFIED"}
+                        >
+                          {t.statusVerif === "VERIFIED"
+                            ? "APPROVED"
+                            : "Approve Pembayaran"}
+                        </Button>
+
+                        {!revisiMode && (
+                          <Button
+                            variant="outline"
+                            onClick={() => setOpenRevisi(true)}
+                            className="w-full border-accent h-12 text-base mt-3 text-amber-700"
+                            disabled={!payDB} // hanya jika sudah ada pembayaran yang bisa direvisi
+                          >
+                            Revisi Pembayaran
+                          </Button>
+                        )}
+                      </>
                     )}
 
                     {/* Modal approve (yang sudah ada) */}
@@ -902,6 +1175,39 @@ export default function InputPembayaranPage() {
                       onConfirm={handleConfirmUpload}
                       isLoading={loadingUpload}
                       data={confirmData}
+                    />
+
+                    {/* Modal masuk mode revisi */}
+                    <RevisiPaymentModal
+                      open={openRevisi}
+                      onClose={() => setOpenRevisi(false)}
+                      onConfirm={handleStartRevisi}
+                      isLoading={loadingRevisi}
+                      data={{
+                        pelangganNama: t.pelangganNama,
+                        pelangganKode: t.pelangganKode,
+                        periode: t.periode,
+                        jumlahSekarang: payDB?.jumlahBayar ?? 0,
+                        metodeSekarang: payDB?.metode ?? "-",
+                        tanggalSekarang: payDB?.tanggalBayar ?? "",
+                      }}
+                    />
+
+                    {/* Modal konfirmasi simpan revisi */}
+                    <ConfirmSaveRevisionModal
+                      open={openConfirmSaveRevise}
+                      onClose={() => setOpenConfirmSaveRevise(false)}
+                      onConfirm={handleConfirmSaveRevise}
+                      isLoading={loadingSaveRevise}
+                      data={{
+                        pelangganNama: t.pelangganNama,
+                        pelangganKode: t.pelangganKode,
+                        periode: t.periode,
+                        nominal: Number(nominalBayar || 0),
+                        metodeBayar: metode,
+                        tanggalBayar,
+                        willReplaceFile: !!paymentProof,
+                      }}
                     />
                   </div>
                 </div>

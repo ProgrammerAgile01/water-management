@@ -128,12 +128,12 @@ export function ApprovePaymentModal({
               </div>
 
               <div className="grid grid-cols-2 gap-3 text-sm">
-                <div className="rounded-md border border-border/60 p-3">
+                {/* <div className="rounded-md border border-border/60 p-3">
                   <div className="text-muted-foreground">Total Tagihan</div>
                   <div className="font-bold text-foreground">
                     {formatRp(totalTagihan)}
                   </div>
-                </div>
+                </div> */}
 
                 <div className="rounded-md border border-border/60 p-3">
                   <div className="text-muted-foreground">Metode</div>
@@ -149,7 +149,7 @@ export function ApprovePaymentModal({
                   </div>
                 </div>
 
-                <div className="rounded-md border border-border/60 p-3">
+                <div className="col-span-2 rounded-md border border-border/60 p-3">
                   <div className="text-muted-foreground">Keterangan</div>
                   <div className="font-semibold">
                     {keterangan && keterangan.trim() !== "" ? keterangan : "-"}

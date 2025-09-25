@@ -19,6 +19,7 @@ import { Download } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 
 type Row = {
   id: string;
@@ -28,6 +29,8 @@ type Row = {
   pemakaian: number;
   zona: string;
   namaPetugas?: string;
+  isSaved: boolean;
+  isLocked: boolean;
 };
 type Zone = { id: string; nama: string };
 
@@ -106,7 +109,9 @@ export default function LaporanCatatMeterPage() {
       setRows(
         (json.rows || []).map((r: any) => ({
           ...r,
-          namaPetugas: r.namaPetugas ?? r.petugasNama ?? "-",
+          namaPetugas: r.namaPetugas ?? "-",
+          isSaved: !!r.isSaved,
+          isLocked: !!r.isLocked,
         }))
       );
       setTotal(json.pagination?.total || 0);
@@ -177,6 +182,8 @@ export default function LaporanCatatMeterPage() {
         "Meter Akhir",
         "Jumlah Pemakaian",
         "Zona",
+        "Status Simpan",
+        "Status Finalisasi",
       ],
       ...rows.map((r, i) => [
         (page - 1) * limit + i + 1,
@@ -186,6 +193,8 @@ export default function LaporanCatatMeterPage() {
         r.meterAkhir,
         r.pemakaian,
         r.zona || "-",
+        r.isSaved ? "Disimpan" : "Belum Disimpan", // NEW
+        r.isLocked ? "Terkunci" : "Belum Terkunci", // NEW
       ]),
     ];
     const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -234,7 +243,7 @@ export default function LaporanCatatMeterPage() {
               <div className="flex flex-wrap items-center gap-3">
                 {/* Periode = dropdown dari DB */}
                 <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium">Periode</label>
+                  <label className="text-sm font-medium">Periode Catat</label>
                   <Select value={month} onValueChange={onChangeMonth}>
                     <SelectTrigger className="w-56">
                       <SelectValue placeholder="Pilih periode" />
@@ -331,6 +340,8 @@ export default function LaporanCatatMeterPage() {
                     <th className="text-center py-3 px-2">Meter Akhir</th>
                     <th className="text-center py-3 px-2">Pemakaian (m³)</th>
                     <th className="text-center py-3 px-2 w-36">Zona</th>
+                    <th className="text-center py-3 px-2 w-28">Status Simpan</th>
+                    <th className="text-center py-3 px-2 w-28">Status Finalisasi</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -368,6 +379,16 @@ export default function LaporanCatatMeterPage() {
                           </td>
                           <td className="py-3 px-2">
                             <Skeleton className="h-4 w-24" />
+                          </td>
+                          <td className="py-3 px-2">
+                            <div className="flex justify-center">
+                              <Skeleton className="h-5 w-16 rounded-full" />
+                            </div>
+                          </td>
+                          <td className="py-3 px-2">
+                            <div className="flex justify-center">
+                              <Skeleton className="h-5 w-16 rounded-full" />
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -412,7 +433,20 @@ export default function LaporanCatatMeterPage() {
                         <td className="py-3 px-2 text-center font-semibold tabular-nums">
                           {fmt(r.pemakaian)} m³
                         </td>
-                        <td className="py-3 px-2 text-center">{r.zona || "-"}</td>
+                        <td className="py-3 px-2 text-center">
+                          {r.zona || "-"}
+                        </td>
+                        <td className="py-3 px-2 text-center">
+                          <Badge variant={r.isSaved ? "default" : "secondary"}>
+                            {r.isSaved ? "Disimpan" : "Belum Disimpan"}
+                          </Badge>
+                        </td>
+
+                        <td className="py-3 px-2 text-center">
+                          <Badge variant={r.isLocked ? "default" : "secondary"}>
+                            {r.isLocked ? "Terkunci" : "Belum Terkunci"}
+                          </Badge>
+                        </td>
                       </tr>
                     ))
                   )}
@@ -532,6 +566,15 @@ export default function LaporanCatatMeterPage() {
                     </span>
                     <span className="tabular-nums text-right font-semibold">
                       {fmt(r.pemakaian)} m³
+                    </span>
+                    <span className="text-muted-foreground">Status Simpan</span>
+                    <span className="text-right">
+                      {r.isSaved ? "Disimpan" : "Belum Disimpan"}
+                    </span>
+
+                    <span className="text-muted-foreground">Status Finalisasi</span>
+                    <span className="text-right">
+                      {r.isLocked ? "Terkunci" : "Belum Terkunci"}
                     </span>
                     <div className="text-sm mt-2 font-semibold text-muted-foreground">
                       Petugas:{" "}
