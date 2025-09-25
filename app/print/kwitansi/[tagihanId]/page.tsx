@@ -50,6 +50,14 @@ export default async function KwitansiPage({
       });
   if (!pembayaran) return notFound();
 
+  // NEW: hitung total bulan ini + carry-over (tagihanLalu)
+  const totalBulanIni = tagihan.totalTagihan ?? 0; // nominal bulan ini (tanpa carry)
+  const carryOver = tagihan.tagihanLalu ?? 0; // bisa + atau -, sesuai schema
+  const totalDitagihkan = totalBulanIni + carryOver; // inilah yang mau ditampilkan
+
+  // (opsional) tentukan status berdasarkan total yang ditagihkan
+  const isLunas = (pembayaran.jumlahBayar ?? 0) >= totalDitagihkan;
+
   const setting = await prisma.setting.findUnique({ where: { id: 1 } });
 
   const nomorKwitansi =
@@ -72,10 +80,15 @@ export default async function KwitansiPage({
     periode: periodToLong(tagihan.periode),
     tanggalBayar: tanggalID(pembayaran.tanggalBayar),
     metode: pembayaran.metode,
-    totalTagihan: fmtIDR(tagihan.totalTagihan), // TANPA denda
+    // GANTI: pakai total bulan ini + tagihanLalu
+    totalTagihan: fmtIDR(totalDitagihkan), // NEW: totalDItagihkan = bulan ini + carry
     jumlahBayar: fmtIDR(pembayaran.jumlahBayar),
     keterangan: pembayaran.keterangan || "",
     alamat: tagihan.pelanggan?.alamat || "",
+    // (opsional) kalau mau tampilkan rincian:
+    totalBulanIni: fmtIDR(totalBulanIni),
+    tagihanLalu: fmtIDR(carryOver),
+    statusText: isLunas ? "LUNAS" : "TERBAYAR SEBAGIAN", // optional
   };
 
   return (
@@ -162,17 +175,15 @@ html, body {
               <div className="logo" />
               <div className="brand">
                 <div className="company">{data.perusahaan}</div>
-                <div className="subtitle">
-                  {data.alamatPerusahaan}
-                </div>
-                <div className="subtitle">
-                  No. {data.nomorKwitansi}
-                </div>
+                <div className="subtitle">{data.alamatPerusahaan}</div>
+                <div className="subtitle">No. {data.nomorKwitansi}</div>
               </div>
             </div>
 
             {/* CARD: Info Pelanggan & Tagihan */}
-            <h1 className="text-center mt-2 font-semibold text-xl">Kwitansi Pembayaran</h1>
+            <h1 className="text-center mt-2 font-semibold text-xl">
+              Kwitansi Pembayaran
+            </h1>
             <div className="section">
               <div className="card">
                 <div className="row">
@@ -221,7 +232,7 @@ html, body {
                 <div className="row">
                   <div className="key">Status</div>
                   <div className="val">
-                    <span className="badge">LUNAS</span>
+                    <span className="badge">{data.statusText ?? "LUNAS"}</span>
                   </div>
                 </div>
                 {data.keterangan ? (

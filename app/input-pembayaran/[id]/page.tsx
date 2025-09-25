@@ -128,6 +128,9 @@ export default function InputPembayaranPage() {
         if (iso) setTanggalBayar(iso);
       }
       if (payDB.metode) setMetode(payDB.metode);
+      if (typeof payDB.keterangan === "string") {
+        setKeterangan(payDB.keterangan);
+      }
       return;
     }
   }, [t, payDB, nominalBayar]);
@@ -144,13 +147,6 @@ export default function InputPembayaranPage() {
       } catch {}
     })();
   }, []);
-
-  // kalau role warga, pastikan metode bukan TUNAI
-  useEffect(() => {
-    if (role === "WARGA" && metode === "TUNAI") {
-      setMetode("TRANSFER"); // fallback default
-    }
-  }, [role, metode]);
 
   // load tagihan
   useEffect(() => {
@@ -191,6 +187,9 @@ export default function InputPembayaranPage() {
       if (r.ok && d?.ok) {
         setPayDB(d.pembayaran);
         if (d.pembayaran?.metode) setMetode(d.pembayaran.metode as Metode);
+        if (!revisiMode && typeof d.pembayaran?.keterangan === "string") {
+          setKeterangan(d.pembayaran.keterangan);
+        }
       }
     } finally {
       setLoadingPay(false);
@@ -310,11 +309,27 @@ export default function InputPembayaranPage() {
     return <span className="text-green-600">Rp 0</span>;
   }
 
-  const tagihanFinal = t?.totalTagihan + t?.tagihanLalu ?? 0;
+  const tagihanFinal = (t?.totalTagihan ?? 0) + (t?.tagihanLalu ?? 0);
 
   // lock form kalau sudah PAID dan bisa di unlock admin
   const adminUnlock = role === "ADMIN" && revisiMode;
   const lockForm = t?.statusBayar === "PAID" && !adminUnlock;
+
+  // TUNAI tanpa bukti untuk ADMIN/PETUGAS (saat input / revisi)
+  const cashNoProof = role !== "WARGA" && metode === "TUNAI";
+
+  // Sembunyikan area bukti untuk warga kalau pembayaran dari admin adalah TUNAI
+  const hideProofForViewer =
+    (role === "WARGA" && payDB?.metode === "TUNAI") || cashNoProof; // admin input tunai → sembunyikan area bukti juga
+
+  // Bersihkan file sementara kalau mode TUNAI supaya tidak ada sisa preview saat pindah ke TUNAI.
+  useEffect(() => {
+    if (cashNoProof && (paymentProof || proofPreview)) {
+      if (proofPreview) URL.revokeObjectURL(proofPreview);
+      setPaymentProof(null);
+      setProofPreview(null);
+    }
+  }, [cashNoProof]); // jalan tiap kali metode berubah ke TUNAI oleh admin
 
   // === SUBMIT HANDLERS ===
 
@@ -322,8 +337,10 @@ export default function InputPembayaranPage() {
   const canSave = revisiMode
     ? Number(nominalBayar || 0) > 0 &&
       !!metode &&
-      (!!paymentProof || !!payDB?.buktiUrl)
-    : Number(nominalBayar || 0) > 0 && !!metode && !!paymentProof;
+      (cashNoProof || !!paymentProof || !!payDB?.buktiUrl)
+    : Number(nominalBayar || 0) > 0 &&
+      !!metode &&
+      (cashNoProof || !!paymentProof);
 
   // NEW: validasi ringan sebelum buka modal
   const handleClickSimpan = () => {
@@ -334,19 +351,22 @@ export default function InputPembayaranPage() {
       if (nominal <= 0) throw new Error("Nominal bayar harus lebih dari 0");
 
       if (!revisiMode) {
-        // Upload pertama kali (wajib file)
-        if (!paymentProof) throw new Error("Wajib upload bukti pembayaran");
+        if (!cashNoProof && !paymentProof) {
+          throw new Error(
+            "Wajib upload bukti pembayaran (kecuali Tunai oleh admin)"
+          );
+        }
         setOpenConfirmUpload(true);
       } else {
-        // Revisi (boleh pakai bukti lama atau ganti file)
-        if (!paymentProof && !payDB?.buktiUrl)
+        if (!cashNoProof && !paymentProof && !payDB?.buktiUrl) {
           throw new Error("Bukti pembayaran belum ada");
+        }
         setOpenConfirmSaveRevise(true);
       }
     } catch (e: any) {
       toast({
         title: "Gagal",
-        description: e?.message || "Lengkapi data pembayaran terlebih dahulu",
+        description: e?.message || "Lengkapi data pembayaran",
         variant: "destructive",
       });
     }
@@ -357,7 +377,6 @@ export default function InputPembayaranPage() {
     try {
       const nominal = Number(nominalBayar || 0);
       if (!t) throw new Error("Tagihan tidak ditemukan");
-      if (!paymentProof) throw new Error("Bukti pembayaran belum dipilih");
 
       const fd = new FormData();
       fd.set("tagihanId", t.id);
@@ -365,7 +384,10 @@ export default function InputPembayaranPage() {
       fd.set("tanggalBayar", tanggalBayar);
       fd.set("metodeBayar", metode);
       fd.set("keterangan", keterangan);
-      fd.set("buktiFile", paymentProof);
+      // HANYA kirim file kalau BUKAN TUNAI-admin
+      if (!cashNoProof && paymentProof) {
+        fd.set("buktiFile", paymentProof);
+      }
 
       const r = await fetch("/api/pelunasan", { method: "POST", body: fd });
       const data = await r.json();
@@ -455,19 +477,18 @@ export default function InputPembayaranPage() {
   }, [t?.statusVerif, revisiMode]);
 
   // NEW: data ringkasan untuk modal konfirmasi upload
-  const confirmData =
-    t && paymentProof
-      ? {
-          pelangganNama: t.pelangganNama,
-          pelangganKode: t.pelangganKode,
-          periode: t.periode,
-          nominal: Number(nominalBayar || 0),
-          metodeBayar: metode as Metode,
-          tanggalBayar,
-          fileName: paymentProof?.name || null,
-          note: keterangan || null,
-        }
-      : null;
+  const confirmData = t
+    ? {
+        pelangganNama: t.pelangganNama,
+        pelangganKode: t.pelangganKode,
+        periode: t.periode,
+        nominal: Number(nominalBayar || 0),
+        metodeBayar: metode as Metode,
+        tanggalBayar,
+        fileName: paymentProof?.name ?? null,
+        note: keterangan || null,
+      }
+    : null;
 
   // Handler masuk mode revisi & simpan revisi
   async function handleStartRevisi() {
@@ -521,7 +542,10 @@ export default function InputPembayaranPage() {
     fd.set("tanggalBayar", tanggalBayar);
     fd.set("metodeBayar", metode);
     fd.set("keterangan", keterangan);
-    if (paymentProof) fd.set("buktiFile", paymentProof); // opsional
+    // HANYA kirim file kalau BUKAN TUNAI-admin
+    if (!cashNoProof && paymentProof) {
+      fd.set("buktiFile", paymentProof);
+    }
 
     const r = await fetch(`/api/pembayaran/${payDB.id}`, {
       method: "PATCH",
@@ -602,6 +626,20 @@ export default function InputPembayaranPage() {
       });
     }
   }
+
+  // 1. Tampilkan kartu Tunai hanya jika:
+  //    - user bukan WARGA, ATAU
+  //    - user WARGA tapi pembayaran dari DB memang TUNAI (hasil input admin)
+  const showTunaiCard =
+    role !== "WARGA" || (role === "WARGA" && payDB?.metode === "TUNAI");
+
+  // 2. Auto-switch untuk WARGA HANYA jika bukan hasil input admin.
+  //    Artinya: kalau payDB.metode === "TUNAI", biarkan tetap TUNAI (jangan switch).
+  useEffect(() => {
+    if (role === "WARGA" && metode === "TUNAI" && payDB?.metode !== "TUNAI") {
+      setMetode("TRANSFER"); // fallback untuk warga yang mencoba pilih Tunai saat upload sendiri
+    }
+  }, [role, metode, payDB?.metode]);
 
   return (
     <div className="space-y-6">
@@ -795,7 +833,7 @@ export default function InputPembayaranPage() {
                           <Info className="h-5 w-5 mr-1" />
                           Mode Revisi Pembayaran Aktif
                         </div>
-                        <Button
+                        {/* <Button
                           variant="outline"
                           size="sm"
                           onClick={handleCancelRevisiAndApprove}
@@ -805,7 +843,7 @@ export default function InputPembayaranPage() {
                           }
                         >
                           Batal Revisi
-                        </Button>
+                        </Button> */}
                       </div>
                     </GlassCard>
                   )}
@@ -874,8 +912,8 @@ export default function InputPembayaranPage() {
                             className="grid grid-cols-1 sm:grid-cols-2 gap-3"
                             disabled={lockForm}
                           >
-                            {/* === TUNAI: hanya selain WARGA === */}
-                            {role !== "WARGA" && (
+                            {/* TUNAI: hanya selain WARGA yang input, warga hanya melihat ketika sudah diinputkan admin */}
+                            {showTunaiCard && (
                               <label className="flex items-start gap-3 rounded-xl border bg-card/50 p-3 cursor-pointer hover:bg-muted/40 transition data-[state=checked]:border-primary data-[state=checked]:bg-primary/5 data-[state=checked]:ring-1 data-[state=checked]:ring-primary/60">
                                 <RadioGroupItem
                                   value="TUNAI"
@@ -963,156 +1001,172 @@ export default function InputPembayaranPage() {
                           </RadioGroup>
                         </div>
 
-                        <div>
-                          <Label
-                            htmlFor="bukti"
-                            className="text-sm font-medium"
-                          >
-                            Bukti Pembayaran
-                            <span className="text-red-600">*</span>
-                          </Label>
-                          <div className="mt-1">
-                            <input
-                              id="bukti"
-                              type="file"
-                              accept="image/jpeg,image/png,application/pdf"
-                              onChange={onChangeProof}
-                              className="hidden"
-                              disabled={lockForm}
-                            />
+                        {/* Bukti Pembayaran */}
+                        {!hideProofForViewer ? (
+                          <div>
+                            <Label
+                              htmlFor="bukti"
+                              className="text-sm font-medium"
+                            >
+                              Bukti Pembayaran
+                              {!cashNoProof && (
+                                <span className="text-red-600">*</span>
+                              )}
+                            </Label>
+                            {cashNoProof && (
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Metode <b>TUNAI</b> oleh admin: bukti{" "}
+                                <b>tidak diperlukan</b>.
+                              </p>
+                            )}
 
-                            {/* 1) PRIORITAS: preview file BARU (paymentProof) */}
-                            {proofPreview && paymentProof ? (
-                              <div className="p-3 border rounded-lg bg-muted/20">
-                                {paymentProof.type.startsWith("image/") ? (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img
-                                    src={proofPreview}
-                                    alt="Bukti pembayaran (baru)"
-                                    className="w-full h-60 object-contain rounded-md bg-background"
-                                  />
-                                ) : (
-                                  <div className="flex items-center justify-between gap-3">
-                                    <div className="text-sm">
-                                      <p className="font-medium">
-                                        File PDF terunggah (baru)
-                                      </p>
-                                      <p className="text-muted-foreground">
-                                        {paymentProof.name}
-                                      </p>
+                            <div className="mt-1">
+                              <input
+                                id="bukti"
+                                type="file"
+                                accept="image/jpeg,image/png,application/pdf"
+                                onChange={onChangeProof}
+                                className="hidden"
+                                disabled={lockForm}
+                              />
+
+                              {/* 1) PRIORITAS: preview file BARU */}
+                              {proofPreview && paymentProof ? (
+                                <div className="p-3 border rounded-lg bg-muted/20">
+                                  {paymentProof.type.startsWith("image/") ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      src={proofPreview}
+                                      alt="Bukti pembayaran (baru)"
+                                      className="w-full h-60 object-contain rounded-md bg-background"
+                                    />
+                                  ) : (
+                                    <div className="flex items-center justify-between gap-3">
+                                      <div className="text-sm">
+                                        <p className="font-medium">
+                                          File PDF terunggah (baru)
+                                        </p>
+                                        <p className="text-muted-foreground">
+                                          {paymentProof.name}
+                                        </p>
+                                      </div>
+                                      <a
+                                        href={proofPreview}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="underline text-primary text-sm"
+                                      >
+                                        Buka PDF
+                                      </a>
                                     </div>
-                                    <a
-                                      href={proofPreview}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="underline text-primary text-sm"
-                                    >
-                                      Buka PDF
-                                    </a>
-                                  </div>
-                                )}
+                                  )}
 
-                                <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-                                  <span>
-                                    {paymentProof.name} •{" "}
-                                    {(
-                                      Number(paymentProof.size) /
-                                      1024 /
-                                      1024
-                                    ).toFixed(2)}{" "}
-                                    MB
-                                  </span>
-                                  <div className="flex gap-2">
-                                    {/* Kembali ke bukti lama (payDB) */}
-                                    {payDB?.buktiUrl && (
+                                  <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+                                    <span>
+                                      {paymentProof.name} •{" "}
+                                      {(
+                                        Number(paymentProof.size) /
+                                        1024 /
+                                        1024
+                                      ).toFixed(2)}{" "}
+                                      MB
+                                    </span>
+                                    <div className="flex gap-2">
+                                      {payDB?.buktiUrl && (
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={cancelReplaceProof}
+                                          className="bg-transparent"
+                                        >
+                                          <X className="w-4 h-4 mr-1" /> Batal
+                                          Ganti
+                                        </Button>
+                                      )}
                                       <Button
                                         type="button"
                                         variant="outline"
                                         size="sm"
-                                        onClick={cancelReplaceProof}
+                                        onClick={removeProof}
                                         className="bg-transparent"
                                       >
-                                        <X className="w-4 h-4 mr-1" /> Batal
-                                        Ganti
+                                        <X className="w-4 h-4 mr-1" /> Hapus
                                       </Button>
-                                    )}
-                                    {/* <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={removeProof} // kalau mau hapus total
-                                      className="bg-transparent"
-                                    >
-                                      <X className="w-4 h-4 mr-1" /> Hapus Semua
-                                    </Button> */}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            ) : /* 2) KEDUA: preview bukti LAMA dari DB */ payDB?.buktiUrl ? (
-                              <div className="p-3 border rounded-lg bg-muted/20">
-                                {payDB.buktiUrl
-                                  .toLowerCase()
-                                  .endsWith(".pdf") ? (
-                                  <object
-                                    data={payDB.buktiUrl}
-                                    type="application/pdf"
-                                    className="w-full h-60 rounded-md border"
-                                  />
-                                ) : (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img
-                                    src={payDB.buktiUrl}
-                                    alt="Bukti pembayaran"
-                                    className="w-full h-60 object-contain rounded-md bg-background"
-                                  />
-                                )}
-                                {revisiMode && (
-                                  <div className="mt-3 flex items-center justify-end">
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={onPickProof}
-                                      className="bg-transparent"
-                                      disabled={lockForm}
-                                    >
-                                      <Upload className="w-4 h-4 mr-1" /> Ganti
-                                      Bukti
-                                    </Button>
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              /* 3) TERAKHIR: tombol pilih file (ketika belum ada apa-apa) */
-                              <Button
-                                variant="outline"
-                                onClick={onPickProof}
-                                className="w-full h-32 border-2 border-dashed border-border/50 hover:border-border bg-transparent"
-                                type="button"
-                                disabled={lockForm}
-                              >
-                                <div className="text-center">
-                                  <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                                  <p className="text-sm text-muted-foreground text-wrap">
-                                    Klik untuk upload bukti pembayaran
-                                    (JPG/PNG/PDF)
-                                  </p>
+                              ) : /* 2) KEDUA: preview bukti LAMA dari DB */ payDB?.buktiUrl ? (
+                                <div className="p-3 border rounded-lg bg-muted/20">
+                                  {payDB.buktiUrl
+                                    .toLowerCase()
+                                    .endsWith(".pdf") ? (
+                                    <object
+                                      data={payDB.buktiUrl}
+                                      type="application/pdf"
+                                      className="w-full h-60 rounded-md border"
+                                    />
+                                  ) : (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      src={payDB.buktiUrl}
+                                      alt="Bukti pembayaran"
+                                      className="w-full h-60 object-contain rounded-md bg-background"
+                                    />
+                                  )}
+                                  {(revisiMode || role !== "WARGA") && (
+                                    <div className="mt-3 flex items-center justify-end">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={onPickProof}
+                                        className="bg-transparent"
+                                        disabled={lockForm}
+                                        hidden={lockForm}
+                                      >
+                                        <Upload className="w-4 h-4 mr-1" />{" "}
+                                        Ganti Bukti
+                                      </Button>
+                                    </div>
+                                  )}
                                 </div>
-                              </Button>
-                            )}
+                              ) : (
+                                /* 3) TERAKHIR: tombol pilih file (saat belum ada apa-apa) */
+                                <Button
+                                  variant="outline"
+                                  onClick={onPickProof}
+                                  className="w-full h-32 border-2 border-dashed border-border/50 hover:border-border bg-transparent"
+                                  type="button"
+                                  disabled={lockForm || cashNoProof}
+                                >
+                                  <div className="text-center">
+                                    <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                                    <p className="text-sm text-muted-foreground text-wrap">
+                                      Klik untuk upload bukti pembayaran
+                                      (JPG/PNG/PDF)
+                                    </p>
+                                  </div>
+                                </Button>
+                              )}
+                            </div>
                           </div>
-
-                          <div className="mt-4">
-                            <Label className="text-sm font-medium">
-                              Keterangan (opsional)
-                            </Label>
-                            <Input
-                              value={keterangan}
-                              onChange={(e) => setKeterangan(e.target.value)}
-                              className="mt-1"
-                              disabled={lockForm}
-                            />
+                        ) : (
+                          <div className="rounded-md p-3 bg-muted/30 text-xs text-muted-foreground">
+                            Pembayaran <b>TUNAI</b> — bukti pembayaran tidak
+                            ditampilkan.
                           </div>
+                        )}
+                        <div className="mt-4">
+                          <Label className="text-sm font-medium">
+                            Keterangan (opsional)
+                          </Label>
+                          <Input
+                            value={keterangan}
+                            onChange={(e) => setKeterangan(e.target.value)}
+                            className="mt-1"
+                            disabled={lockForm}
+                          />
                         </div>
                       </div>
                     </div>
@@ -1207,6 +1261,7 @@ export default function InputPembayaranPage() {
                         metodeBayar: metode,
                         tanggalBayar,
                         willReplaceFile: !!paymentProof,
+                        note: keterangan
                       }}
                     />
                   </div>

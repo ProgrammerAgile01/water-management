@@ -298,6 +298,7 @@ export async function PATCH(
         id: true,
         periode: true,
         totalTagihan: true,
+        tagihanLalu: true,
         pelangganId: true,
         statusVerif: true,
       },
@@ -318,13 +319,20 @@ export async function PATCH(
         { status: 400 }
       );
 
-    const sum = await prisma.pembayaran.aggregate({
-      where: { tagihanId: id, deletedAt: null },
-      _sum: { jumlahBayar: true },
-    });
-    const sudah = sum._sum.jumlahBayar ?? 0;
-    const statusBayar = sudah >= (t.totalTagihan || 0) ? "PAID" : "UNPAID";
-    await prisma.tagihan.update({ where: { id }, data: { statusBayar } });
+    // const sum = await prisma.pembayaran.aggregate({
+    //   where: { tagihanId: id, deletedAt: null },
+    //   _sum: { jumlahBayar: true },
+    // });
+    // const sudah = sum._sum.jumlahBayar ?? 0;
+
+    // NEW: total bulan ini + carry-over bulan lalu (bisa negatif/positif)
+    const totalBulanIni = t.totalTagihan ?? 0;
+    const carryOver = t.tagihanLalu ?? 0;
+    const totalDitagihkan = totalBulanIni + carryOver;
+
+    // GANTI: statusBayar berdasarkan totalDitagihkan
+    // const statusBayar = sudah >= totalDitagihkan ? "PAID" : "UNPAID";
+    // await prisma.tagihan.update({ where: { id }, data: { statusBayar } });
 
     // ambil pelanggan + setting
     const [pelanggan, setting] = await Promise.all([
@@ -341,7 +349,7 @@ export async function PATCH(
     // balas cepat ke frontend
     const responseBody = {
       ok: true,
-      tagihan: { ...t, statusBayar },
+      tagihan: { ...t, totalDitagihkan },
     };
     const res = NextResponse.json(responseBody);
 
@@ -371,7 +379,7 @@ export async function PATCH(
               tanggalBayar: pembayaran.tanggalBayar,
               metode: pembayaran.metode,
               jumlahBayar: pembayaran.jumlahBayar,
-              totalTagihan: t.totalTagihan || 0,
+              totalTagihan: totalDitagihkan,
             });
             await sendWaAndLog(pelanggan.wa!, text);
           } catch {}

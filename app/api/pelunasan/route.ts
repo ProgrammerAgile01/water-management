@@ -145,21 +145,62 @@ export async function POST(req: NextRequest) {
     const keterangan = String(form.get("keterangan") || "");
     const file = form.get("buktiFile") as File | null;
 
-    if (!tagihanId || !nominalBayar || !metodeRaw || !file) {
-      return NextResponse.json(
-        { ok: false, message: "Data wajib belum lengkap" },
-        { status: 400 }
-      );
-    }
+    // tentukan role user & nama admin (jika ada)
+    let adminName: string | null = null;
+    let userRole: "ADMIN" | "PETUGAS" | "WARGA" | null = null;
+    try {
+      const uid = await getAuthUserId(req);
+      if (uid) {
+        const u = await prisma.user.findUnique({
+          where: { id: uid },
+          select: { name: true, role: true },
+        });
+        userRole = (u?.role as any) || null;
+        if (u && u.role !== "WARGA") adminName = u.name ?? null;
+      }
+    } catch {}
 
     const allow = ["TUNAI", "TRANSFER", "EWALLET", "QRIS"] as const;
     const metode: MetodeBayar = (allow as readonly string[]).includes(metodeRaw)
       ? (metodeRaw as MetodeBayar)
       : MetodeBayar.TUNAI;
 
-    // ⬇️ simpan bukti ke UPLOAD_DIR & dapatkan URL publik
-    const saved = await saveUploadFile(file, "payment/bukti-bayar");
-    const buktiUrl = saved.publicUrl; // contoh: /api/file/payment/bukti-bayar/xxxxx.png
+    // RULE: WARGA TIDAK BOLEH TUNAI
+    if (userRole === "WARGA" && metode === MetodeBayar.TUNAI) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "WARGA tidak diperbolehkan memilih metode TUNAI.",
+        },
+        { status: 400 }
+      );
+    }
+
+    // validasi dasar (kecuali bukti, lihat needsProof)
+    if (!tagihanId || !nominalBayar || !metodeRaw) {
+      return NextResponse.json(
+        { ok: false, message: "Data wajib belum lengkap" },
+        { status: 400 }
+      );
+    }
+
+    // RULE: bukti wajib kecuali TUNAI oleh ADMIN/PETUGAS
+    const needsProof = !(metode === MetodeBayar.TUNAI && userRole !== "WARGA");
+    if (needsProof && !file) {
+      return NextResponse.json(
+        { ok: false, message: "Bukti pembayaran wajib diunggah" },
+        { status: 400 }
+      );
+    }
+
+    // simpan bukti jika ada; kalau TUNAI-admin → paksa null
+    let buktiUrl: string | null = null;
+    if (metode === MetodeBayar.TUNAI && userRole !== "WARGA") {
+      buktiUrl = null;
+    } else if (file) {
+      const saved = await saveUploadFile(file, "payment/bukti-bayar");
+      buktiUrl = saved.publicUrl; // contoh: /api/file/payment/bukti-bayar/xxxxx.png
+    }
 
     // Tanggal bayar versi lama
     // const tanggalBayar = tanggalStr ? new Date(tanggalStr) : new Date();
@@ -170,18 +211,6 @@ export async function POST(req: NextRequest) {
         ? new Date(tanggalStr) // pakai apa adanya
         : composeWithNowTime(tanggalStr) // cuma tanggal → tambah jam now
       : new Date(); // kosong → full now
-
-    let adminName: string | null = null;
-    try {
-      const uid = await getAuthUserId(req);
-      if (uid) {
-        const u = await prisma.user.findUnique({
-          where: { id: uid },
-          select: { name: true, role: true },
-        });
-        if (u && u.role !== "WARGA") adminName = u.name ?? null;
-      }
-    } catch {}
 
     // ========== TRANSAKSI ==========
     const pembayaran = await prisma.$transaction(async (tx) => {
