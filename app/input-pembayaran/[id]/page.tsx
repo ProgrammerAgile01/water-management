@@ -53,6 +53,8 @@ type TagihanDetail = {
   meterAwal: number | null;
   meterAkhir: number | null;
   pemakaianM3: number | null;
+
+  info?: string | null;
 };
 
 type PembayaranLite = {
@@ -225,6 +227,28 @@ export default function InputPembayaranPage() {
       )}-${String(d.getDate()).padStart(2, "0")}`;
     }
     return "";
+  }
+
+  // helper parse info
+  function parsePrevCleared(info?: string | null): string[] {
+    if (!info) return [];
+    const m = info.match(/\[PREV_CLEARED:([0-9,\-\s]+)\]/);
+    if (!m) return [];
+    return m[1]
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  function parseCredit(info?: string | null): number {
+    if (!info) return 0;
+    const m = info.match(/\[CREDIT:(\d+)\]/);
+    return m ? Number(m[1]) : 0;
+  }
+  function formatPeriodeID(p: string) {
+    return new Date(`${p}-01`).toLocaleDateString("id-ID", {
+      month: "long",
+      year: "numeric",
+    });
   }
 
   // preview gambar / bukti
@@ -779,6 +803,35 @@ export default function InputPembayaranPage() {
                         </span>
                         <span>{renderSisaKurang(t.tagihanLalu)}</span>
                       </div>
+                      {/* Badge: tagihan bulan lalu lunas */}
+                      {(() => {
+                        const prev = parsePrevCleared(t?.info);
+                        const show =
+                          prev.length > 0 && (t?.tagihanLalu ?? 0) > 0;
+                        if (!show) return null;
+                        return (
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs rounded px-2 py-0.5 bg-green-100 text-green-700">
+                              (tagihan bulan lalu lunas)
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              Menutup: {prev.map(formatPeriodeID).join(", ")}
+                            </span>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Info lebih bayar */}
+                      {/* {(() => {
+                        const credit = parseCredit(t?.info);
+                        if (!credit) return null;
+                        return (
+                          <div className="mt-1 text-xs text-blue-700">
+                            Lebih bayar {fmt(credit)} (mengurangi tagihan
+                            berikutnya)
+                          </div>
+                        );
+                      })()} */}
 
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">
@@ -1261,7 +1314,7 @@ export default function InputPembayaranPage() {
                         metodeBayar: metode,
                         tanggalBayar,
                         willReplaceFile: !!paymentProof,
-                        note: keterangan
+                        note: keterangan,
                       }}
                     />
                   </div>

@@ -9,7 +9,9 @@
     "lint": "next lint",
     "seed": "tsx prisma/seed.ts",
     "dump:pelanggan": "tsx scripts/dump-pelanggan.ts",
-    "seed:pelanggan": "tsx prisma/seed-pelanggan.ts"
+    "seed:pelanggan": "tsx prisma/seed-pelanggan.ts",
+    "backfill:info:dry": "DRY_RUN=1 ts-node scripts/backfill-info.ts",
+    "backfill:info": "DRY_RUN=0 ts-node scripts/backfill-info.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

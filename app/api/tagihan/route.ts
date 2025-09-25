@@ -12,8 +12,18 @@ function parsePeriodeYM(p?: string | null): { y: number; m: number } | null {
     if (y > 1900 && m >= 1 && m <= 12) return { y, m };
   }
   const idMonths: Record<string, number> = {
-    januari: 1, februari: 2, maret: 3, april: 4, mei: 5, juni: 6,
-    juli: 7, agustus: 8, september: 9, oktober: 10, november: 11, desember: 12,
+    januari: 1,
+    februari: 2,
+    maret: 3,
+    april: 4,
+    mei: 5,
+    juni: 6,
+    juli: 7,
+    agustus: 8,
+    september: 9,
+    oktober: 10,
+    november: 11,
+    desember: 12,
   };
   const parts = s.replace("-", " ").split(" ");
   if (parts.length >= 2) {
@@ -43,7 +53,10 @@ export async function GET(req: NextRequest) {
     const periodeQ = url.searchParams.get("periode") || undefined; // jika tidak ada → pakai latest
     const statusQRaw = url.searchParams.get("status") || undefined;
 
-    const page = Math.max(parseInt(url.searchParams.get("page") || "1", 10) || 1, 1);
+    const page = Math.max(
+      parseInt(url.searchParams.get("page") || "1", 10) || 1,
+      1
+    );
     const perPageRaw = parseInt(url.searchParams.get("perPage") || "10", 10);
     const perPage = Math.min(Math.max(perPageRaw || 10, 1), 100);
     const skip = (page - 1) * perPage;
@@ -51,16 +64,22 @@ export async function GET(req: NextRequest) {
 
     // ===== role info (header + fallback query) =====
     const roleHeader = req.headers.get("x-user-role");
-    const uidHeader  = req.headers.get("x-user-id");
-    const roleQuery  = url.searchParams.get("role");
-    const uidQuery   = url.searchParams.get("uid");
-    const role  = (roleHeader || roleQuery || "ADMIN") as "ADMIN"|"PETUGAS"|"WARGA";
+    const uidHeader = req.headers.get("x-user-id");
+    const roleQuery = url.searchParams.get("role");
+    const uidQuery = url.searchParams.get("uid");
+    const role = (roleHeader || roleQuery || "ADMIN") as
+      | "ADMIN"
+      | "PETUGAS"
+      | "WARGA";
     const userId = uidHeader || uidQuery || null;
 
     // ===== 1) scope periode & latestPeriode =====
     const wherePeriodsScope: any = { deletedAt: null };
     if (role === "WARGA" && userId) {
-      const pel = await prisma.pelanggan.findUnique({ where: { userId }, select: { id: true } });
+      const pel = await prisma.pelanggan.findUnique({
+        where: { userId },
+        select: { id: true },
+      });
       if (pel) wherePeriodsScope.pelangganId = pel.id;
       else wherePeriodsScope.pelangganId = "__none__"; // supaya kosong
     }
@@ -70,7 +89,9 @@ export async function GET(req: NextRequest) {
       select: { periode: true },
     });
 
-    const periodesUnique = Array.from(new Set(periodsRaw.map(p => p.periode))).filter(Boolean) as string[];
+    const periodesUnique = Array.from(
+      new Set(periodsRaw.map((p) => p.periode))
+    ).filter(Boolean) as string[];
     periodesUnique.sort(comparePeriodeDesc);
     const latestPeriode = periodesUnique[0] ?? "";
 
@@ -80,7 +101,8 @@ export async function GET(req: NextRequest) {
     if (statusQRaw) {
       const s = statusQRaw.toUpperCase();
       if (s === "PAID" || s === "LUNAS") where.statusBayar = "PAID";
-      else if (s === "UNPAID" || s === "BELUM-LUNAS") where.statusBayar = { not: "PAID" };
+      else if (s === "UNPAID" || s === "BELUM-LUNAS")
+        where.statusBayar = { not: "PAID" };
     }
 
     if (periodeQ) where.periode = periodeQ;
@@ -95,7 +117,14 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({
           ok: true,
           data: [],
-          meta: { page, perPage, total: 0, totalPages: 0, latestPeriode, periodes: periodesUnique },
+          meta: {
+            page,
+            perPage,
+            total: 0,
+            totalPages: 0,
+            latestPeriode,
+            periodes: periodesUnique,
+          },
         });
       }
       where.pelangganId = pel.id;
@@ -115,11 +144,15 @@ export async function GET(req: NextRequest) {
     const tagihans = await prisma.tagihan.findMany({
       where,
       orderBy: [{ createdAt: "desc" }],
-      skip, take,
+      skip,
+      take,
       include: {
         pelanggan: {
           select: {
-            id: true, userId: true, kode: true, nama: true,
+            id: true,
+            userId: true,
+            kode: true,
+            nama: true,
             zona: { select: { id: true, nama: true } },
           },
         },
@@ -127,8 +160,12 @@ export async function GET(req: NextRequest) {
           orderBy: { tanggalBayar: "desc" },
           take: 1,
           select: {
-            id: true, tanggalBayar: true, jumlahBayar: true,
-            buktiUrl: true, metode: true, keterangan: true,
+            id: true,
+            tanggalBayar: true,
+            jumlahBayar: true,
+            buktiUrl: true,
+            metode: true,
+            keterangan: true,
           },
         },
         // ★ ambil angka meter langsung dari relasi 1:1
@@ -138,7 +175,15 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    const data = tagihans.map(t => {
+    // NOTE: karena kita pakai include di atas, field top-level `info` tidak otomatis ikut.
+    // Solusi: fetch id->info dalam batch kecil (supaya tetap minimal perubahan)
+    const infos = await prisma.tagihan.findMany({
+      where: { id: { in: tagihans.map((t) => t.id) } },
+      select: { id: true, info: true },
+    });
+    const infoMap = new Map(infos.map((i) => [i.id, i.info]));
+
+    const data = tagihans.map((t) => {
       const last = t.pembayarans[0] || null;
       const tagihanBulanIni = t.totalTagihan || 0;
       const totalDue = (t.tagihanLalu || 0) + tagihanBulanIni;
@@ -154,9 +199,9 @@ export async function GET(req: NextRequest) {
         zona: t.pelanggan?.zona?.nama ?? "-",
 
         // ← langsung dari Tagihan.catatMeter
-        meterAwal:  t.catatMeter?.meterAwal ?? null,
+        meterAwal: t.catatMeter?.meterAwal ?? null,
         meterAkhir: t.catatMeter?.meterAkhir ?? null,
-        pemakaian:  t.catatMeter?.pemakaianM3 ?? null,
+        pemakaian: t.catatMeter?.pemakaianM3 ?? null,
 
         tarifPerM3: t.tarifPerM3,
         abonemen: t.abonemen,
@@ -169,11 +214,13 @@ export async function GET(req: NextRequest) {
         tagihanLalu: t.tagihanLalu,
         tagihanBulanIni: tagihanBulanIni,
 
-        tanggalBayar:    last?.tanggalBayar ?? null,
-        jumlahBayar:     last?.jumlahBayar ?? null,
+        tanggalBayar: last?.tanggalBayar ?? null,
+        jumlahBayar: last?.jumlahBayar ?? null,
         buktiPembayaran: last?.buktiUrl ?? null,
-        metode:          last?.metode ?? null,
-        keterangan:      last?.keterangan ?? null,
+        metode: last?.metode ?? null,
+        keterangan: last?.keterangan ?? null,
+
+        info: infoMap.get(t.id) ?? null,
 
         // tetap: input hanya untuk periode terakhir
         canInputPayment: Boolean(latestPeriode) && t.periode === latestPeriode,
@@ -184,13 +231,19 @@ export async function GET(req: NextRequest) {
       ok: true,
       data,
       meta: {
-        page, perPage, total, totalPages: Math.ceil(total / perPage),
+        page,
+        perPage,
+        total,
+        totalPages: Math.ceil(total / perPage),
         latestPeriode,
         periodes: periodesUnique, // untuk dropdown filter di UI
       },
     });
   } catch (e: any) {
     console.error(e);
-    return NextResponse.json({ ok: false, message: e?.message ?? "Error" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, message: e?.message ?? "Error" },
+      { status: 500 }
+    );
   }
 }

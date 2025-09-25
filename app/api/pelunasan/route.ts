@@ -134,6 +134,12 @@ function composeWithNowTime(dateStr: string) {
   return base;
 }
 
+// ================ HELPER INFO (append) ================
+function appendInfo(info: string | null | undefined, lines: string[]) {
+  const add = lines.filter(Boolean).join("\n");
+  return info ? `${info}\n${add}` : add;
+}
+
 // ================ HANDLER ================
 export async function POST(req: NextRequest) {
   try {
@@ -214,90 +220,138 @@ export async function POST(req: NextRequest) {
 
     // ========== TRANSAKSI ==========
     const pembayaran = await prisma.$transaction(async (tx) => {
-      // 1) simpan pembayaran
+      // 0) Anchor (bulan aktif yang sedang dibayar)
+      const anchor = await tx.tagihan.findUnique({
+        where: { id: tagihanId },
+        include: {
+          pelanggan: { select: { id: true, nama: true, kode: true } },
+          pembayarans: { where: { deletedAt: null } },
+        },
+      });
+      if (!anchor) throw new Error("Tagihan tidak ditemukan");
+
+      const pelangganId = anchor.pelangganId;
+      const periodeAktif = anchor.periode;
+
+      // 1) Simpan 1 baris pembayaran DI ANCHOR (keterangan murni dari user/admin)
       const pay = await tx.pembayaran.create({
         data: {
-          tagihanId,
+          tagihanId: anchor.id,
           jumlahBayar: Math.round(nominalBayar),
           tanggalBayar,
-          buktiUrl, // ⬅️ simpan URL API, bukan path /public
+          buktiUrl,
           adminBayar: adminName,
           metode,
           keterangan: keterangan || null,
         },
       });
 
-      // 2) hitung ulang sisaKurang tagihan ini
-      const agg = await tx.pembayaran.aggregate({
-        where: { tagihanId, deletedAt: null },
+      // 2) Ambil SEMUA tagihan pelanggan urut lama→baru utk alokasi virtual (tanpa mengubah angka history)
+      const tags = await tx.tagihan.findMany({
+        where: { pelangganId, deletedAt: null },
+        orderBy: { periode: "asc" },
+        include: { pembayarans: { where: { deletedAt: null } } },
+      });
+
+      // helper sisa (berdasarkan snapshot bulan itu)
+      const calcSisa = (t: (typeof tags)[number]) =>
+        (t.tagihanLalu || 0) +
+        (t.totalTagihan || 0) +
+        (t.denda || 0) -
+        t.pembayarans.reduce((a, b) => a + b.jumlahBayar, 0);
+
+      let dana = Math.round(nominalBayar);
+      const clearedPeriods: string[] = [];
+
+      for (const t of tags) {
+        if (dana <= 0) break;
+        const before = calcSisa(t); // posisi snapshot bulan tsb
+        if (before <= 0) continue; // sudah lunas/kredit
+
+        const potong = Math.min(before, dana);
+        const after = before - potong; // hasil *virtual* sesudah alokasi
+        dana -= potong;
+
+        // IMMUTABLE: JANGAN update sisa/status di bulan lama
+        // cukup tandai kalau DIA TERTUTUP (from >0 to <=0) & bukan anchor
+        if (before > 0 && after <= 0 && t.id !== anchor.id) {
+          await tx.tagihan.update({
+            where: { id: t.id },
+            data: {
+              info: appendInfo(t.info, [
+                `Dibayarkan di periode ${periodeAktif}`, // human readable
+                `[CLOSED_BY:${periodeAktif}]`, // machine tag
+              ]),
+            },
+          });
+          clearedPeriods.push(t.periode);
+        }
+      }
+
+      // 3) Tag metadata di ANCHOR (bulan aktif)
+      if (clearedPeriods.length) {
+        await tx.tagihan.update({
+          where: { id: anchor.id },
+          data: {
+            info: appendInfo(anchor.info, [
+              `Termasuk pelunasan tagihan lalu: ${clearedPeriods.join(", ")}`,
+              `[PREV_CLEARED:${clearedPeriods.join(", ")}]`,
+            ]),
+          },
+        });
+      }
+
+      // 4) Hitung posisi ANCHOR sekarang (boleh negatif → kredit)
+      const anchorAfterAgg = await tx.pembayaran.aggregate({
+        where: { tagihanId: anchor.id, deletedAt: null },
         _sum: { jumlahBayar: true },
       });
+      const paidAnchor = anchorAfterAgg._sum.jumlahBayar || 0;
+      const sisaAnchor =
+        (anchor.tagihanLalu || 0) +
+        (anchor.totalTagihan || 0) +
+        (anchor.denda || 0) -
+        paidAnchor;
 
-      const t = await tx.tagihan.findUnique({
-        where: { id: tagihanId },
-        select: {
-          id: true,
-          pelangganId: true,
-          periode: true,
-          totalTagihan: true,
-          tagihanLalu: true,
-        },
-      });
-      if (!t) throw new Error("Tagihan tidak ditemukan (recalc)");
-
-      const totalBulanIni = t.totalTagihan ?? 0;
-      const carry = t.tagihanLalu ?? 0;
-      const totalDue = totalBulanIni + carry;
-      const totalPaid = agg._sum.jumlahBayar ?? 0;
-      const sisaKurang = totalDue - totalPaid;
-
-      // === Opsi 1: statusBayar = PAID jika sudah ada pembayaran (berapa pun)
-      const statusBayar = totalPaid > 0 ? "PAID" : "UNPAID";
+      const infoWithCredit =
+        sisaAnchor < 0
+          ? appendInfo(
+              (await tx.tagihan.findUnique({ where: { id: anchor.id } }))!.info,
+              [`[CREDIT:${Math.abs(sisaAnchor)}]`]
+            )
+          : undefined;
 
       await tx.tagihan.update({
-        where: { id: t.id },
+        where: { id: anchor.id },
         data: {
-          sisaKurang, // untuk menentukan "lunas" (sisaKurang <= 0)
-          statusBayar, // hanya menandai "sudah bayar" vs "belum bayar"
+          sisaKurang: sisaAnchor, // bulan aktif boleh berubah (termasuk negatif = kredit)
+          statusBayar:
+            sisaAnchor <= 0 ? "PAID" : paidAnchor > 0 ? "PAID" : "UNPAID",
+          ...(infoWithCredit ? { info: infoWithCredit } : {}),
         },
       });
 
-      // 3) sinkronkan ke BULAN BERIKUT (jika sudah ada tagihannya)
-      const periodeNext = nextMonth(t.periode);
+      // 5) (opsional) jika record bulan berikut SUDAH ada, sinkron tagihanLalu = sisaAnchor
+      const periodeNext = nextMonth(periodeAktif);
       const nextT = await tx.tagihan.findUnique({
-        where: {
-          pelangganId_periode: {
-            pelangganId: t.pelangganId,
-            periode: periodeNext,
-          },
-        },
+        where: { pelangganId_periode: { pelangganId, periode: periodeNext } },
         select: { id: true, totalTagihan: true },
       });
-
       if (nextT) {
-        // propagate kredit/debit ke bulan berikut
-        await tx.tagihan.update({
-          where: { id: nextT.id },
-          data: { tagihanLalu: sisaKurang },
-        });
-
-        const aggNext = await tx.pembayaran.aggregate({
+        const paidNextAgg = await tx.pembayaran.aggregate({
           where: { tagihanId: nextT.id, deletedAt: null },
           _sum: { jumlahBayar: true },
         });
-
-        const totalPaidNext = aggNext._sum.jumlahBayar ?? 0;
-        const totalDueNext = (nextT.totalTagihan ?? 0) + sisaKurang;
-        const sisaNext = totalDueNext - totalPaidNext;
-
-        // === Opsi 1 untuk bulan berikut: statusBayar = PAID jika ada pembayaran di bulan tsb
-        const statusNext = totalPaidNext > 0 ? "PAID" : "UNPAID";
+        const paidNext = paidNextAgg._sum.jumlahBayar || 0;
+        const sisaNext = sisaAnchor + (nextT.totalTagihan || 0) - paidNext; // denda bisa ditambah kalau ada
 
         await tx.tagihan.update({
           where: { id: nextT.id },
           data: {
+            tagihanLalu: sisaAnchor, // bisa negatif (kredit)
             sisaKurang: sisaNext,
-            statusBayar: statusNext,
+            statusBayar:
+              sisaNext <= 0 ? "PAID" : paidNext > 0 ? "PARTIAL" : "UNPAID",
           },
         });
       }

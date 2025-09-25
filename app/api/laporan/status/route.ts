@@ -49,6 +49,8 @@ export async function GET(req: NextRequest) {
 
       pelangganId: t.pelangganId,
       tagihanId: t.id,
+
+      info: t.info ?? null,
     };
   });
 

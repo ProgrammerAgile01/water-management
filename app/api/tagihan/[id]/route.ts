@@ -71,6 +71,8 @@ export async function GET(
         statusVerif: t.statusVerif,
         tglJatuhTempo: t.tglJatuhTempo,
 
+        info: t.info ?? null,
+
         // ★ angka meter dari relasi; aman walau periode dimajukan
         meterAwal: t.catatMeter?.meterAwal ?? null,
         meterAkhir: t.catatMeter?.meterAkhir ?? null,

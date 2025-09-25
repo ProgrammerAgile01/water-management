@@ -121,6 +121,7 @@ export async function GET(req: NextRequest) {
       dibayar,
       sisaKurang,
       tglJatuhTempo: tagihan.tglJatuhTempo,
+      info: tagihan.info ?? null,
       pembayaran: tagihan.pembayarans.map((p) => ({
         id: p.id,
         tanggalBayar: p.tanggalBayar,
