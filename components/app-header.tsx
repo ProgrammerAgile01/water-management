@@ -20,6 +20,9 @@ import {
   IdCard,
   HistoryIcon,
   Phone,
+  LibraryIcon,
+  Droplet,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter, usePathname } from "next/navigation";
@@ -143,6 +146,12 @@ const MENU_ITEMS: MenuItem[] = [
     roles: ["ADMIN", "OPERATOR"],
   },
   {
+    href: "/inventaris",
+    label: "Inventaris",
+    icon: LibraryIcon,
+    roles: ["ADMIN", "OPERATOR", "PETUGAS"],
+  },
+  {
     href: "/pengeluaran",
     label: "Pengeluaran",
     icon: CreditCard,
@@ -155,6 +164,12 @@ const MENU_ITEMS: MenuItem[] = [
     roles: ["ADMIN", "OPERATOR"],
   },
   {
+    href: "/laporan/konsumsi-zona",
+    label: "Laporan Konsumsi Zona",
+    icon: Droplet,
+    roles: ["ADMIN", "OPERATOR"],
+  },
+  {
     href: "/tools/import-export",
     label: "Import/Export",
     icon: FileSpreadsheet,
@@ -164,6 +179,12 @@ const MENU_ITEMS: MenuItem[] = [
     href: "/laporan-status-pembayaran",
     label: "Laporan Status Pembayaran",
     icon: FileText,
+    roles: ["ADMIN"],
+  },
+  {
+    href: "/laporan/laba-rugi",
+    label: "Laporan Laba & Rugi",
+    icon: TrendingUp,
     roles: ["ADMIN"],
   },
   {
@@ -203,7 +224,9 @@ const PATH_LABELS: Record<string, string> = {
   "/biaya": "Biaya",
   "/pengeluaran": "Pengeluaran",
   "/laporan-summary": "Laporan Summary",
+  "/laporan/konsumsi-zona": "Laporan Konsumsi Zona",
   "/laporan-status-pembayaran": "Laporan Status Pembayaran",
+  "/laporan/laba-rugi": "Laporan Laba & Rugi",
   "/laporan/keuangan": "Laporan Keuangan",
   "/pengaturan": "Pengaturan",
   "/tools/import-export": "Import/Export",

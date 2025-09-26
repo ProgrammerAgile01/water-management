@@ -4,9 +4,8 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-function isYm(x?: string | null) {
-  return !!x && /^\d{4}-\d{2}$/.test(x);
-}
+const isYm = (x?: string | null) => !!x && /^\d{4}-\d{2}$/.test(x || "");
+
 function monthRange(ym: string) {
   const [y, m] = ym.split("-").map(Number);
   const start = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0));
@@ -42,7 +41,7 @@ export async function GET(req: NextRequest) {
     }
     const { start, end } = clampRange(periode, from, to);
 
-    // === MASUK: Pembayaran (respect soft delete)
+    // === MASUK: Pembayaran
     let pay = await prisma.pembayaran.findMany({
       where: { deletedAt: null, tanggalBayar: { gte: start, lt: end } },
       select: {
@@ -65,14 +64,24 @@ export async function GET(req: NextRequest) {
     }
     const totalMasuk = pay.reduce((s, p) => s + (p.jumlahBayar || 0), 0);
 
-    // === KELUAR: PengeluaranDetail — filter lewat pengeluaran.tanggalInput
+    // === KELUAR: PengeluaranDetail (header.tanggalInput)
     let outs = await prisma.pengeluaranDetail.findMany({
-      where: { pengeluaran: { tanggalInput: { gte: start, lt: end } } }, // <<—
+      where: { pengeluaran: { tanggalInput: { gte: start, lt: end } } },
       select: {
         nominal: true,
         keterangan: true,
         masterBiaya: { select: { nama: true } },
         pengeluaran: { select: { noBulan: true } },
+      },
+    });
+
+    // === KELUAR tambahan: Purchase
+    let purchases = await prisma.purchase.findMany({
+      where: { deletedAt: null, tanggal: { gte: start, lt: end } },
+      select: {
+        total: true,
+        supplier: true,
+        item: { select: { nama: true } },
       },
     });
 
@@ -83,8 +92,26 @@ export async function GET(req: NextRequest) {
         const no = String(d.pengeluaran?.noBulan || "").toLowerCase();
         return c.includes(q) || k.includes(q) || no.includes(q);
       });
+      purchases = purchases.filter((p) => {
+        const s = String(p.supplier || "").toLowerCase();
+        const i = String(p.item?.nama || "").toLowerCase();
+        return s.includes(q) || i.includes(q);
+      });
     }
-    const totalKeluar = outs.reduce((s, d) => s + (d.nominal || 0), 0);
+
+    const totalKeluarPengeluaran = outs.reduce(
+      (s, d) => s + (d.nominal || 0),
+      0
+    );
+    const totalKeluarPurchase = purchases.reduce(
+      (s, p) => s + (p.total || 0),
+      0
+    );
+    const totalKeluar = totalKeluarPengeluaran + totalKeluarPurchase;
+
+    // saldo awal (akumulasi sebelum periode) bisa kamu isi jika sudah ada logikanya,
+    // untuk sekarang biar konsisten seperti sebelumnya:
+    const saldoAwal = 0;
 
     return NextResponse.json({
       ok: true,
@@ -92,7 +119,8 @@ export async function GET(req: NextRequest) {
         periode,
         totalMasuk,
         totalKeluar,
-        saldoAkhir: totalMasuk - totalKeluar,
+        saldoAwal,
+        saldoAkhir: saldoAwal + totalMasuk - totalKeluar,
       },
     });
   } catch (e: any) {

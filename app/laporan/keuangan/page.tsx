@@ -1,3 +1,4 @@
+// app/(...)/laporan-keuangan/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -34,40 +35,40 @@ import {
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 
-/* ========================
-   Types
-   ======================== */
+/* ===== Types ===== */
 type MoneyFlow = "ALL" | "IN" | "OUT";
 
 type Mutasi = {
   id: string;
-  tanggal: string; // "YYYY-MM-DD"
-  jam?: string | null; // "HH:mm:ss"
+  tanggal: string;
+  jam?: string | null;
   tipe: "IN" | "OUT";
   kategori?: string | null;
   metode?: string | null;
   keterangan?: string | null;
   jumlah: number;
-  refCode?: string | null;
+  refCode?: string | null; // biasanya Tagihan.id atau "YYYY-MM"
   createdAt?: string | null;
-  statusVerif?: string | null; // VERIFIKASI tagihan (IN saja)
+  statusVerif?: string | null;
 };
 
 type Summary = {
-  periode: string; // "YYYY-MM"
+  periode: string;
+  saldoAwal: number;
   totalMasuk: number;
   totalKeluar: number;
   saldoAkhir: number;
 };
 
-/* ========================
-   Utils
-   ======================== */
+/* ===== Utils ===== */
 const fmtRp = (n: number) => "Rp " + Number(n || 0).toLocaleString("id-ID");
-const fmtRpTxt = (n: number) => "Rp " + Number(n || 0).toLocaleString("id-ID"); // untuk Excel (string)
+const fmtRpTxt = (n: number) => "Rp " + Number(n || 0).toLocaleString("id-ID");
+
 function ymToLong(ym: string) {
   if (!ym) return "";
-  const d = new Date(`${ym}-01T00:00:00`);
+  const m = ym.match(/^(\d{4})-(\d{1,2})$/);
+  const fixed = m ? `${m[1]}-${String(Number(m[2])).padStart(2, "0")}` : ym;
+  const d = new Date(`${fixed}-01T00:00:00`);
   return d.toLocaleDateString("id-ID", { month: "long", year: "numeric" });
 }
 function joinDateTime(tgl?: string, jam?: string | null) {
@@ -86,10 +87,18 @@ function formatDt(tgl?: string, jam?: string | null) {
     minute: "2-digit",
   });
 }
+const isYm = (s?: string | null) => !!s && /^\d{4}-\d{2}$/.test(s || "");
 
-/* ========================
-   Page
-   ======================== */
+// debounce sederhana
+function useDebounced<T>(value: T, delay = 300) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return debounced;
+}
+
 export default function LaporanKeuanganPage() {
   const [selectedYM, setSelectedYM] = useState<string>("");
   const [months, setMonths] = useState<string[]>([]);
@@ -98,8 +107,11 @@ export default function LaporanKeuanganPage() {
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
 
+  const qDebounced = useDebounced(q, 300);
+
   const [summary, setSummary] = useState<Summary>({
     periode: "",
+    saldoAwal: 0,
     totalMasuk: 0,
     totalKeluar: 0,
     saldoAkhir: 0,
@@ -111,37 +123,61 @@ export default function LaporanKeuanganPage() {
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<Mutasi | null>(null);
 
-  // INIT: load daftar bulan
+  // pagination (client)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [flow, qDebounced, dateFrom, dateTo, selectedYM]);
+
+  // load daftar bulan
   useEffect(() => {
     (async () => {
       try {
         const r = await fetch("/api/laporan/keuangan/months");
         const j = await r.json();
-        if (j?.ok) {
-          setMonths(j.periods || []);
-          if (j.periods?.length) setSelectedYM(j.periods[0]);
+        if (j?.ok && Array.isArray(j.periods) && j.periods.length) {
+          setMonths(j.periods);
+          setSelectedYM(j.periods[0]);
+        } else {
+          const now = new Date();
+          const fallback = `${now.getUTCFullYear()}-${String(
+            now.getUTCMonth() + 1
+          ).padStart(2, "0")}`;
+          setMonths([fallback]);
+          setSelectedYM(fallback);
         }
       } catch {
-        setMonths([]);
+        const now = new Date();
+        const fallback = `${now.getUTCFullYear()}-${String(
+          now.getUTCMonth() + 1
+        ).padStart(2, "0")}`;
+        setMonths([fallback]);
+        setSelectedYM(fallback);
       }
     })();
   }, []);
 
-  // AUTO load saat periode berubah
   useEffect(() => {
-    if (!selectedYM) return;
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (selectedYM) loadData();
   }, [selectedYM]);
+  useEffect(() => {
+    if (selectedYM) loadData();
+  }, [flow, qDebounced, dateFrom, dateTo]);
+
+  const API_PAGE_SIZE = 1000;
+  const MODE = "accrual"; // <- DI-LOCK ACCRUAL
 
   async function loadData() {
-    if (!selectedYM) return;
     setLoading(true);
     try {
       const params = new URLSearchParams({
         periode: selectedYM,
         flow,
-        q,
+        mode: MODE, // pakai accrual
+        q: qDebounced,
+        page: "1",
+        pageSize: String(API_PAGE_SIZE),
         ...(dateFrom ? { from: dateFrom } : {}),
         ...(dateTo ? { to: dateTo } : {}),
       }).toString();
@@ -162,17 +198,27 @@ export default function LaporanKeuanganPage() {
     }
   }
 
-  // filter client-side tambahan + sort
+  // keterangan tampilan; untuk pembayaran tagihan → “Pembayaran Tagihan <Bulan Tahun>”
+  const displayKet = (m: Mutasi) => {
+    if ((m.kategori || "").toLowerCase() === "pembayaran tagihan") {
+      const per = isYm(m.refCode) ? (m.refCode as string) : selectedYM;
+      return `Pembayaran Tagihan ${ymToLong(per)}`;
+      // kalau perlu tambahkan nama pelanggan: "Pembayaran Tagihan September 2025 — By <nama>"
+    }
+    return m.keterangan || "-";
+  };
+
+  // filter + SORT ASCENDING by tanggal+jam (dan createdAt)
   const filtered = useMemo(() => {
     let data = [...mutasi];
     if (flow !== "ALL") data = data.filter((d) => d.tipe === flow);
-    if (q.trim()) {
-      const s = q.toLowerCase();
+    if (qDebounced.trim()) {
+      const s = qDebounced.toLowerCase();
       data = data.filter(
         (d) =>
           (d.kategori || "").toLowerCase().includes(s) ||
           (d.metode || "").toLowerCase().includes(s) ||
-          (d.keterangan || "").toLowerCase().includes(s) ||
+          displayKet(d).toLowerCase().includes(s) ||
           (d.refCode || "").toLowerCase().includes(s) ||
           (d.statusVerif || "").toLowerCase().includes(s)
       );
@@ -189,19 +235,28 @@ export default function LaporanKeuanganPage() {
         (d) => (joinDateTime(d.tanggal, d.jam)?.getTime() || 0) <= toTs
       );
     }
-    // urut terbaru (tema sama dengan halaman status)
+
+    // ASC
     data.sort((a, b) => {
-      const da = new Date(`${a.tanggal}T${a.jam || "00:00:00"}`).getTime();
-      const db = new Date(`${b.tanggal}T${b.jam || "00:00:00"}`).getTime();
-      if (db !== da) return db - da;
+      const ta = new Date(`${a.tanggal}T${a.jam || "00:00:00"}`).getTime();
+      const tb = new Date(`${b.tanggal}T${b.jam || "00:00:00"}`).getTime();
+      if (ta !== tb) return ta - tb;
       const ca = a.createdAt ? new Date(a.createdAt).getTime() : 0;
       const cb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      return cb - ca;
+      return ca - cb;
     });
-    return data;
-  }, [mutasi, flow, q, dateFrom, dateTo]);
 
-  // total per kolom dari data yang sedang tampil (filtered)
+    return data;
+  }, [mutasi, flow, qDebounced, dateFrom, dateTo, selectedYM]);
+
+  // pagination & totals
+  const totalRows = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / rowsPerPage));
+  const paged = useMemo(() => {
+    const start = (currentPage - 1) * rowsPerPage;
+    return filtered.slice(start, start + rowsPerPage);
+  }, [filtered, currentPage, rowsPerPage]);
+
   const totalIn = useMemo(
     () => filtered.reduce((a, b) => a + (b.tipe === "IN" ? b.jumlah : 0), 0),
     [filtered]
@@ -210,17 +265,16 @@ export default function LaporanKeuanganPage() {
     () => filtered.reduce((a, b) => a + (b.tipe === "OUT" ? b.jumlah : 0), 0),
     [filtered]
   );
-  const totalSaldo = useMemo(() => totalIn - totalOut, [totalIn, totalOut]);
 
+  // export
   function exportExcel() {
     if (!filtered.length) {
       toast.info("Tidak ada data untuk diekspor");
       return;
     }
-
     const aoa: (string | number)[][] = [
       ["LAPORAN KEUANGAN"],
-      [`Periode: ${ymToLong(selectedYM)}`],
+      [`Periode: ${ymToLong(selectedYM)} | Mode: Accrual`],
       [""],
       [
         "Tanggal & Jam",
@@ -236,7 +290,7 @@ export default function LaporanKeuanganPage() {
         formatDt(m.tanggal, m.jam),
         m.tipe === "IN" ? "Masuk" : "Keluar",
         m.kategori || "-",
-        m.keterangan || "-",
+        displayKet(m),
         m.tipe === "IN" ? fmtRpTxt(m.jumlah) : "-",
         m.tipe === "OUT" ? fmtRpTxt(m.jumlah) : "-",
         m.tipe === "IN" ? fmtRpTxt(m.jumlah) : `- ${fmtRpTxt(m.jumlah)}`,
@@ -244,31 +298,86 @@ export default function LaporanKeuanganPage() {
       ]),
       [""],
       ["Ringkasan"],
+      ["Saldo Awal", fmtRpTxt(summary.saldoAwal)],
       ["Total Uang Masuk", fmtRpTxt(totalIn)],
       ["Total Uang Keluar", fmtRpTxt(totalOut)],
-      ["Total Saldo", fmtRpTxt(totalSaldo)],
+      [
+        "Saldo Akhir (Awal + Masuk - Keluar)",
+        fmtRpTxt(summary.saldoAwal + (totalIn - totalOut)),
+      ],
     ];
-
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     (ws as any)["!cols"] = [
-      { wch: 22 }, // tanggal
-      { wch: 10 }, // tipe
-      { wch: 22 }, // kategori
-      { wch: 40 }, // ket
-      { wch: 16 }, // in
-      { wch: 16 }, // out
-      { wch: 16 }, // saldo
-      { wch: 14 }, // status
+      { wch: 22 },
+      { wch: 10 },
+      { wch: 22 },
+      { wch: 40 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 14 },
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, ymToLong(selectedYM));
     XLSX.writeFile(wb, `Laporan-Keuangan-${selectedYM}.xlsx`);
   }
 
-  function openDetail(m: Mutasi) {
-    setDetail(m);
-    setOpen(true);
-  }
+  const PaginationFooter = () => (
+    <GlassCard className="p-3 mt-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div className="text-sm text-muted-foreground">
+        Menampilkan{" "}
+        <span className="font-medium">
+          {totalRows ? (currentPage - 1) * rowsPerPage + 1 : 0}–
+          {Math.min(currentPage * rowsPerPage, totalRows)}
+        </span>{" "}
+        dari <span className="font-medium">{totalRows}</span> data
+      </div>
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Baris/hal.</span>
+          <Select
+            value={String(rowsPerPage)}
+            onValueChange={(v) => {
+              setRowsPerPage(Number(v));
+              setCurrentPage(1);
+            }}
+          >
+            <SelectTrigger className="w-[110px]">
+              <SelectValue placeholder="Baris/hal." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="25">25</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={currentPage <= 1}
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+          >
+            Prev
+          </Button>
+          <div className="px-2 text-sm">
+            Hal. <span className="font-medium">{currentPage}</span> /{" "}
+            {totalPages}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={currentPage >= totalPages}
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
+    </GlassCard>
+  );
 
   return (
     <AuthGuard>
@@ -280,7 +389,6 @@ export default function LaporanKeuanganPage() {
           <GlassCard className="p-4">
             <div className="flex flex-col gap-4">
               <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
-                {/* kiri: filter fields */}
                 <div className="flex flex-wrap items-end gap-3">
                   {/* Periode */}
                   <div className="space-y-1">
@@ -310,7 +418,7 @@ export default function LaporanKeuanganPage() {
                       value={flow}
                       onValueChange={(v: MoneyFlow) => setFlow(v)}
                     >
-                      <SelectTrigger className="w-[120px] sm:w-[140px]">
+                      <SelectTrigger className="w-[140px]">
                         <SelectValue placeholder="Semua" />
                       </SelectTrigger>
                       <SelectContent>
@@ -364,7 +472,7 @@ export default function LaporanKeuanganPage() {
                   </div>
                 </div>
 
-                {/* kanan: actions */}
+                {/* Actions */}
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
@@ -378,9 +486,9 @@ export default function LaporanKeuanganPage() {
                   <Button
                     onClick={exportExcel}
                     className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                    disabled={!filtered.length}
                   >
-                    <Download className="h-4 w-4 mr-2" />
-                    Export Excel
+                    <Download className="h-4 w-4 mr-2" /> Export Excel
                   </Button>
                 </div>
               </div>
@@ -388,11 +496,22 @@ export default function LaporanKeuanganPage() {
           </GlassCard>
 
           {/* Summary cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <GlassCard className="p-4">
+              <div className="text-sm text-muted-foreground">Saldo Awal</div>
+              <div className="mt-1 text-2xl font-semibold">
+                {fmtRp(summary.saldoAwal)}
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                Akumulasi sebelum{" "}
+                {ymToLong(selectedYM || summary.periode || "")}
+              </div>
+            </GlassCard>
+
             <GlassCard className="p-4">
               <div className="text-sm text-muted-foreground">Uang Masuk</div>
               <div className="mt-1 text-2xl font-semibold flex items-center gap-2">
-                <ArrowDownRight className="h-5 w-5" />
+                <ArrowDownRight className="h-5 w-5" />{" "}
                 {fmtRp(summary.totalMasuk)}
               </div>
               <div className="text-xs text-muted-foreground mt-1">
@@ -403,7 +522,7 @@ export default function LaporanKeuanganPage() {
             <GlassCard className="p-4">
               <div className="text-sm text-muted-foreground">Uang Keluar</div>
               <div className="mt-1 text-2xl font-semibold flex items-center gap-2">
-                <ArrowUpRight className="h-5 w-5" />
+                <ArrowUpRight className="h-5 w-5" />{" "}
                 {fmtRp(summary.totalKeluar)}
               </div>
               <div className="text-xs text-muted-foreground mt-1">
@@ -417,19 +536,19 @@ export default function LaporanKeuanganPage() {
                 {fmtRp(summary.saldoAkhir)}
               </div>
               <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                <Info className="h-3.5 w-3.5" />
-                Total Masuk − Total Keluar
+                <Info className="h-3.5 w-3.5" /> (Saldo Awal + Masuk − Keluar) •
+                Mode: Accrual
               </div>
             </GlassCard>
           </div>
 
-          {/* Desktop Table — kolom Tipe dikembalikan */}
+          {/* Desktop Table */}
           <GlassCard className="p-6 hidden md:block">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-border/50 text-sm text-muted-foreground">
-                    <th className="text-left py-3 px-2">Tanggal & Jam</th>
+                    <th className="text-left py-3 px-2">Tanggal &amp; Jam</th>
                     <th className="text-left py-3 px-2">Tipe</th>
                     <th className="text-left py-3 px-2">Kategori</th>
                     <th className="text-left py-3 px-2">Keterangan</th>
@@ -437,11 +556,10 @@ export default function LaporanKeuanganPage() {
                     <th className="text-right py-3 px-2">Uang Keluar</th>
                     <th className="text-right py-3 px-2">Saldo</th>
                     <th className="text-left py-3 px-2">Status</th>
-                    {/* <th className="text-right py-3 px-2">Aksi</th> */}
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((m) => (
+                  {paged.map((m) => (
                     <tr
                       key={m.id}
                       className="border-b border-border/30 hover:bg-muted/20 text-sm"
@@ -467,7 +585,7 @@ export default function LaporanKeuanganPage() {
 
                       <td className="py-3 px-2">{m.kategori || "-"}</td>
                       <td className="py-3 px-2 max-w-[380px] truncate">
-                        {m.keterangan || "-"}
+                        {displayKet(m)}
                       </td>
 
                       <td className="py-3 px-2 text-right">
@@ -481,6 +599,7 @@ export default function LaporanKeuanganPage() {
                           ? fmtRp(m.jumlah)
                           : `- ${fmtRp(m.jumlah)}`}
                       </td>
+
                       <td className="py-3 px-2">
                         {m.statusVerif ? (
                           <Badge
@@ -497,24 +616,13 @@ export default function LaporanKeuanganPage() {
                           "-"
                         )}
                       </td>
-
-                      {/* <td className="py-3 px-2 text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="bg-transparent"
-                          onClick={() => openDetail(m)}
-                        >
-                          Detail
-                        </Button>
-                      </td> */}
                     </tr>
                   ))}
 
-                  {!filtered.length && (
+                  {!paged.length && (
                     <tr>
                       <td
-                        colSpan={9}
+                        colSpan={8}
                         className="py-6 text-center text-sm text-muted-foreground"
                       >
                         Tidak ada data mutasi pada filter ini.
@@ -523,7 +631,7 @@ export default function LaporanKeuanganPage() {
                   )}
                 </tbody>
 
-                {!!filtered.length && (
+                {!!paged.length && (
                   <tfoot>
                     <tr className="border-t-2 border-primary/20 bg-muted/10 font-semibold text-sm">
                       <td className="py-3 px-2">Total</td>
@@ -533,91 +641,18 @@ export default function LaporanKeuanganPage() {
                         {fmtRp(totalOut)}
                       </td>
                       <td className="py-3 px-2 text-right">
-                        {fmtRp(totalSaldo)}
+                        {fmtRp(summary.saldoAwal + (totalIn - totalOut))}
                       </td>
-                      <td colSpan={2} />
+                      <td />
                     </tr>
                   </tfoot>
                 )}
               </table>
             </div>
+
+            {/* Pagination footer */}
+            <PaginationFooter />
           </GlassCard>
-
-          {/* Mobile Cards */}
-          <div className="md:hidden space-y-3">
-            <div className="px-1 text-xs text-muted-foreground">
-              Urut: terbaru • {filtered.length} data
-            </div>
-
-            {filtered.map((m) => (
-              <GlassCard key={m.id} className="p-4 space-y-2">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="text-sm font-semibold">
-                      {m.kategori || "-"}
-                    </div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {formatDt(m.tanggal, m.jam)}
-                    </div>
-                  </div>
-                  {m.tipe === "IN" ? (
-                    <Badge className="bg-emerald-600 hover:bg-emerald-700">
-                      Masuk
-                    </Badge>
-                  ) : (
-                    <Badge
-                      variant="secondary"
-                      className="bg-red-600 text-white hover:bg-red-700"
-                    >
-                      Keluar
-                    </Badge>
-                  )}
-                </div>
-
-                <Separator />
-
-                <div className="grid grid-cols-2 gap-y-1 text-sm">
-                  <span className="text-muted-foreground">Keterangan</span>
-                  <span className="truncate">{m.keterangan || "-"}</span>
-
-                  <span className="text-muted-foreground">Uang Masuk</span>
-                  <span className="font-medium">
-                    {m.tipe === "IN" ? fmtRp(m.jumlah) : "-"}
-                  </span>
-
-                  <span className="text-muted-foreground">Uang Keluar</span>
-                  <span className="font-medium">
-                    {m.tipe === "OUT" ? fmtRp(m.jumlah) : "-"}
-                  </span>
-
-                  <span className="text-muted-foreground">Saldo</span>
-                  <span className="font-semibold">
-                    {m.tipe === "IN" ? fmtRp(m.jumlah) : `- ${fmtRp(m.jumlah)}`}
-                  </span>
-
-                  <span className="text-muted-foreground">Status</span>
-                  <span>{m.statusVerif || "-"}</span>
-                </div>
-
-                {/* <div className="pt-2 flex justify-end">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="bg-transparent"
-                    onClick={() => openDetail(m)}
-                  >
-                    Detail
-                  </Button>
-                </div> */}
-              </GlassCard>
-            ))}
-
-            {!filtered.length && (
-              <GlassCard className="p-6 text-center text-sm text-muted-foreground">
-                Tidak ada data mutasi pada filter ini.
-              </GlassCard>
-            )}
-          </div>
         </div>
 
         {/* Detail Modal */}
@@ -631,7 +666,6 @@ export default function LaporanKeuanganPage() {
                 {ymToLong(selectedYM || "")}
               </DialogDescription>
             </DialogHeader>
-
             {!detail ? (
               <div className="py-8 text-center text-sm text-muted-foreground">
                 Memuat rincian…
@@ -660,9 +694,7 @@ export default function LaporanKeuanganPage() {
                     </Badge>
                   )}
                 </div>
-
                 <Separator />
-
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
                   <div className="p-3 rounded-lg bg-muted/40">
                     <div className="text-muted-foreground">Kategori</div>
@@ -674,9 +706,7 @@ export default function LaporanKeuanganPage() {
                   </div>
                   <div className="p-3 rounded-lg bg-muted/40 col-span-2 sm:col-span-3">
                     <div className="text-muted-foreground">Keterangan</div>
-                    <div className="font-medium">
-                      {detail.keterangan || "-"}
-                    </div>
+                    <div className="font-medium">{displayKet(detail)}</div>
                   </div>
                 </div>
               </div>

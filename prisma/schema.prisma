@@ -530,3 +530,76 @@ model PengeluaranDetail {
   @@index([masterBiayaId])
   @@map("pengeluaran_detail")
 }
+
+model Item {
+  id        String   @id @default(cuid())
+  kode      String   @unique
+  nama      String
+  kategori  String
+  satuan    String
+  stok      Int      @default(0)
+  hargaBeli Int      @default(0)
+
+  // Relasi
+  purchases     Purchase[]
+  stockLedgers  StockLedger[]
+
+  // Audit
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@index([kategori])
+  @@index([nama])
+}
+
+// Tambah di atas model-model (dekat enum lainnya)
+enum PurchaseStatus {
+  DRAFT
+  CLOSE
+}
+
+model Purchase {
+  id        String   @id @default(cuid())
+  tanggal   DateTime
+  supplier  String
+  qty       Int       @default(0)
+  harga     Int       @default(0)
+  total     Int       @default(0)
+
+  // NEW
+  status    PurchaseStatus @default(DRAFT)
+
+  itemId String
+  item   Item        @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@index([tanggal])
+  @@index([supplier])
+  @@index([itemId])
+  @@index([status])  // NEW
+}
+
+
+model StockLedger {
+  id      String   @id @default(cuid())
+  tanggal DateTime
+  masuk   Int      @default(0)
+  keluar  Int      @default(0)
+  saldo   Int      @default(0) // saldo akhir hari tsb (opsional, bisa dihitung)
+
+  // Relasi ke Item
+  itemId String
+  item   Item      @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  // Audit
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@index([tanggal])
+  @@index([itemId, tanggal])
+}
