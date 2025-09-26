@@ -26,21 +26,24 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // panggil API utama agar satu sumber data
+  // panggil API utama
   const url = new URL(req.url);
   url.pathname = "/api/laporan/laba-rugi";
   const data = await fetchJSON(url.toString(), req.headers);
 
-  // --- Siapkan data untuk sheet (AOA = Array of Arrays) ---
+  // --- Sheet Ledger (utama) ---
   const aoa: (string | number | Date)[][] = [];
   aoa.push(["LAPORAN LABA & RUGI"]);
   aoa.push([String(data.periodLabel)]);
   aoa.push([]);
+  aoa.push([
+    "Tanggal",
+    "Keterangan",
+    "Debit (Beban)",
+    "Kredit (Pendapatan)",
+    "Saldo",
+  ]);
 
-  // Header kolom
-  aoa.push(["Tanggal", "Keterangan", "Debit", "Kredit", "Saldo"]);
-
-  // baris ledger + running balance
   let saldo = 0;
   for (const r of data.ledger as Array<{
     tanggal: string;
@@ -62,17 +65,15 @@ export async function GET(req: NextRequest) {
   aoa.push([
     "",
     "TOTAL",
-    data.ringkasan.debitTotal,
-    data.ringkasan.kreditTotal,
-    data.ringkasan.kreditTotal - data.ringkasan.debitTotal,
+    data.ringkasan.bebanTotal,
+    data.ringkasan.pendapatanTotal,
+    data.ringkasan.labaBersih,
   ]);
 
-  // --- Buat workbook & sheet ---
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(aoa);
 
-  // Format kolom (hanya tipe/format dasar, bukan style warna)
-  // Kolom tanggal sebagai date
+  // format kolom tanggal
   const range = XLSX.utils.decode_range(ws["!ref"] as string);
   for (let R = 3; R <= range.e.r; ++R) {
     const c = XLSX.utils.encode_cell({ r: R, c: 0 });
@@ -82,14 +83,20 @@ export async function GET(req: NextRequest) {
       cell.z = "yyyy-mm-dd";
     }
   }
-  // angka debit/kredit/saldo -> number
-  // (sudah number dari AOA; bisa tambah cell.z = "#,##0" tapi tidak semua reader patuh)
-
   XLSX.utils.book_append_sheet(wb, ws, "Laba Rugi");
 
-  // Tulis ke buffer
-  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+  // Opsional: Sheet Ringkasan
+  const sum = XLSX.utils.aoa_to_sheet([
+    ["Ringkasan", ""],
+    ["Periode", String(data.periodLabel)],
+    [],
+    ["Pendapatan", data.ringkasan.pendapatanTotal],
+    ["Beban", data.ringkasan.bebanTotal],
+    ["Laba Bersih", data.ringkasan.labaBersih],
+  ]);
+  XLSX.utils.book_append_sheet(wb, sum, "Ringkasan");
 
+  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
   return new NextResponse(buf, {
     status: 200,
     headers: {

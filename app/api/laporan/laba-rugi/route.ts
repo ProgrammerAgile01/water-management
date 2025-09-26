@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserWithRole } from "@/lib/auth-user-server";
-import { PengeluaranStatus, MetodeBayar } from "@prisma/client";
+import { PengeluaranStatus, MetodeBayar, PurchaseStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -19,9 +19,20 @@ function yearRange(yyyy: string) {
   const end = new Date(Date.UTC(y + 1, 0, 1, 0, 0, 0));
   return { start, end };
 }
+function formatPeriodeID(ym?: string | null) {
+  if (!ym) return "-";
+  const [y, m] = ym.split("-").map(Number);
+  const d = new Date(Date.UTC(y, (m ?? 1) - 1, 1));
+  return d.toLocaleDateString("id-ID", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
 
 export async function GET(req: NextRequest) {
   try {
+    // Auth
     const me = await getAuthUserWithRole(req);
     if (!me)
       return NextResponse.json(
@@ -35,6 +46,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // Range waktu
     const sp = req.nextUrl.searchParams;
     const scope = (sp.get("scope") || "month").toLowerCase(); // month|year
     const now = new Date();
@@ -60,29 +72,26 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // ====== KREDIT (PEMASUKAN) dari Pembayaran ======
+    // ===== PENDAPATAN (Pembayaran) =====
     const payments = await prisma.pembayaran.findMany({
       where: { deletedAt: null, tanggalBayar: { gte: start, lt: end } },
-      include: {
-        tagihan: {
-          select: {
-            periode: true,
-            pelanggan: { select: { nama: true, kode: true } },
-          },
-        },
-      },
+      include: { tagihan: { select: { periode: true } } },
       orderBy: { tanggalBayar: "asc" },
     });
 
-    const kreditTotal = payments.reduce((s, p) => s + (p.jumlahBayar || 0), 0);
-    const kreditByMetode: Record<string, number> = {};
-    for (const m of Object.values(MetodeBayar)) kreditByMetode[m] = 0;
-    for (const p of payments)
-      kreditByMetode[p.metode] =
-        (kreditByMetode[p.metode] || 0) + p.jumlahBayar;
+    const pendapatanTotal = payments.reduce(
+      (s, p) => s + (p.jumlahBayar || 0),
+      0
+    );
+    const pendapatanByMetode: Record<string, number> = {};
+    for (const m of Object.values(MetodeBayar)) pendapatanByMetode[m] = 0;
+    for (const p of payments) {
+      pendapatanByMetode[p.metode] =
+        (pendapatanByMetode[p.metode] || 0) + (p.jumlahBayar || 0);
+    }
 
-    // ====== DEBIT (PENGELUARAN) dari PengeluaranDetail yg header CLOSE ======
-    const details = await prisma.pengeluaranDetail.findMany({
+    // ===== BEBAN (Pengeluaran CLOSE + Purchase CLOSE) =====
+    const pengeluaranDetails = await prisma.pengeluaranDetail.findMany({
       where: {
         pengeluaran: {
           status: PengeluaranStatus.CLOSE,
@@ -96,45 +105,100 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "asc" },
     });
 
-    const debitTotal = details.reduce((s, d) => s + (d.nominal || 0), 0);
-    const debitByKategori: Record<string, { nama: string; total: number }> = {};
-    for (const d of details) {
+    const purchases = await prisma.purchase.findMany({
+      where: {
+        status: PurchaseStatus.CLOSE,
+        deletedAt: null,
+        tanggal: { gte: start, lt: end },
+      },
+      include: { item: { select: { nama: true, kode: true } } },
+      orderBy: { tanggal: "asc" },
+    });
+
+    const bebanPengeluaran = pengeluaranDetails.reduce(
+      (s, d) => s + (d.nominal || 0),
+      0
+    );
+    const bebanPurchase = purchases.reduce((s, p) => s + (p.total || 0), 0);
+    const bebanTotal = bebanPengeluaran + bebanPurchase;
+
+    // Rekap beban per kategori
+    const bebanByKategori: Record<string, { nama: string; total: number }> = {};
+    for (const d of pengeluaranDetails) {
       const key = d.masterBiayaId || d.biayaNamaSnapshot || "Lainnya";
-      if (!debitByKategori[key])
-        debitByKategori[key] = {
+      if (!bebanByKategori[key])
+        bebanByKategori[key] = {
           nama: d.masterBiaya?.nama || d.biayaNamaSnapshot || "Lainnya",
           total: 0,
         };
-      debitByKategori[key].total += d.nominal || 0;
+      bebanByKategori[key].total += d.nominal || 0;
+    }
+    if (bebanPurchase > 0) {
+      const key = "_PEMBELIAN_";
+      if (!bebanByKategori[key])
+        bebanByKategori[key] = { nama: "Pembelian", total: 0 };
+      bebanByKategori[key].total += bebanPurchase;
     }
 
-    // ====== LEDGER (Debit / Kredit) disatukan untuk UI & export ======
+    // ===== LEDGER (dengan jenisPendapatan/jenisBeban) =====
     type Row = {
       tanggal: Date;
       keterangan: string;
-      debit: number;
-      kredit: number;
+      debit: number; // Beban
+      kredit: number; // Pendapatan
+      jenisPendapatan: string | null; // "Pembayaran Tagihan"
+      jenisBeban: string | null; // "Biaya Transport" / "Pembelian Pipa"
     };
-    const ledger: Row[] = [
-      ...details.map<Row>((d) => ({
-        tanggal: d.pengeluaran.tanggalPengeluaran,
-        keterangan: `${
-          d.biayaNamaSnapshot || d.masterBiaya?.nama || "Biaya"
-        } • ${d.keterangan || ""}`.trim(),
-        debit: d.nominal,
-        kredit: 0,
-      })),
-      ...payments.map<Row>((p) => ({
-        tanggal: p.tanggalBayar,
-        keterangan: `Pembayaran ${p.tagihan?.pelanggan?.nama || ""} (${
-          p.tagihan?.pelanggan?.kode || ""
-        }) • Tagihan ${p.tagihan?.periode} • ${p.metode}`,
-        debit: 0,
-        kredit: p.jumlahBayar,
-      })),
+
+    const ledgerPengeluaran: Row[] = pengeluaranDetails.map((d) => ({
+      tanggal: d.pengeluaran.tanggalPengeluaran,
+      keterangan: `${d.biayaNamaSnapshot || d.masterBiaya?.nama || "Biaya"} • ${
+        d.keterangan || ""
+      }`.trim(),
+      debit: d.nominal,
+      kredit: 0,
+      jenisPendapatan: null,
+      jenisBeban: d.masterBiaya?.nama || d.biayaNamaSnapshot || "Biaya",
+    }));
+
+    const ledgerPurchases: Row[] = purchases.map((p) => ({
+      tanggal: p.tanggal,
+      keterangan: `Pembelian ${p.item?.nama || ""}${
+        p.item?.kode ? ` (${p.item.kode})` : ""
+      }`,
+      debit: p.total,
+      kredit: 0,
+      jenisPendapatan: null,
+      jenisBeban: `Pembelian ${p.item?.nama || ""}`.trim(),
+    }));
+
+    const ledgerPayments: Row[] = payments.map((p) => ({
+      tanggal: p.tanggalBayar,
+      keterangan: `Pembayaran Tagihan Bulan ${formatPeriodeID(
+        p.tagihan?.periode
+      )}`,
+      debit: 0,
+      kredit: p.jumlahBayar,
+      jenisPendapatan: "Pembayaran Tagihan",
+      jenisBeban: null,
+    }));
+
+    const ledgerAll: Row[] = [
+      ...ledgerPengeluaran,
+      ...ledgerPurchases,
+      ...ledgerPayments,
     ].sort((a, b) => +new Date(a.tanggal) - +new Date(b.tanggal));
 
-    const labaBersih = kreditTotal - debitTotal;
+    // ===== Pagination (in-memory, gabungan) =====
+    const size = Math.max(1, Math.min(5000, Number(sp.get("size") || 1000))); // default 1000
+    const page = Math.max(1, Number(sp.get("page") || 1));
+    const total = ledgerAll.length;
+    const pages = Math.max(1, Math.ceil(total / size));
+    const startIdx = (page - 1) * size;
+    const endIdx = startIdx + size;
+    const ledger = ledgerAll.slice(startIdx, endIdx);
+
+    const labaBersih = pendapatanTotal - bebanTotal;
 
     return NextResponse.json({
       ok: true,
@@ -142,21 +206,30 @@ export async function GET(req: NextRequest) {
       periodLabel,
       range: { start, end },
       ringkasan: {
-        debitTotal, // Pengeluaran
-        kreditTotal, // Pemasukan
+        bebanTotal,
+        pendapatanTotal,
         labaBersih,
       },
-      pemasukan: {
-        total: kreditTotal,
-        byMetode: kreditByMetode,
-        rows: payments,
+      pendapatan: {
+        total: pendapatanTotal,
+        byMetode: pendapatanByMetode,
+        rows: payments, // jika ingin, ini bisa dipaginasi terpisah nanti
       },
-      pengeluaran: {
-        total: debitTotal,
-        byKategori: Object.values(debitByKategori),
-        rows: details,
+      beban: {
+        total: bebanTotal,
+        byKategori: Object.values(bebanByKategori),
+        pengeluaranDetails,
+        purchases,
       },
-      ledger, // ← debit/kredit siap render tabel / export
+      ledger,
+      pagination: {
+        total,
+        page,
+        size,
+        pages,
+        hasPrev: page > 1,
+        hasNext: page < pages,
+      },
     });
   } catch (e: any) {
     console.error("LR API error:", e);

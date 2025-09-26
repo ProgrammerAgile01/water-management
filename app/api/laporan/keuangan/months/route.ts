@@ -4,55 +4,41 @@ import { prisma } from "@/lib/prisma";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// YYYY-MM (UTC-safe)
-function ymUTC(d: Date) {
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-  return `${y}-${m}`;
-}
+const ymUTC = (d: Date) =>
+  `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 
 export async function GET() {
   try {
-    const [pays, outs, purchases] = await Promise.all([
-      prisma.pembayaran.findMany({
-        where: {
-          /* deletedAt: null, */
-        },
-        select: { tanggalBayar: true },
-      }),
-      prisma.pengeluaran.findMany({
-        where: {
-          /* deletedAt: null, */
-        },
-        select: {
-          tanggalInput: true,
-          tanggalPengeluaran: true,
-          createdAt: true,
-        },
-      }),
-      prisma.purchase.findMany({
-        where: { deletedAt: null },
-        select: { tanggal: true },
-      }),
-    ]);
+    // Ambil bulan dari Pembayaran (tanggalBayar real)
+    const pembayarans = await prisma.pembayaran.findMany({
+      where: { deletedAt: null },
+      select: { tanggalBayar: true },
+    });
+
+    // Ambil bulan dari Pengeluaran (CLOSE, pakai tanggalInput)
+    const pengeluarans = await prisma.pengeluaran.findMany({
+      where: { status: "CLOSE" },
+      select: { tanggalInput: true, tanggalPengeluaran: true, createdAt: true },
+    });
+
+    // Ambil bulan dari Purchase (CLOSE)
+    const purchases = await prisma.purchase.findMany({
+      where: { deletedAt: null, status: "CLOSE" },
+      select: { tanggal: true },
+    });
 
     const set = new Set<string>();
 
-    // IN (pembayaran)
-    for (const p of pays)
+    for (const p of pembayarans)
       if (p.tanggalBayar) set.add(ymUTC(new Date(p.tanggalBayar)));
-
-    // OUT (pengeluaran header)
-    for (const o of outs) {
-      const src = o.tanggalInput ?? o.tanggalPengeluaran ?? o.createdAt;
+    for (const p of pengeluarans) {
+      const src = p.tanggalInput ?? p.tanggalPengeluaran ?? p.createdAt;
       if (src) set.add(ymUTC(new Date(src)));
     }
+    for (const p of purchases)
+      if (p.tanggal) set.add(ymUTC(new Date(p.tanggal)));
 
-    // OUT (purchases)
-    for (const pu of purchases)
-      if (pu.tanggal) set.add(ymUTC(new Date(pu.tanggal)));
-
-    const periods = Array.from(set).sort((a, b) => (a < b ? 1 : -1));
+    const periods = Array.from(set).sort((a, b) => (a < b ? 1 : -1)); // terbaru dulu
     return NextResponse.json({ ok: true, periods });
   } catch (e: any) {
     return NextResponse.json(

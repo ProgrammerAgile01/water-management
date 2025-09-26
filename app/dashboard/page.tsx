@@ -11,6 +11,12 @@ import { BillingBarChart } from "@/components/charts/bar-chart";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { AppHeader } from "@/components/app-header";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type UsageItem = { month: string; usage: number };
 type BillingItem = { month: string; amount: number };
@@ -50,6 +56,8 @@ export default function DashboardPage() {
   } | null>(null);
 
   const [loading, setLoading] = useState(true);
+  const [openUnpaidModal, setOpenUnpaidModal] = useState(false);
+
   const year = useMemo(() => new Date().getFullYear(), []);
 
   useEffect(() => {
@@ -126,38 +134,50 @@ export default function DashboardPage() {
               }
             />
 
-            <StatCard
-              title="Total Belum Bayar"
-              value={
-                cards
-                  ? rupiah(cards.totalBelumBayarAmount)
-                  : loading
-                  ? "…"
-                  : "Rp 0"
-              }
-              subtitle={`${cards?.totalBelumBayarCount ?? 0} tagihan aktif`}
-              trend={
-                cards?.trends?.totalBelumBayar ?? {
-                  value: 0,
-                  isPositive: false,
+            {/* ==== Total Belum Bayar + tombol 'Selengkapnya' DI DALAM card ==== */}
+            <div className="relative">
+              <StatCard
+                title="Total Belum Bayar"
+                value={
+                  cards
+                    ? rupiah(cards.totalBelumBayarAmount)
+                    : loading
+                    ? "…"
+                    : "Rp 0"
                 }
-              }
-              icon={
-                <svg
-                  className="w-6 h-6 text-primary"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 9v2m0 4h.01M5.062 19h13.876c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.33 16c-.77 1.333.192 3 1.732 3z"
-                  />
-                </svg>
-              }
-            />
+                subtitle={`${cards?.totalBelumBayarCount ?? 0} tagihan aktif`}
+                trend={
+                  cards?.trends?.totalBelumBayar ?? {
+                    value: 0,
+                    isPositive: false,
+                  }
+                }
+                icon={
+                  <svg
+                    className="w-6 h-6 text-primary"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 9v2m0 4h.01M5.062 19h13.876c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.33 16c-.77 1.333.192 3 1.732 3z"
+                    />
+                  </svg>
+                }
+              />
+              {/* tombol kecil ditempatkan di pojok kanan atas di DALAM kartu */}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="absolute top-2 right-2 h-7 px-2 text-xs"
+                onClick={() => setOpenUnpaidModal(true)}
+              >
+                Selengkapnya
+              </Button>
+            </div>
 
             <StatCard
               title="Jumlah Pengguna Aktif"
@@ -277,9 +297,6 @@ export default function DashboardPage() {
                 <h3 className="text-lg font-semibold text-foreground">
                   Daftar Belum Bayar
                 </h3>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href="/laporan/belum-bayar">Selengkapnya</Link>
-                </Button>
               </div>
               <div className="space-y-3">
                 {unpaidList.map((item, index) => (
@@ -307,6 +324,11 @@ export default function DashboardPage() {
                     Tidak ada tagihan tertunda.
                   </p>
                 )}
+                <div className="flex justify-end">
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link href="/laporan/belum-bayar">Buka Halaman</Link>
+                  </Button>
+                </div>
               </div>
             </GlassCard>
 
@@ -347,52 +369,53 @@ export default function DashboardPage() {
               </div>
             </GlassCard>
           </div>
-
-          {/* Quick Actions */}
-          <GlassCard className="p-6">
-            <h2 className="text-xl font-semibold text-foreground mb-4">
-              Menu Utama
-            </h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Button
-                asChild
-                variant="outline"
-                className="h-20 flex-col gap-2 bg-transparent"
-              >
-                <Link href="/pelanggan">
-                  <span className="text-sm">Pelanggan</span>
-                </Link>
-              </Button>
-              <Button
-                asChild
-                variant="outline"
-                className="h-20 flex-col gap-2 bg-transparent"
-              >
-                <Link href="/catat-meter">
-                  <span className="text-sm">Catat Meter</span>
-                </Link>
-              </Button>
-              <Button
-                asChild
-                variant="outline"
-                className="h-20 flex-col gap-2 bg-transparent"
-              >
-                <Link href="/tagihan-pembayaran">
-                  <span className="text-sm">Tagihan</span>
-                </Link>
-              </Button>
-              <Button
-                asChild
-                variant="outline"
-                className="h-20 flex-col gap-2 bg-transparent"
-              >
-                <Link href="/pengaturan">
-                  <span className="text-sm">Pengaturan</span>
-                </Link>
-              </Button>
-            </div>
-          </GlassCard>
         </div>
+
+        {/* ===== Modal Daftar Belum Bayar (dibuka dari tombol di card) ===== */}
+        <Dialog open={openUnpaidModal} onOpenChange={setOpenUnpaidModal}>
+          <DialogContent className="max-w-xl">
+            <DialogHeader>
+              <DialogTitle>Daftar Belum Bayar</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+              {unpaidList.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Tidak ada tagihan tertunda.
+                </p>
+              ) : (
+                unpaidList.map((item, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between p-3 bg-red-50/50 rounded-lg border border-red-100/50"
+                  >
+                    <div className="flex-1">
+                      <p className="font-medium text-foreground text-sm">
+                        {item.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {item.period}
+                      </p>
+                    </div>
+                    <p className="font-bold text-red-600 text-sm">
+                      {rupiah(item.amount)}
+                    </p>
+                  </div>
+                ))
+              )}
+              <div className="flex justify-end pt-2 gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setOpenUnpaidModal(false)}
+                >
+                  Tutup
+                </Button>
+                <Button variant="outline" asChild>
+                  <Link href="/laporan/belum-bayar">Buka Halaman</Link>
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </AppShell>
     </AuthGuard>
   );

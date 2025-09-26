@@ -654,6 +654,83 @@ export default function LaporanKeuanganPage() {
             <PaginationFooter />
           </GlassCard>
         </div>
+        {/* Mobile List (<= md) */}
+        <GlassCard className="p-3 space-y-3 md:hidden">
+          {paged.length ? (
+            paged.map((m) => (
+              <button
+                key={m.id}
+                onClick={() => {
+                  setDetail(m);
+                  setOpen(true);
+                }}
+                className="w-full text-left rounded-xl border border-border/50 p-3 hover:bg-muted/30 transition"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-medium">
+                    {formatDt(m.tanggal, m.jam)}
+                  </div>
+                  {m.tipe === "IN" ? (
+                    <Badge className="bg-emerald-600 hover:bg-emerald-700">
+                      Masuk
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant="secondary"
+                      className="bg-red-600 text-white hover:bg-red-700"
+                    >
+                      Keluar
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {m.kategori || "-"}
+                </div>
+
+                <div className="mt-1 text-sm truncate">{displayKet(m)}</div>
+
+                <div className="mt-2 flex items-center justify-between">
+                  <div className="text-xs text-muted-foreground">Status</div>
+                  <div>
+                    {m.statusVerif ? (
+                      <Badge
+                        variant="outline"
+                        className={
+                          m.statusVerif === "VERIFIED"
+                            ? "border-emerald-400 text-emerald-700"
+                            : "border-slate-300 text-slate-700"
+                        }
+                      >
+                        {m.statusVerif}
+                      </Badge>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">-</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-2 flex items-center justify-between">
+                  <div className="text-sm font-medium">Nominal</div>
+                  <div
+                    className={`text-sm font-semibold ${
+                      m.tipe === "OUT" ? "text-red-600" : "text-emerald-700"
+                    }`}
+                  >
+                    {m.tipe === "IN" ? fmtRp(m.jumlah) : `- ${fmtRp(m.jumlah)}`}
+                  </div>
+                </div>
+              </button>
+            ))
+          ) : (
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              Tidak ada data mutasi pada filter ini.
+            </div>
+          )}
+
+          {/* Pagination footer (mobile) */}
+          <PaginationFooter />
+        </GlassCard>
 
         {/* Detail Modal */}
         <Dialog open={open} onOpenChange={setOpen}>

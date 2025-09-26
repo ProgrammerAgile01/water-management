@@ -6,19 +6,24 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const UpdateSchema = z.object({
-  tanggal: z.string().min(1),
+  tanggal: z.string().min(1), // "YYYY-MM-DDTHH:mm"
   supplier: z.string().min(1),
   itemId: z.string().min(1),
   qty: z.number().int().positive(),
   harga: z.number().int().positive(),
 });
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+function parseLocalDateTimeToUTC(s: string) {
+  const [datePart, timePart = "00:00"] = s.split("T");
+  const [y, m, d] = datePart.split("-").map(Number);
+  const [hh, mm] = timePart.split(":").map(Number);
+  return new Date(Date.UTC(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, 0));
+}
+
+export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
   try {
-    const id = params.id;
+    // Next 15: params async — aman juga kalau sync.
+    const { id } = ctx.params;
     const body = await req.json();
     const parsed = UpdateSchema.parse({
       ...body,
@@ -29,36 +34,36 @@ export async function PATCH(
     await prisma.$transaction(async (tx) => {
       const existing = await tx.purchase.findUnique({
         where: { id },
-        select: { id: true, itemId: true, qty: true, deletedAt: true },
+        select: {
+          id: true,
+          itemId: true,
+          qty: true,
+          deletedAt: true,
+          status: true,
+        },
       });
       if (!existing || existing.deletedAt)
         throw new Error("Purchase tidak ditemukan");
+      if (existing.status === "CLOSE")
+        throw new Error("Purchase sudah CLOSE dan tidak bisa diedit.");
 
-      const newTanggal = new Date(`${parsed.tanggal}T00:00:00`);
+      const newTanggal = parseLocalDateTimeToUTC(parsed.tanggal); // ⬅️ PENTING
       const total = parsed.qty * parsed.harga;
 
       if (existing.itemId === parsed.itemId) {
-        // ===== Item TIDAK berubah
-        // Hitung stok dasar DARI SUM pembelian item ini, KECUALI purchase yg sedang diedit.
         const agg = await tx.purchase.aggregate({
-          where: {
-            deletedAt: null,
-            itemId: parsed.itemId,
-            NOT: { id }, // exclude transaksi ini
-          },
+          where: { deletedAt: null, itemId: parsed.itemId, NOT: { id } },
           _sum: { qty: true },
         });
-        const base = Number(agg._sum.qty || 0); // stok tanpa transaksi ini
-        const newStock = base + parsed.qty; // stok final absolut
+        const base = Number(agg._sum.qty || 0);
+        const newStock = base + parsed.qty;
         const delta = parsed.qty - existing.qty;
 
-        // set stok absolut
         await tx.item.update({
           where: { id: parsed.itemId },
           data: { stok: newStock },
         });
 
-        // catat ledger delta agar jejak rapi
         if (delta !== 0) {
           await tx.stockLedger.create({
             data: {
@@ -71,17 +76,11 @@ export async function PATCH(
           });
         }
       } else {
-        // ===== Item BERUBAH
-        // 1) Item lama → stok dasar = sum pembelian item lama KECUALI transaksi ini
         const aggOld = await tx.purchase.aggregate({
-          where: {
-            deletedAt: null,
-            itemId: existing.itemId,
-            NOT: { id },
-          },
+          where: { deletedAt: null, itemId: existing.itemId, NOT: { id } },
           _sum: { qty: true },
         });
-        const oldBase = Number(aggOld._sum.qty || 0); // stok absolut setelah transaksi ini dipindah
+        const oldBase = Number(aggOld._sum.qty || 0);
         await tx.item.update({
           where: { id: existing.itemId },
           data: { stok: oldBase },
@@ -96,16 +95,12 @@ export async function PATCH(
           },
         });
 
-        // 2) Item baru → stok dasar = sum pembelian item baru (transaksi ini belum termasuk)
         const aggNew = await tx.purchase.aggregate({
-          where: {
-            deletedAt: null,
-            itemId: parsed.itemId,
-          },
+          where: { deletedAt: null, itemId: parsed.itemId },
           _sum: { qty: true },
         });
         const newBase = Number(aggNew._sum.qty || 0);
-        const newStock = newBase + parsed.qty; // stok absolut setelah transaksi masuk ke item baru
+        const newStock = newBase + parsed.qty;
         await tx.item.update({
           where: { id: parsed.itemId },
           data: { stok: newStock },
@@ -121,7 +116,6 @@ export async function PATCH(
         });
       }
 
-      // Update purchase
       await tx.purchase.update({
         where: { id },
         data: {
@@ -145,6 +139,36 @@ export async function PATCH(
     }
     return NextResponse.json(
       { ok: false, message: e?.message || "Gagal update" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const id = params.id;
+    const existing = await prisma.purchase.findUnique({
+      where: { id },
+      select: { id: true, status: true },
+    });
+    if (!existing) throw new Error("Purchase tidak ditemukan");
+    if (existing.status === "CLOSE") {
+      return NextResponse.json(
+        { ok: false, message: "Purchase sudah CLOSE dan tidak bisa dihapus." },
+        { status: 400 }
+      );
+    }
+    await prisma.purchase.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    return NextResponse.json(
+      { ok: false, message: e?.message || "Gagal menghapus" },
       { status: 500 }
     );
   }

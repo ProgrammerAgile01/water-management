@@ -23,6 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { Pencil, Trash2, CheckCircle2 } from "lucide-react"; // ⬅️ TAMBAH ikon posting
 
 /* ====== Types ====== */
 type Item = {
@@ -43,6 +44,7 @@ type PurchaseRow = {
   qty: number;
   harga: number;
   total: number;
+  status: "DRAFT" | "CLOSE";
 };
 
 type Summary = {
@@ -65,6 +67,28 @@ const fmtDate = (iso?: string) =>
         day: "2-digit",
       })
     : "-";
+
+// helper: pad 2 digit
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+// helper: gabung "YYYY-MM-DD" + "HH:mm" -> "YYYY-MM-DDTHH:mm"
+function composeDateWithTime(dateOnly: string, hhmm: string) {
+  if (!dateOnly) return "";
+  return `${dateOnly}T${hhmm || "00:00"}`;
+}
+
+// ambil jam:menit lokal sekarang
+function nowHHmm() {
+  const d = new Date();
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+// ambil jam:menit dari ISO string (fallback ke now)
+function timeFromIsoOrNow(iso?: string) {
+  if (!iso) return nowHHmm();
+  const d = new Date(iso);
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
 
 /* ====== Page ====== */
 export default function InventarisPage() {
@@ -118,7 +142,6 @@ export default function InventarisPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [confirmBusy, setConfirmBusy] = useState(false);
-  // FIX: izinkan fungsi apapun (tak wajib return void)
   const [confirmAction, setConfirmAction] = useState<
     null | (() => Promise<unknown>)
   >(null);
@@ -204,17 +227,22 @@ export default function InventarisPage() {
       return toast.error("Tanggal, Supplier, dan Item wajib diisi");
     if (purchase.qty <= 0 || purchase.harga <= 0)
       return toast.error("Qty & Harga harus > 0");
+
+    // tetap input date saja, tapi kirim ke server beserta jam:menit lokal sekarang
+    const tanggalDenganJam = composeDateWithTime(purchase.tanggal, nowHHmm());
+
     setLoading(true);
     try {
       const r = await fetch("/api/inventaris/purchase", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(purchase),
+        body: JSON.stringify({ ...purchase, tanggal: tanggalDenganJam }),
       });
       const j = await r.json();
       if (!j.ok) throw new Error(j.message || "Gagal menyimpan pembelian");
       setPurchase({ tanggal: "", supplier: "", itemId: "", qty: 0, harga: 0 });
       await Promise.all([fetchItems(), fetchSummary(), fetchPurchases()]);
+
       const name =
         j.row?.itemNama ||
         items.find((i) => i.id === j.row?.itemId)?.nama ||
@@ -285,9 +313,13 @@ export default function InventarisPage() {
 
   /* ====== Actions: edit/delete purchase ====== */
   function openPurchaseModal(p: PurchaseRow) {
+    if (p.status === "CLOSE") {
+      toast.info("Purchase sudah CLOSE dan tidak bisa diedit.");
+      return;
+    }
     setEditingPur(p);
     setEditPurForm({
-      tanggal: p.tanggal.slice(0, 10),
+      tanggal: p.tanggal.slice(0, 10), // tetap date saja di form
       supplier: p.supplier,
       itemId: p.itemId,
       qty: p.qty,
@@ -302,10 +334,15 @@ export default function InventarisPage() {
       return toast.error("Semua field wajib diisi");
     if (editPurForm.qty <= 0 || editPurForm.harga <= 0)
       return toast.error("Qty/Harga harus > 0");
+
+    // ambil jam:menit dari record lama (fallback ke sekarang)
+    const hhmm = timeFromIsoOrNow(editingPur?.tanggal);
+    const tanggalDenganJam = composeDateWithTime(editPurForm.tanggal, hhmm);
+
     const r = await fetch(`/api/inventaris/purchase/${editingPur.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(editPurForm),
+      body: JSON.stringify({ ...editPurForm, tanggal: tanggalDenganJam }),
     });
     const j = await r.json();
     if (!j.ok) return toast.error(j.message || "Gagal perbarui pembelian");
@@ -322,6 +359,10 @@ export default function InventarisPage() {
   }
 
   function requestDeletePurchase(p: PurchaseRow) {
+    if (p.status === "CLOSE") {
+      toast.info("Purchase sudah CLOSE dan tidak bisa dihapus.");
+      return;
+    }
     askConfirm(
       `Hapus pembelian ${fmtDate(p.tanggal)} • ${p.itemNama} (${
         p.qty
@@ -341,6 +382,59 @@ export default function InventarisPage() {
         await Promise.all([fetchItems(), fetchSummary(), fetchPurchases()]);
         toast.success("Berhasil", {
           description: `Pembelian “${p.itemNama}” berhasil dihapus.`,
+        });
+      }
+    );
+  }
+
+  /* ====== Actions: Posting ====== */
+  async function postingAllDraft(ids?: string[]) {
+    const target = ids?.length
+      ? `(${ids.length} baris terpilih)`
+      : "semua DRAFT";
+    askConfirm(
+      `Posting (CLOSE) ${target}? Data yang sudah CLOSE tidak bisa diedit lagi.`,
+      async () => {
+        setConfirmBusy(true);
+        const r = await fetch("/api/inventaris/purchase/posting", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(ids?.length ? { ids } : {}),
+        });
+        const j = await r.json();
+        setConfirmBusy(false);
+        setConfirmOpen(false);
+        if (!j.ok) {
+          toast.error(j.message || "Gagal posting");
+          return;
+        }
+        await fetchPurchases();
+        toast.success("Berhasil", {
+          description: `${j.closedCount} transaksi berhasil di-POST (CLOSE).`,
+        });
+      }
+    );
+  }
+
+  // ⬇️ Posting per ID (ikon di setiap baris)
+  async function postingById(id: string) {
+    askConfirm(
+      "Posting (CLOSE) transaksi ini? Setelah CLOSE tidak bisa diedit.",
+      async () => {
+        setConfirmBusy(true);
+        const r = await fetch(`/api/inventaris/purchase/${id}/posting`, {
+          method: "POST",
+        });
+        const j = await r.json();
+        setConfirmBusy(false);
+        setConfirmOpen(false);
+        if (!j.ok) {
+          toast.error(j.message || "Gagal posting");
+          return;
+        }
+        await fetchPurchases();
+        toast.success("Berhasil", {
+          description: "Transaksi berhasil di-POST (CLOSE).",
         });
       }
     );
@@ -556,20 +650,24 @@ export default function InventarisPage() {
                   >
                     <div className="flex items-center justify-between">
                       <div className="font-semibold">{it.kode}</div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-1">
                         <Button
-                          variant="outline"
-                          size="sm"
+                          variant="ghost"
+                          size="icon"
                           onClick={() => openItemModal(it)}
+                          title="Edit"
+                          aria-label="Edit"
                         >
-                          Edit
+                          <Pencil className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="destructive"
-                          size="sm"
+                          size="icon"
                           onClick={() => requestDeleteItem(it)}
+                          title="Hapus"
+                          aria-label="Hapus"
                         >
-                          Hapus
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
@@ -617,21 +715,25 @@ export default function InventarisPage() {
                         <td className="py-2">{it.kategori || "-"}</td>
                         <td className="py-2">{it.satuan || "-"}</td>
                         <td className="py-2 text-right">{it.stok}</td>
-                        <td className="py-2 text-right">
-                          <div className="flex justify-end gap-2">
+                        <td className="py-2">
+                          <div className="flex justify-end gap-1">
                             <Button
-                              variant="outline"
-                              size="sm"
+                              variant="ghost"
+                              size="icon"
                               onClick={() => openItemModal(it)}
+                              title="Edit"
+                              aria-label="Edit"
                             >
-                              Edit
+                              <Pencil className="h-4 w-4" />
                             </Button>
                             <Button
                               variant="destructive"
-                              size="sm"
+                              size="icon"
                               onClick={() => requestDeleteItem(it)}
+                              title="Hapus"
+                              aria-label="Hapus"
                             >
-                              Hapus
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
                         </td>
@@ -654,49 +756,89 @@ export default function InventarisPage() {
 
             {/* PURCHASE LIST */}
             <GlassCard className="p-6">
-              <div className="text-lg font-semibold mb-4">Daftar Pembelian</div>
+              <div className="flex items-center justify-between mb-4">
+                <div className="text-lg font-semibold">Daftar Pembelian</div>
+                <Button
+                  onClick={() => postingAllDraft()}
+                  className="bg-emerald-600 text-white"
+                >
+                  Posting
+                </Button>
+              </div>
 
               {/* Mobile: cards */}
               <div className="space-y-3 lg:hidden">
-                {purchases.map((p) => (
-                  <div
-                    key={p.id}
-                    className="rounded-xl border border-border/60 p-4 bg-background/60"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="font-semibold">{fmtDate(p.tanggal)}</div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openPurchaseModal(p)}
+                {purchases.map((p) => {
+                  const isClosed = p.status === "CLOSE";
+                  return (
+                    <div
+                      key={p.id}
+                      className="rounded-xl border border-border/60 p-4 bg-background/60"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="font-semibold">
+                          {fmtDate(p.tanggal)}
+                        </div>
+                        <div className="flex gap-1">
+                          {!isClosed && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => postingById(p.id)}
+                              title="Posting"
+                              aria-label="Posting"
+                            >
+                              <CheckCircle2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openPurchaseModal(p)}
+                            disabled={isClosed}
+                            title={isClosed ? "Sudah CLOSE" : "Edit"}
+                            aria-label="Edit"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="icon"
+                            onClick={() => requestDeletePurchase(p)}
+                            disabled={isClosed}
+                            title={isClosed ? "Sudah CLOSE" : "Hapus"}
+                            aria-label="Hapus"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <Separator className="my-3" />
+                      <div className="grid grid-cols-2 gap-y-1 text-sm">
+                        <span className="text-muted-foreground">Supplier</span>
+                        <span>{p.supplier}</span>
+                        <span className="text-muted-foreground">Item</span>
+                        <span>{p.itemNama}</span>
+                        <span className="text-muted-foreground">Qty</span>
+                        <span>{p.qty}</span>
+                        <span className="text-muted-foreground">Harga</span>
+                        <span>{fmtRp(p.harga)}</span>
+                        <span className="text-muted-foreground">Total</span>
+                        <span className="font-medium">{fmtRp(p.total)}</span>
+                        <span className="text-muted-foreground">Status</span>
+                        <span
+                          className={
+                            isClosed
+                              ? "text-red-600 font-medium"
+                              : "text-emerald-600 font-medium"
+                          }
                         >
-                          Edit
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => requestDeletePurchase(p)}
-                        >
-                          Hapus
-                        </Button>
+                          {p.status}
+                        </span>
                       </div>
                     </div>
-                    <Separator className="my-3" />
-                    <div className="grid grid-cols-2 gap-y-1 text-sm">
-                      <span className="text-muted-foreground">Supplier</span>
-                      <span>{p.supplier}</span>
-                      <span className="text-muted-foreground">Item</span>
-                      <span>{p.itemNama}</span>
-                      <span className="text-muted-foreground">Qty</span>
-                      <span>{p.qty}</span>
-                      <span className="text-muted-foreground">Harga</span>
-                      <span>{fmtRp(p.harga)}</span>
-                      <span className="text-muted-foreground">Total</span>
-                      <span className="font-medium">{fmtRp(p.total)}</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {!purchases.length && (
                   <div className="text-sm text-muted-foreground text-center py-6">
                     Belum ada data pembelian.
@@ -709,51 +851,92 @@ export default function InventarisPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-border/50 text-sm text-muted-foreground">
-                      <th className="text-left py-2">Tanggal</th>
-                      <th className="text-left py-2">Supplier</th>
-                      <th className="text-left py-2">Item</th>
-                      <th className="text-right py-2">Qty</th>
-                      <th className="text-right py-2">Harga</th>
-                      <th className="text-right py-2">Total</th>
-                      <th className="text-right py-2">Aksi</th>
+                      <th className="text-left px-4 py-2">Tanggal</th>
+                      <th className="text-left px-4 py-2">Supplier</th>
+                      <th className="text-left px-4 py-2">Item</th>
+                      <th className="text-right px-4 py-2">Qty</th>
+                      <th className="text-right px-4 py-2">Harga</th>
+                      <th className="text-right px-4 py-2">Total</th>
+                      <th className="text-left px-4 py-2">Status</th>
+                      <th className="text-right px-4 py-2">Aksi</th>
                     </tr>
                   </thead>
+
                   <tbody>
-                    {purchases.map((p) => (
-                      <tr
-                        key={p.id}
-                        className="border-b border-border/30 text-sm"
-                      >
-                        <td className="py-2">{fmtDate(p.tanggal)}</td>
-                        <td className="py-2">{p.supplier}</td>
-                        <td className="py-2">{p.itemNama}</td>
-                        <td className="py-2 text-right">{p.qty}</td>
-                        <td className="py-2 text-right">{fmtRp(p.harga)}</td>
-                        <td className="py-2 text-right">{fmtRp(p.total)}</td>
-                        <td className="py-2 text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => openPurchaseModal(p)}
+                    {purchases.map((p) => {
+                      const isClosed = p.status === "CLOSE";
+                      return (
+                        <tr
+                          key={p.id}
+                          className="border-b border-border/30 text-sm align-middle"
+                        >
+                          <td className="px-4 py-2 whitespace-nowrap">
+                            {fmtDate(p.tanggal)}
+                          </td>
+                          <td className="px-4 py-2">{p.supplier}</td>
+                          <td className="px-4 py-2">{p.itemNama}</td>
+                          <td className="px-4 py-2 text-right tabular-nums">
+                            {p.qty}
+                          </td>
+                          <td className="px-4 py-2 text-right tabular-nums">
+                            {fmtRp(p.harga)}
+                          </td>
+                          <td className="px-4 py-2 text-right tabular-nums">
+                            {fmtRp(p.total)}
+                          </td>
+                          <td className="px-4 py-2">
+                            <span
+                              className={
+                                isClosed
+                                  ? "text-red-600 font-medium"
+                                  : "text-emerald-600 font-medium"
+                              }
                             >
-                              Edit
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => requestDeletePurchase(p)}
-                            >
-                              Hapus
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                              {p.status}
+                            </span>
+                          </td>
+                          <td className="py-2">
+                            <div className="flex justify-end gap-1">
+                              {!isClosed && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => postingById(p.id)}
+                                  title="Posting"
+                                  aria-label="Posting"
+                                >
+                                  <CheckCircle2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => openPurchaseModal(p)}
+                                disabled={isClosed}
+                                title={isClosed ? "Sudah CLOSE" : "Edit"}
+                                aria-label="Edit"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="icon"
+                                onClick={() => requestDeletePurchase(p)}
+                                disabled={isClosed}
+                                title={isClosed ? "Sudah CLOSE" : "Hapus"}
+                                aria-label="Hapus"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                     {!purchases.length && (
                       <tr>
                         <td
-                          colSpan={7}
+                          colSpan={8}
                           className="py-6 text-center text-sm text-muted-foreground"
                         >
                           Belum ada data pembelian.
@@ -952,7 +1135,7 @@ export default function InventarisPage() {
         >
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Konfirmasi Hapus</DialogTitle>
+              <DialogTitle>Konfirmasi</DialogTitle>
               <DialogDescription>{confirmText}</DialogDescription>
             </DialogHeader>
             <div className="flex justify-end gap-2 pt-2">
@@ -968,10 +1151,10 @@ export default function InventarisPage() {
                 disabled={confirmBusy}
                 onClick={async () => {
                   if (!confirmAction) return;
-                  await confirmAction(); // return value diabaikan
+                  await confirmAction();
                 }}
               >
-                {confirmBusy ? "Menghapus..." : "Hapus"}
+                {confirmBusy ? "Memproses..." : "Lanjut"}
               </Button>
             </div>
           </DialogContent>

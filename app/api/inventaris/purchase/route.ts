@@ -6,12 +6,20 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const CreateSchema = z.object({
-  tanggal: z.string().min(1),
+  tanggal: z.string().min(1), // "YYYY-MM-DDTHH:mm" dari <input type="datetime-local">
   supplier: z.string().min(1),
   itemId: z.string().min(1),
   qty: z.number().int().positive(),
   harga: z.number().int().positive(),
 });
+
+// helper: parse "YYYY-MM-DDTHH:mm" (waktu lokal) → Date UTC
+function parseLocalDateTimeToUTC(s: string) {
+  const [datePart, timePart = "00:00"] = s.split("T");
+  const [y, m, d] = datePart.split("-").map(Number);
+  const [hh, mm] = timePart.split(":").map(Number);
+  return new Date(Date.UTC(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, 0));
+}
 
 export async function GET() {
   try {
@@ -26,6 +34,7 @@ export async function GET() {
         qty: true,
         harga: true,
         total: true,
+        status: true,
         itemId: true,
         item: { select: { nama: true } },
       },
@@ -39,6 +48,7 @@ export async function GET() {
       qty: r.qty,
       harga: r.harga,
       total: r.total,
+      status: r.status,
     }));
     return NextResponse.json({ ok: true, rows: mapped });
   } catch (e: any) {
@@ -57,7 +67,8 @@ export async function POST(req: NextRequest) {
       qty: Number(body?.qty),
       harga: Number(body?.harga),
     });
-    const tanggal = new Date(`${parsed.tanggal}T00:00:00`);
+
+    const tanggal = parseLocalDateTimeToUTC(parsed.tanggal); // ⬅️ PENTING
 
     await prisma.$transaction(async (tx) => {
       const total = parsed.qty * parsed.harga;
@@ -70,6 +81,7 @@ export async function POST(req: NextRequest) {
           harga: parsed.harga,
           total,
           itemId: parsed.itemId,
+          status: "DRAFT",
         },
       });
 

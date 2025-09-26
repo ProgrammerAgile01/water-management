@@ -1,7 +1,7 @@
 // app/laporan/laba-rugi/page.tsx
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { AppShell } from "@/components/app-shell";
 import { AppHeader } from "@/components/app-header";
@@ -15,14 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import {
-  Download,
-  Calendar,
-  Wallet,
-  Banknote,
-  TrendingUp,
-  Filter,
-} from "lucide-react";
+import { Download, Calendar, Filter } from "lucide-react";
 
 const fetcher = (u: string) => fetch(u).then((r) => r.json());
 const toIDR = (n = 0) => "Rp " + Number(n || 0).toLocaleString("id-ID");
@@ -35,10 +28,24 @@ type Resp = {
     keterangan: string;
     debit: number;
     kredit: number;
+    jenisPendapatan: string | null;
+    jenisBeban: string | null;
   }>;
-  ringkasan: { debitTotal: number; kreditTotal: number; labaBersih: number };
-  pemasukan: { total: number; byMetode: Record<string, number> };
-  pengeluaran: { total: number; byKategori: { nama: string; total: number }[] };
+  ringkasan: {
+    bebanTotal: number;
+    pendapatanTotal: number;
+    labaBersih: number;
+  };
+  pendapatan: { total: number; byMetode: Record<string, number> };
+  beban: { total: number; byKategori: { nama: string; total: number }[] };
+  pagination?: {
+    total: number;
+    page: number;
+    size: number;
+    pages: number;
+    hasPrev: boolean;
+    hasNext: boolean;
+  };
 };
 
 export default function LabaRugiPage() {
@@ -47,20 +54,34 @@ export default function LabaRugiPage() {
     2,
     "0"
   )}`;
+
   const [scope, setScope] = useState<"month" | "year">("month");
   const [month, setMonth] = useState(ymNow);
   const [year, setYear] = useState(String(now.getFullYear()));
+
+  // === Pagination client ===
+  const [page, setPage] = useState(1);
+  const [size, setSize] = useState(1000); // default sesuai permintaan
+
+  // reset ke halaman 1 saat filter periode berubah
+  useEffect(() => {
+    setPage(1);
+  }, [scope, month, year]);
 
   const query = useMemo(() => {
     const qs = new URLSearchParams();
     qs.set("scope", scope);
     scope === "month" ? qs.set("month", month) : qs.set("year", year);
+    qs.set("page", String(page));
+    qs.set("size", String(size));
     return `/api/laporan/laba-rugi?${qs.toString()}`;
-  }, [scope, month, year]);
+  }, [scope, month, year, page, size]);
+
   const exportUrl = useMemo(() => {
     const qs = new URLSearchParams();
     qs.set("scope", scope);
     scope === "month" ? qs.set("month", month) : qs.set("year", year);
+    // export tidak dipaginasi agar full
     return `/api/laporan/laba-rugi/export?${qs.toString()}`;
   }, [scope, month, year]);
 
@@ -68,9 +89,14 @@ export default function LabaRugiPage() {
     revalidateOnFocus: false,
   });
 
+  const pages = data?.pagination?.pages ?? 1;
+  const total = data?.pagination?.total ?? data?.ledger?.length ?? 0;
+  const hasPrev = data?.pagination?.hasPrev ?? page > 1;
+  const hasNext = data?.pagination?.hasNext ?? page < pages;
+
   return (
     <AppShell>
-      <div className="max-w-5xl mx-auto space-y-6">
+      <div className="max-w-6xl mx-auto space-y-6">
         <AppHeader title="Laba & Rugi" />
 
         {/* Filter */}
@@ -160,33 +186,33 @@ export default function LabaRugiPage() {
           </div>
         </GlassCard>
 
-        {/* Ringkasan (tema glass ala meter-grid) */}
+        {/* Ringkasan */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <GlassCard className="p-4">
-            <p className="text-xs text-muted-foreground">Pemasukan (Kredit)</p>
+            <p className="text-xs text-muted-foreground">Pendapatan</p>
             <p className="text-2xl font-bold text-green-600">
-              {toIDR(data?.ringkasan.kreditTotal || 0)}
+              {toIDR(data?.ringkasan.pendapatanTotal || 0)}
             </p>
             <div className="flex flex-wrap gap-2 mt-3">
-              {data?.pemasukan?.byMetode &&
-                Object.entries(data.pemasukan.byMetode).map(([k, v]) => (
+              {/* {data?.pendapatan?.byMetode &&
+                Object.entries(data.pendapatan.byMetode).map(([k, v]) => (
                   <Badge
                     key={k}
                     className="bg-green-100 text-green-700 hover:bg-green-100"
                   >
                     {k}: {toIDR(v as number)}
                   </Badge>
-                ))}
+                ))} */}
             </div>
           </GlassCard>
 
           <GlassCard className="p-4">
-            <p className="text-xs text-muted-foreground">Pengeluaran (Debit)</p>
+            <p className="text-xs text-muted-foreground">Beban</p>
             <p className="text-2xl font-bold text-red-600">
-              {toIDR(data?.ringkasan.debitTotal || 0)}
+              {toIDR(data?.ringkasan.bebanTotal || 0)}
             </p>
             <div className="flex flex-wrap gap-2 mt-3">
-              {data?.pengeluaran?.byKategori?.map((k) => (
+              {/* {data?.beban?.byKategori?.map((k) => (
                 <Badge
                   key={k.nama}
                   variant="secondary"
@@ -194,7 +220,7 @@ export default function LabaRugiPage() {
                 >
                   {k.nama}: {toIDR(k.total)}
                 </Badge>
-              ))}
+              ))} */}
             </div>
           </GlassCard>
 
@@ -212,28 +238,34 @@ export default function LabaRugiPage() {
           </GlassCard>
         </div>
 
-        {/* ====== Ledger: Desktop = tabel, Mobile = card ====== */}
+        {/* Ledger */}
         <GlassCard className="p-4">
           <p className="text-sm font-semibold mb-3">
             Jurnal Laba Rugi (Debit / Kredit)
           </p>
 
-          {/* Desktop Table */}
+          {/* Desktop Table – tema meter-grid */}
           <div className="hidden md:block overflow-x-auto">
-            <table className="w-full border border-border/40 rounded-md">
+            <table className="w-full">
               <thead>
-                <tr className="border-b border-border/20 bg-muted/20">
-                  <th className="text-left py-3 px-3 text-sm text-muted-foreground">
+                <tr className="border-b border-border/20">
+                  <th className="text-left  py-3 px-2 text-sm font-medium text-muted-foreground">
                     Tanggal
                   </th>
-                  <th className="text-left py-3 px-3 text-sm text-muted-foreground">
+                  <th className="text-left  py-3 px-2 text-sm font-medium text-muted-foreground">
+                    Jenis Pendapatan
+                  </th>
+                  <th className="text-left  py-3 px-2 text-sm font-medium text-muted-foreground">
+                    Jenis Beban
+                  </th>
+                  <th className="text-left  py-3 px-2 text-sm font-medium text-muted-foreground">
                     Keterangan
                   </th>
-                  <th className="text-right py-3 px-3 text-sm text-muted-foreground">
-                    Debit
+                  <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">
+                    Pendapatan
                   </th>
-                  <th className="text-right py-3 px-3 text-sm text-muted-foreground">
-                    Kredit
+                  <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">
+                    Beban
                   </th>
                 </tr>
               </thead>
@@ -243,22 +275,26 @@ export default function LabaRugiPage() {
                     key={i}
                     className="border-b border-border/10 hover:bg-muted/20"
                   >
-                    <td className="py-3 px-3 text-sm">
-                      {new Date(r.tanggal).toLocaleString("id-ID")}
+                    <td className="py-3 px-2 text-sm">
+                      {new Date(r.tanggal).toLocaleDateString("id-ID")}
                     </td>
-                    <td className="py-3 px-3 text-sm">{r.keterangan}</td>
-                    <td className="py-3 px-3 text-sm text-right text-red-700 font-medium">
-                      {toIDR(r.debit)}
+                    <td className="py-3 px-2 text-sm">
+                      {r.jenisPendapatan || "-"}
                     </td>
-                    <td className="py-3 px-3 text-sm text-right text-green-700 font-medium">
+                    <td className="py-3 px-2 text-sm">{r.jenisBeban || "-"}</td>
+                    <td className="py-3 px-2 text-sm">{r.keterangan}</td>
+                    <td className="py-3 px-2 text-sm text-right text-green-700 font-medium">
                       {toIDR(r.kredit)}
+                    </td>
+                    <td className="py-3 px-2 text-sm text-right text-red-700 font-medium">
+                      {toIDR(r.debit)}
                     </td>
                   </tr>
                 ))}
                 {(data?.ledger?.length ?? 0) === 0 && (
                   <tr>
                     <td
-                      colSpan={4}
+                      colSpan={6}
                       className="py-6 text-center text-sm text-muted-foreground"
                     >
                       Tidak ada data.
@@ -267,31 +303,31 @@ export default function LabaRugiPage() {
                 )}
               </tbody>
               <tfoot>
-                <tr className="border-t border-border/20 bg-muted/20">
+                <tr className="border-t border-border/20">
                   <td
-                    className="py-3 px-3 text-right font-semibold"
-                    colSpan={2}
+                    className="py-3 px-2 text-right font-semibold"
+                    colSpan={4}
                   >
                     TOTAL
                   </td>
-                  <td className="py-3 px-3 text-right font-bold">
-                    {toIDR(data?.ringkasan.debitTotal || 0)}
+                  <td className="py-3 px-2 text-right font-bold">
+                    {toIDR(data?.ringkasan.pendapatanTotal || 0)}
                   </td>
-                  <td className="py-3 px-3 text-right font-bold">
-                    {toIDR(data?.ringkasan.kreditTotal || 0)}
+                  <td className="py-3 px-2 text-right font-bold">
+                    {toIDR(data?.ringkasan.bebanTotal || 0)}
                   </td>
                 </tr>
                 <tr className="border-t border-border/20">
                   <td
-                    className="py-3 px-3 text-right font-semibold"
-                    colSpan={2}
+                    className="py-3 px-2 text-right font-semibold"
+                    colSpan={4}
                   >
                     LABA BERSIH
                   </td>
-                  <td className="py-3 px-3 text-right font-bold" colSpan={2}>
+                  <td className="py-3 px-2 text-right font-bold" colSpan={2}>
                     {toIDR(
-                      (data?.ringkasan.kreditTotal || 0) -
-                        (data?.ringkasan.debitTotal || 0)
+                      (data?.ringkasan.pendapatanTotal || 0) -
+                        (data?.ringkasan.bebanTotal || 0)
                     )}
                   </td>
                 </tr>
@@ -310,22 +346,72 @@ export default function LabaRugiPage() {
             {data?.ledger?.map((r, idx) => (
               <div key={idx} className="p-3 rounded-lg bg-card/50">
                 <p className="text-xs text-muted-foreground">
-                  {new Date(r.tanggal).toLocaleString("id-ID")}
+                  {new Date(r.tanggal).toLocaleDateString("id-ID")}
                 </p>
                 <p className="text-sm font-medium mt-0.5">{r.keterangan}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Jenis Pendapatan: {r.jenisPendapatan || "-"} • Jenis Beban:{" "}
+                  {r.jenisBeban || "-"}
+                </p>
                 <div className="flex items-center justify-between mt-1">
+                  <Badge className="bg-green-100 text-green-700">
+                    Pendapatan: {toIDR(r.kredit)}
+                  </Badge>
                   <Badge
                     variant="secondary"
                     className="bg-red-100 text-red-700"
                   >
-                    Debit: {toIDR(r.debit)}
-                  </Badge>
-                  <Badge className="bg-green-100 text-green-700">
-                    Kredit: {toIDR(r.kredit)}
+                    Beban: {toIDR(r.debit)}
                   </Badge>
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* Pagination controls */}
+          <div className="mt-4 flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              Total {total} baris • Halaman {data?.pagination?.page ?? page}/
+              {pages}
+            </div>
+            <div className="flex items-center gap-2">
+              {/* Opsi ganti size cepat */}
+              <Select
+                value={String(size)}
+                onValueChange={(v) => {
+                  setPage(1);
+                  setSize(Number(v));
+                }}
+              >
+                <SelectTrigger className="h-9 w-28 bg-card/50">
+                  <SelectValue placeholder="Baris" />
+                </SelectTrigger>
+                <SelectContent>
+                  {[50, 100, 250, 500, 1000].map((n) => (
+                    <SelectItem key={n} value={String(n)}>
+                      {n}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                className="bg-card/50"
+                disabled={!hasPrev}
+                onClick={() => hasPrev && setPage((p) => Math.max(1, p - 1))}
+              >
+                Prev
+              </Button>
+
+              <Button
+                variant="outline"
+                className="bg-card/50"
+                disabled={!hasNext}
+                onClick={() => hasNext && setPage((p) => p + 1)}
+              >
+                Next
+              </Button>
+            </div>
           </div>
         </GlassCard>
       </div>

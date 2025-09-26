@@ -1,4 +1,3 @@
-// app/api/laporan/keuangan/mutasi/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
@@ -7,13 +6,12 @@ export const runtime = "nodejs";
 
 type MoneyFlow = "ALL" | "IN" | "OUT";
 
-function isYm(x?: string | null) {
-  return !!x && /^\d{4}-\d{2}$/.test(x);
-}
+const isYm = (x?: string | null) => !!x && /^\d{4}-\d{2}$/.test(x || "");
+
 function monthRange(ym: string) {
   const [y, m] = ym.split("-").map(Number);
   const start = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0));
-  const end = new Date(Date.UTC(y, m, 1, 0, 0, 0));
+  const end = new Date(Date.UTC(y, m, 1, 0, 0, 0)); // awal bulan berikut
   return { start, end };
 }
 function clampRange(baseYm: string, from?: string | null, to?: string | null) {
@@ -28,29 +26,30 @@ function clampRange(baseYm: string, from?: string | null, to?: string | null) {
   }
   return { start, end };
 }
-function toYmd(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+const toYmd = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate()
+  ).padStart(2, "0")}`;
+const toHms = (d: Date) =>
+  `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(
+    2,
+    "0"
+  )}:${String(d.getSeconds()).padStart(2, "0")}`;
+const ymToLong = (ym: string) =>
+  new Date(`${ym}-01T00:00:00`).toLocaleDateString("id-ID", {
+    month: "long",
+    year: "numeric",
+  });
+function metodeLabel(x?: any) {
+  const s = String(x || "").toUpperCase();
+  if (s === "TUNAI") return "Tunai";
+  if (s === "TRANSFER") return "Transfer";
+  if (s === "EWALLET") return "E-Wallet";
+  if (s === "QRIS") return "QRIS";
+  return x || "-";
 }
-function toHms(d: Date) {
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  const ss = String(d.getSeconds()).padStart(2, "0");
-  return `${hh}:${mm}:${ss}`;
-}
-function ymToLong(ym: string) {
-  const m = ym.match(/^(\d{4})-(\d{1,2})$/);
-  const fixed = m ? `${m[1]}-${String(Number(m[2])).padStart(2, "0")}` : ym;
-  const d = new Date(`${fixed}-01T00:00:00`);
-  return d.toLocaleDateString("id-ID", { month: "long", year: "numeric" });
-}
-function joinDateTime(tgl?: string, jam?: string | null) {
-  if (!tgl) return null;
-  const t = jam && /^\d{2}:\d{2}/.test(jam) ? jam : "00:00:00";
-  return new Date(`${tgl}T${t}`);
-}
+const ymUTC = (d: Date) =>
+  `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 
 type MutasiRow = {
   id: string;
@@ -77,27 +76,23 @@ export async function GET(req: NextRequest) {
     const from = sp.get("from");
     const to = sp.get("to");
 
-    const page = Math.max(1, Number(sp.get("page") || 1));
-    const pageSize = Math.min(
-      100,
-      Math.max(5, Number(sp.get("pageSize") || 20))
-    );
-    const offset = (page - 1) * pageSize;
-
     if (!isYm(periode)) {
       return NextResponse.json(
-        { ok: false, message: "periode harus 'YYYY-MM'" },
+        { ok: false, message: "periode harus YYYY-MM" },
         { status: 400 }
       );
     }
 
     const { start, end } = clampRange(periode, from, to);
 
-    // ===== IN (ACCRUAL): Pembayaran berdasarkan periode tagihan =====
+    /* ================= IN =================
+       Sekarang berdasarkan TANGGAL BAYAR REAL
+       (bukan tagihan.periode)
+    */
     const pays = await prisma.pembayaran.findMany({
       where: {
         deletedAt: null,
-        tagihan: { periode }, // accrual
+        tanggalBayar: { gte: start, lt: end },
       },
       select: {
         id: true,
@@ -105,7 +100,6 @@ export async function GET(req: NextRequest) {
         jumlahBayar: true,
         metode: true,
         keterangan: true,
-        // createdAt: (TIDAK ADA di model Pembayaran kamu)
         tagihan: {
           select: {
             id: true,
@@ -117,36 +111,30 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    let inRows: MutasiRow[] = pays.map((p) => {
-      const d = new Date(p.tanggalBayar);
-      const prettyPeriod = ymToLong(p.tagihan?.periode || periode);
-      const ketDefault = `Pembayaran Tagihan ${prettyPeriod}`;
+    const inRows: MutasiRow[] = pays.map((x) => {
+      const d = new Date(x.tanggalBayar);
+      const ym = ymUTC(d); // bulan untuk keterangan
       return {
-        id: p.id,
+        id: x.id,
         tanggal: toYmd(d),
         jam: toHms(d),
         tipe: "IN",
         kategori: "Pembayaran Tagihan",
-        metode: String(p.metode || ""),
-        keterangan:
-          (p.keterangan && p.keterangan.trim().length
-            ? p.keterangan
-            : ketDefault) || ketDefault,
-        jumlah: p.jumlahBayar || 0,
-        refCode: p.tagihan?.id || p.tagihan?.periode || undefined,
-        createdAt: null, // <- pembayaran tidak punya createdAt di schema kamu
-        statusVerif: p.tagihan?.statusVerif ?? null,
+        metode: metodeLabel(x.metode),
+        keterangan: `Pembayaran Tagihan ${ymToLong(ym)}`,
+        jumlah: x.jumlahBayar || 0,
+        refCode: x.tagihan?.id || undefined, // tetap simpan id/refs
+        createdAt: null,
+        statusVerif: x.tagihan?.statusVerif ?? null,
       };
     });
 
-    // ===== OUT 1: PengeluaranDetail (tanggal dari header.tanggalInput) =====
-    const outDetails = await prisma.pengeluaranDetail.findMany({
+    /* ============ OUT: Pengeluaran CLOSE (tanggalInput) ============ */
+    const outs = await prisma.pengeluaranDetail.findMany({
       where: {
         pengeluaran: {
-          tanggalInput: {
-            gte: monthRange(periode).start,
-            lt: monthRange(periode).end,
-          },
+          status: "CLOSE",
+          tanggalInput: { gte: start, lt: end },
         },
       },
       select: {
@@ -161,7 +149,7 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    let outRows: MutasiRow[] = outDetails.map((d) => {
+    const outRows: MutasiRow[] = outs.map((d) => {
       const t = new Date(d.pengeluaran!.tanggalInput);
       return {
         id: d.id,
@@ -174,102 +162,86 @@ export async function GET(req: NextRequest) {
         jumlah: d.nominal || 0,
         refCode: d.pengeluaran?.noBulan || d.pengeluaran?.id || undefined,
         createdAt: d.createdAt?.toISOString() ?? null,
-        statusVerif: null,
+        statusVerif: "CLOSE",
       };
     });
 
-    // ===== OUT 2: Purchase (inventaris) =====
+    /* ============ OUT: Purchase CLOSE (tanggal) ============ */
     const purchases = await prisma.purchase.findMany({
       where: {
         deletedAt: null,
-        tanggal: {
-          gte: monthRange(periode).start,
-          lt: monthRange(periode).end,
-        },
+        status: "CLOSE",
+        tanggal: { gte: start, lt: end },
       },
       select: {
         id: true,
         tanggal: true,
-        total: true,
         supplier: true,
+        total: true,
+        status: true,
+        item: { select: { nama: true, kategori: true } },
         createdAt: true,
-        item: { select: { nama: true } },
       },
     });
 
-    const outPurchases: MutasiRow[] = purchases.map((p) => {
+    const purchaseRows: MutasiRow[] = purchases.map((p) => {
       const d = new Date(p.tanggal);
       return {
         id: p.id,
         tanggal: toYmd(d),
         jam: toHms(d),
         tipe: "OUT",
-        kategori: "Pembelian Inventaris",
+        kategori: p.item?.kategori
+          ? `Pembelian • ${p.item.kategori}`
+          : "Pembelian Inventaris",
         metode: "-",
-        keterangan: `Pembelian ${p.item?.nama || "Item"}${
-          p.supplier ? ` • ${p.supplier}` : ""
-        }`,
+        keterangan: p.item?.nama
+          ? `Beli ${p.item.nama}${p.supplier ? ` • ${p.supplier}` : ""}`
+          : p.supplier || "Pembelian",
         jumlah: p.total || 0,
         refCode: p.id,
         createdAt: p.createdAt?.toISOString() ?? null,
-        statusVerif: null,
+        statusVerif: p.status || "CLOSE",
       };
     });
 
-    outRows = [...outRows, ...outPurchases];
+    // gabung & filter
+    let rows: MutasiRow[] = [...inRows, ...outRows, ...purchaseRows];
+    if (flow !== "ALL") rows = rows.filter((r) => r.tipe === flow);
 
-    // ------ gabung ------
-    let rows: MutasiRow[] = [...inRows, ...outRows];
-
-    // filter q
-    const contains = (s: any) =>
-      String(s || "")
-        .toLowerCase()
-        .includes(q);
     if (q) {
+      const s = q.toLowerCase();
       rows = rows.filter(
         (r) =>
-          contains(r.kategori) ||
-          contains(r.metode) ||
-          contains(r.keterangan) ||
-          contains(r.refCode) ||
-          contains(r.statusVerif)
+          String(r.kategori || "")
+            .toLowerCase()
+            .includes(s) ||
+          String(r.metode || "")
+            .toLowerCase()
+            .includes(s) ||
+          String(r.keterangan || "")
+            .toLowerCase()
+            .includes(s) ||
+          String(r.refCode || "")
+            .toLowerCase()
+            .includes(s) ||
+          String(r.statusVerif || "")
+            .toLowerCase()
+            .includes(s)
       );
     }
 
-    // filter flow
-    if (flow !== "ALL") rows = rows.filter((r) => r.tipe === flow);
-
-    // filter from–to
-    rows = rows.filter((r) => {
-      const ts = joinDateTime(r.tanggal, r.jam)?.getTime() ?? 0;
-      return ts >= start.getTime() && ts <= end.getTime();
-    });
-
-    // ===== Sort ASC by tanggal & jam =====
+    // ASC by tanggal+jam, lalu createdAt
     rows.sort((a, b) => {
-      const da = joinDateTime(a.tanggal, a.jam)?.getTime() ?? 0;
-      const db = joinDateTime(b.tanggal, b.jam)?.getTime() ?? 0;
-      if (da !== db) return da - db; // ASC
+      const da = new Date(`${a.tanggal}T${a.jam || "00:00:00"}`).getTime();
+      const db = new Date(`${b.tanggal}T${b.jam || "00:00:00"}`).getTime();
+      if (da !== db) return da - db;
       const ca = a.createdAt ? new Date(a.createdAt).getTime() : 0;
       const cb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      return ca - cb; // ASC tie-break
+      return ca - cb;
     });
 
-    // pagination (in-memory)
-    const total = rows.length;
-    const paged = rows.slice(offset, offset + pageSize);
-
-    return NextResponse.json({
-      ok: true,
-      rows: paged,
-      pagination: {
-        page,
-        pageSize,
-        total,
-        totalPages: Math.max(1, Math.ceil(total / pageSize)),
-      },
-    });
+    return NextResponse.json({ ok: true, rows });
   } catch (e: any) {
     console.error("mutasi accrual error:", e);
     return NextResponse.json(
