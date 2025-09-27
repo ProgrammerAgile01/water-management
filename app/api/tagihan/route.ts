@@ -101,9 +101,26 @@ export async function GET(req: NextRequest) {
     // Status by sisaKurang
     if (statusQRaw) {
       const s = statusQRaw.toUpperCase();
-      if (s === "PAID" || s === "LUNAS") where.sisaKurang = { lte: 0 };
-      else if (s === "UNPAID" || s === "BELUM-LUNAS")
-        where.sisaKurang = { gt: 0 };
+      // if (s === "PAID" || s === "LUNAS") where.sisaKurang = { lte: 0 };
+      // else if (s === "UNPAID" || s === "BELUM-LUNAS")
+      //   where.sisaKurang = { gt: 0 };
+      const paidMarker = {
+        OR: [
+          { info: { contains: "[CLOSED_BY:" } },
+          { info: { contains: "[PAID_BY:" } }, // kalau masih ada marker lama
+        ],
+      };
+
+      if (s === "PAID" || s === "LUNAS") {
+        // Lunas jika angka <= 0 ATAU ada marker closed/paid-by
+        (where.OR ??= []).push({ sisaKurang: { lte: 0 } }, paidMarker);
+      } else if (s === "UNPAID" || s === "BELUM-LUNAS") {
+        // Belum lunas = (sisaKurang > 0 ATAU NULL) DAN tidak ada marker closed/paid-by
+        (where.AND ??= []).push(
+          { OR: [{ sisaKurang: { gt: 0 } }, { sisaKurang: null }] },
+          { NOT: paidMarker }
+        );
+      }
     }
 
     if (periodeQ) where.periode = periodeQ;
@@ -132,11 +149,13 @@ export async function GET(req: NextRequest) {
     }
 
     if (q) {
-      where.OR = [
+      const searchOr = [
         { pelanggan: { is: { nama: { contains: q } } } },
         { pelanggan: { is: { kode: { contains: q } } } },
         { pelanggan: { is: { zona: { is: { nama: { contains: q } } } } } },
       ];
+      // gabungkan sebagai AND dari sebuah OR block
+      (where.AND ??= []).push({ OR: searchOr });
     }
 
     // ===== total & data (pagination) =====

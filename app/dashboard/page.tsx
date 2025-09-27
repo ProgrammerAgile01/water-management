@@ -326,7 +326,7 @@ export default function DashboardPage() {
                 )}
                 <div className="flex justify-end">
                   <Button variant="ghost" size="sm" asChild>
-                    <Link href="/laporan/belum-bayar">Buka Halaman</Link>
+                    <Link href="/laporan/piutang">Buka Halaman</Link>
                   </Button>
                 </div>
               </div>
@@ -410,7 +410,7 @@ export default function DashboardPage() {
                   Tutup
                 </Button>
                 <Button variant="outline" asChild>
-                  <Link href="/laporan/belum-bayar">Buka Halaman</Link>
+                  <Link href="/laporan/piutang">Buka Halaman</Link>
                 </Button>
               </div>
             </div>

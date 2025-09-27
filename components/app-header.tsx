@@ -24,6 +24,7 @@ import {
   Droplet,
   TrendingUp,
   CircleDollarSign,
+  ChartPie,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter, usePathname } from "next/navigation";
@@ -169,6 +170,12 @@ const MENU_ITEMS: MenuItem[] = [
     label: "Laporan Konsumsi Zona",
     icon: Droplet,
     roles: ["ADMIN", "OPERATOR"],
+  },
+  {
+    href: "/distribusi/rekonsiliasi",
+    label: "Rekonsiliasi",
+    icon: ChartPie,
+    roles: ["ADMIN", "PETUGAS"], // warga gak perlu lihat
   },
   {
     href: "/tools/import-export",
