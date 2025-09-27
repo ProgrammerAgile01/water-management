@@ -301,6 +301,7 @@ export default function RekonsiliasiPage() {
         <GlassCard className="p-3">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-center">
             <div>
+              <label className="text-sm font-medium">Periode Catat</label>
               <Select value={periode} onValueChange={setPeriode}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Pilih periode" />
@@ -316,6 +317,7 @@ export default function RekonsiliasiPage() {
             </div>
 
             <div>
+              <label className="text-sm font-medium">Blok</label>
               <Select value={zonaId} onValueChange={setZonaId}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Pilih blok/zona" />
@@ -333,7 +335,8 @@ export default function RekonsiliasiPage() {
 
             <div className="md:col-span-1 flex gap-2 items-end">
               <div className="flex-1 relative">
-                <Search className="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 opacity-60" />
+              <label className="text-sm font-medium">Cari</label>
+                <Search className="w-4 h-4 absolute left-2 top-1/2 mt-1 opacity-60" />
                 <Input
                   className="pl-8"
                   placeholder="Cari pelanggan / kode / blok"
@@ -427,7 +430,7 @@ export default function RekonsiliasiPage() {
         <GlassCard className="p-4 overflow-hidden hidden md:block">
           <div className="p-2 border-b flex items-center justify-between">
             <div className="font-semibold">
-              Pantauan pemakaian {selectedZonaName} - Periode{" "}
+              Pantauan pemakaian {selectedZonaName} - Periode Catat{" "}
               {periodeLabel || "-"}
             </div>
             <div className="text-xs text-muted-foreground flex items-center gap-2">
