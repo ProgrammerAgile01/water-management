@@ -23,13 +23,13 @@ function composeWithNowTime(dateStr: string) {
 
 function stripManagedTags(info: string | null | undefined): string {
   if (!info) return "";
-  // hapus baris tag machine yang kita kelola
   return info
     .split("\n")
-    .filter((line) => !/\[(PREV_CLEARED|CLOSED_BY|CREDIT):/.test(line))
+    .filter((line) => !/\[(PREV_CLEARED|CLOSED_BY|CREDIT|PAID_AT):/.test(line))
     .join("\n")
     .trim();
 }
+
 function appendInfo(info: string | null | undefined, lines: string[]) {
   const base = (info || "").trim();
   const add = lines.filter(Boolean).join("\n");
@@ -38,8 +38,16 @@ function appendInfo(info: string | null | undefined, lines: string[]) {
 
 async function rebuildImmutableInfo(
   tx: Prisma.TransactionClient,
-  anchorId: string
+  anchorId: string,
+  paidAt: Date
 ) {
+  const paidAtISO = paidAt.toISOString();
+  const paidAtHuman = paidAt.toLocaleDateString("id-ID", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+
   // 1) anchor + pelanggan
   const anchor = await tx.tagihan.findUnique({
     where: { id: anchorId },
@@ -98,7 +106,11 @@ async function rebuildImmutableInfo(
           info: appendInfo(freshInfo, [
             `Dibayarkan di periode ${anchor.periode}`,
             `[CLOSED_BY:${anchor.periode}]`,
+            `[PAID_AT:${paidAtISO}]`,
           ]),
+          // status saja, sisaKurang TIDAK disentuh
+          statusBayar: "PAID",
+          statusVerif: "VERIFIED",
         },
       });
       cleared.push(t.periode);
@@ -129,6 +141,13 @@ async function rebuildImmutableInfo(
       `[PREV_CLEARED:${cleared.join(", ")}]`,
     ]);
   }
+
+  // tulis PAID_AT & baris manusia di anchor (di-replace karena strip dulu)
+  anchorInfo = appendInfo(anchorInfo, [
+    `Dibayar tanggal ${paidAtHuman}`,
+    `[PAID_AT:${paidAtISO}]`,
+  ]);
+
   if (anchorSisa < 0) {
     anchorInfo = appendInfo(anchorInfo, [`[CREDIT:${Math.abs(anchorSisa)}]`]);
   }
@@ -258,71 +277,7 @@ export async function PATCH(
       });
 
       // ⬇️ Rebuild immutable tags + posisi anchor saja
-      await rebuildImmutableInfo(tx, pay.tagihanId);
-
-      // // Recalc tagihan saat ini
-      // const t = await tx.tagihan.findUnique({
-      //   where: { id: pay.tagihanId },
-      //   select: {
-      //     id: true,
-      //     pelangganId: true,
-      //     periode: true,
-      //     totalTagihan: true,
-      //     tagihanLalu: true,
-      //   },
-      // });
-      // if (!t) throw new Error("Tagihan tidak ditemukan");
-
-      // const agg = await tx.pembayaran.aggregate({
-      //   where: { tagihanId: t.id, deletedAt: null },
-      //   _sum: { jumlahBayar: true },
-      // });
-
-      // const totalBulanIni = t.totalTagihan ?? 0;
-      // const carry = t.tagihanLalu ?? 0;
-      // const totalDue = totalBulanIni + carry;
-      // const totalPaid = agg._sum.jumlahBayar ?? 0;
-      // const sisaKurang = totalDue - totalPaid;
-      // const statusBayar = totalPaid > 0 ? "PAID" : "UNPAID";
-
-      // await tx.tagihan.update({
-      //   where: { id: t.id },
-      //   data: { sisaKurang, statusBayar },
-      // });
-
-      // // Propagate ke bulan berikut
-      // const periodeNext = nextMonth(t.periode);
-      // const nextT = await tx.tagihan.findUnique({
-      //   where: {
-      //     pelangganId_periode: {
-      //       pelangganId: t.pelangganId,
-      //       periode: periodeNext,
-      //     },
-      //   },
-      //   select: { id: true, totalTagihan: true },
-      // });
-
-      // if (nextT) {
-      //   await tx.tagihan.update({
-      //     where: { id: nextT.id },
-      //     data: { tagihanLalu: sisaKurang },
-      //   });
-
-      //   const aggNext = await tx.pembayaran.aggregate({
-      //     where: { tagihanId: nextT.id, deletedAt: null },
-      //     _sum: { jumlahBayar: true },
-      //   });
-
-      //   const totalPaidNext = aggNext._sum.jumlahBayar ?? 0;
-      //   const totalDueNext = (nextT.totalTagihan ?? 0) + sisaKurang;
-      //   const sisaNext = totalDueNext - totalPaidNext;
-      //   const statusNext = totalPaidNext > 0 ? "PAID" : "UNPAID";
-
-      //   await tx.tagihan.update({
-      //     where: { id: nextT.id },
-      //     data: { sisaKurang: sisaNext, statusBayar: statusNext },
-      //   });
-      // }
+      await rebuildImmutableInfo(tx, pay.tagihanId, tanggalBayar);
     });
 
     return NextResponse.json({ ok: true });

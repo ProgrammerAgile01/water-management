@@ -98,11 +98,12 @@ export async function GET(req: NextRequest) {
     // ===== 2) build where (default ke latestPeriode bila tidak kirim "periode") =====
     const where: any = { deletedAt: null };
 
+    // Status by sisaKurang
     if (statusQRaw) {
       const s = statusQRaw.toUpperCase();
-      if (s === "PAID" || s === "LUNAS") where.statusBayar = "PAID";
+      if (s === "PAID" || s === "LUNAS") where.sisaKurang = { lte: 0 };
       else if (s === "UNPAID" || s === "BELUM-LUNAS")
-        where.statusBayar = { not: "PAID" };
+        where.sisaKurang = { gt: 0 };
     }
 
     if (periodeQ) where.periode = periodeQ;
@@ -157,6 +158,7 @@ export async function GET(req: NextRequest) {
           },
         },
         pembayarans: {
+          where: { deletedAt: null },
           orderBy: { tanggalBayar: "desc" },
           take: 1,
           select: {
@@ -208,7 +210,7 @@ export async function GET(req: NextRequest) {
         denda: t.denda,
         totalTagihan: totalDue,
 
-        status: t.statusBayar === "PAID" ? "lunas" : "belum-lunas",
+        status: t.sisaKurang <= 0 ? "lunas" : "belum-lunas",
         statusVerif: t.statusVerif,
         tglJatuhTempo: t.tglJatuhTempo,
         tagihanLalu: t.tagihanLalu,

@@ -176,7 +176,9 @@ export default function WASettingPage() {
       <AppShell>
         <AppHeader title="WhatsApp Setting" />
         <div className="flex flex-wrap gap-2">
-          <div className="md:p-6 max-w-4xl mx-auto">
+
+          {/* Panel Whatsapp */}
+          <div className="max-w-4xl mx-auto">
             <GlassCard className="p-4 md:p-6">
               <div className="flex items-center justify-between gap-3 mb-3">
                 <div className="flex items-center gap-3">
@@ -301,9 +303,9 @@ export default function WASettingPage() {
             </GlassCard>
           </div>
 
-          {/* ===== Logs (kanan) ===== */}
-          <div className="md:p-6 w-96 mx-auto min-h-0">
-            <GlassCard className="p-4 md:p-6 min-h-0">
+          {/* Logs */}
+          <div className="w-96 mx-auto min-h-0">
+            <GlassCard className="p-4 md:p-5 min-h-0">
               {/* Header */}
               <div className="flex items-center justify-between gap-3 mb-3">
                 <div className="flex items-center gap-3">
@@ -348,12 +350,11 @@ export default function WASettingPage() {
                 style={{ height: 495 }} // <-- aman dari purge. Ubah sesuai selera
               >
                 {/* Table header (tetap terlihat) */}
-                <div className="grid grid-cols-12 bg-muted/40 text-xs font-medium px-3 py-2 shrink-0">
+                {/* <div className="grid grid-cols-12 bg-muted/40 text-xs font-medium px-3 py-2 shrink-0">
                   <div className="col-span-2"></div>
-                  <div className="col-span-2"></div>
+                  <div className="col-span-3"></div>
                   <div className="col-span-4">Log Info</div>
-                  <div className="col-span-4">Meta</div>
-                </div>
+                </div> */}
 
                 {/* Area scroll di dalam card */}
                 <div
@@ -370,12 +371,12 @@ export default function WASettingPage() {
                         key={i}
                         className="grid grid-cols-12 items-start px-3 py-2 border-t text-sm"
                       >
-                        <div className="col-span-2 tabular-nums">
+                        <div className="col-span-3 tabular-nums">
                           {fmt(l.ts)}
                         </div>
-                        <div className="col-span-2">{levelBadge(l.level)}</div>
-                        <div className="col-span-4 break-words">{l.msg}</div>
-                        <div className="col-span-4">
+                        <div className="col-span-3">{levelBadge(l.level)}</div>
+                        <div className="col-span-6 break-words">{l.msg}</div>
+                        <div className="col-span-12 mt-2">
                           {l.meta ? (
                             <pre className="text-xs bg-muted rounded p-2 overflow-auto max-h-32">
                               {JSON.stringify(l.meta, null, 2)}

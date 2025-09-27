@@ -23,7 +23,7 @@ function ymToLong(ym: string) {
 function renderTagihanLaluText(n: number) {
   if (n > 0) return `Kurang ${rp(n)}`;
   if (n < 0) return `Sisa ${rp(Math.abs(n))}`;
-  return "Lunas";
+  return "Rp 0";
 }
 
 type PageProps = {

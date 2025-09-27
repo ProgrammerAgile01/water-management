@@ -804,7 +804,7 @@ export default function InputPembayaranPage() {
                         <span>{renderSisaKurang(t.tagihanLalu)}</span>
                       </div>
                       {/* Badge: tagihan bulan lalu lunas */}
-                      {(() => {
+                      {/* {(() => {
                         const prev = parsePrevCleared(t?.info);
                         const show =
                           prev.length > 0 && (t?.tagihanLalu ?? 0) > 0;
@@ -819,7 +819,7 @@ export default function InputPembayaranPage() {
                             </span>
                           </div>
                         );
-                      })()}
+                      })()} */}
 
                       {/* Info lebih bayar */}
                       {/* {(() => {
@@ -923,7 +923,7 @@ export default function InputPembayaranPage() {
                             value={tanggalBayar}
                             onChange={(e) => setTanggalBayar(e.target.value)}
                             className="mt-1"
-                            readOnly
+                            disabled={lockForm}
                           />
                         </div>
 

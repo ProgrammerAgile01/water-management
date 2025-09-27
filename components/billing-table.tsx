@@ -59,6 +59,7 @@ type BillingItem = {
   keterangan: string | null;
   canInputPayment?: boolean;
   info?: string | null;
+  sisaKurang?: number;
 };
 
 type Option = { value: string; label: string };
@@ -79,10 +80,19 @@ function parseClosedBy(info?: string | null): string | null {
   return m ? m[1] : null;
 }
 
-function parseCredit(info?: string | null): number {
-  if (!info) return 0;
-  const m = info.match(/\[CREDIT:(\d+)\]/);
-  return m ? Number(m[1]) : 0;
+function parsePaidAt(info?: string | null): Date | null {
+  if (!info) return null;
+  const m = info.match(/\[PAID_AT:([^\]]+)\]/);
+  if (!m) return null;
+  const d = new Date(m[1]);
+  return isNaN(d.getTime()) ? null : d;
+}
+function formatTanggalID(d: Date) {
+  return d.toLocaleDateString("id-ID", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
 }
 
 function formatPeriodeList(ps: string[]): string {
@@ -408,9 +418,16 @@ export function BillingTable() {
     }).format(n || 0);
 
   const getPelunasanStatus = (b: BillingItem): "lunas" | "belum-lunas" => {
-    const total = Math.round(Number(b.totalTagihan || 0));
-    const paid = Math.round(Number(b.jumlahBayar || 0));
-    return paid >= total ? "lunas" : "belum-lunas";
+    // 1) Tag mesin dari server (paling tepercaya utk kasus carry-over)
+    if (parseClosedBy(b.info)) return "lunas";
+
+    // 2) Logika angka lokal (anchor/umum)
+    if (typeof b.sisaKurang === "number") {
+      return b.sisaKurang <= 0 ? "lunas" : "belum-lunas";
+    }
+
+    // 3) Fallback ke status yang dikirim server
+    return b.status;
   };
 
   function renderSisaKurang(n: number) {
@@ -675,14 +692,15 @@ export function BillingTable() {
                     Zona/Blok: {b.zona}
                   </p>
                   {(() => {
-                    const closedBy = parseClosedBy(b.info);
-                    if (!closedBy) return null;
+                    if (pelunasan !== "lunas") return null;
+                    const paidAt =
+                      parsePaidAt(b.info) ||
+                      (b.tanggalBayar ? new Date(b.tanggalBayar) : null);
+                    if (!paidAt) return null;
                     return (
-                      <div className="mt-1">
-                        <Badge className="bg-sky-100 text-sky-800 hover:bg-sky-100">
-                          Dibayarkan di {formatPeriode(closedBy)}
-                        </Badge>
-                      </div>
+                      <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                        Dibayar tanggal {formatTanggalID(paidAt)}
+                      </Badge>
                     );
                   })()}
                 </div>
@@ -725,7 +743,7 @@ export function BillingTable() {
                       {renderSisaKurang(b.tagihanLalu)}
                     </p>
                     {/* Badge "tagihan bulan lalu lunas" bila ada PREV_CLEARED & snapshot tagihanLalu>0 */}
-                    {(() => {
+                    {/* {(() => {
                       const prev = parsePrevCleared(b.info);
                       const show = prev.length > 0 && (b.tagihanLalu ?? 0) > 0;
                       if (!show) return null;
@@ -734,13 +752,12 @@ export function BillingTable() {
                           <span className="text-xs rounded px-2 py-0.5 bg-green-100 text-green-700">
                             (tagihan bulan lalu lunas)
                           </span>
-                          {/* opsional tampilkan daftar periode yang ditutup */}
                           <span className="text-xs text-muted-foreground">
                             Menutup: {formatPeriodeList(prev)}
                           </span>
                         </div>
                       );
-                    })()}
+                    })()} */}
 
                     {/* Info lebih bayar jika ada CREDIT */}
                     {/* {(() => {
@@ -974,14 +991,15 @@ export function BillingTable() {
                         </div>
 
                         {(() => {
-                          const closedBy = parseClosedBy(b.info);
-                          if (!closedBy) return null;
+                          if (pelunasan !== "lunas") return null;
+                          const paidAt =
+                            parsePaidAt(b.info) ||
+                            (b.tanggalBayar ? new Date(b.tanggalBayar) : null);
+                          if (!paidAt) return null;
                           return (
-                            <div className="mt-2">
-                              <Badge className="bg-sky-100 text-sky-800 hover:bg-sky-100">
-                                Dibayarkan di {formatPeriode(closedBy)}
-                              </Badge>
-                            </div>
+                            <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                              Dibayar tanggal {formatTanggalID(paidAt)}
+                            </Badge>
                           );
                         })()}
                       </div>
@@ -1023,7 +1041,7 @@ export function BillingTable() {
                           {renderSisaKurang(b.tagihanLalu)}
                         </p>
                         {/* Badge "tagihan bulan lalu lunas" bila ada PREV_CLEARED & snapshot tagihanLalu>0 */}
-                        {(() => {
+                        {/* {(() => {
                           const prev = parsePrevCleared(b.info);
                           const show =
                             prev.length > 0 && (b.tagihanLalu ?? 0) > 0;
@@ -1033,13 +1051,12 @@ export function BillingTable() {
                               <span className="text-xs rounded px-2 py-0.5 bg-green-100 text-green-700">
                                 (tagihan bulan lalu lunas)
                               </span>
-                              {/* opsional tampilkan daftar periode yang ditutup */}
                               <span className="text-xs text-muted-foreground">
                                 Menutup: {formatPeriodeList(prev)}
                               </span>
                             </div>
                           );
-                        })()}
+                        })()} */}
 
                         {/* Info lebih bayar jika ada CREDIT */}
                         {/* {(() => {

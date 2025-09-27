@@ -23,6 +23,7 @@ import {
   LibraryIcon,
   Droplet,
   TrendingUp,
+  CircleDollarSign,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter, usePathname } from "next/navigation";
@@ -191,6 +192,12 @@ const MENU_ITEMS: MenuItem[] = [
     href: "/laporan/keuangan",
     label: "Laporan Keuangan",
     icon: DollarSign,
+    roles: ["ADMIN"],
+  },
+  {
+    href: "/laporan/piutang",
+    label: "Laporan Piutang",
+    icon: CircleDollarSign,
     roles: ["ADMIN"],
   },
   {
