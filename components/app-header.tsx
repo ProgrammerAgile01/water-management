@@ -450,6 +450,7 @@ import {
   FileBarChart,
   Grid3X3,
   ChevronRight,
+  Droplets,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter, usePathname } from "next/navigation";
@@ -656,6 +657,24 @@ const MENU_ITEMS: MenuItem[] = [
     section: "Laporan",
   },
 
+  // Admin > Distribusi
+  {
+    href: "/distribusi/rekonsiliasi",
+    label: "Rekonsiliasi",
+    icon: ChartPie,
+    roles: ["ADMIN"],
+    group: "Admin",
+    section: "Distribusi",
+  },
+  {
+    href: "/distribusi/peta",
+    label: "Peta Pemakaian Air",
+    icon: Droplets,
+    roles: ["ADMIN"],
+    group: "Admin",
+    section: "Distribusi",
+  },
+
   // Admin > Pengaturan
   {
     href: "/pengaturan",
@@ -727,6 +746,7 @@ const SECTION_ORDER = [
   "Meteran",
   "Keuangan",
   "Laporan",
+  "Distribusi",
   "Pengaturan",
   "Petugas",
 ];
@@ -751,6 +771,7 @@ const SECTION_ITEM_ORDER: Record<string, string[]> = {
     "/laporan/keuangan",
     "/laporan/piutang",
   ],
+  distribusi: ["/distribusi/rekonsiliasi", "/distribusi/peta"],
   Pengaturan: ["/pengaturan", "/whatsapp-setting", "/tools/import-export"],
 };
 const getItemOrder = (section: string, href: string) => {
@@ -784,6 +805,8 @@ const PATH_LABELS: Record<string, string> = {
   "/laporan/keuangan": "Laporan Keuangan",
   "/laporan-catat-meter": "Laporan Catat Meter",
   "/laporan/piutang": "Laporan Piutang",
+  "/distribusi/rekonsiliasi": "Rekonsiliasi",
+  "/distribusi/peta": "Peta Pemakaian Air",
   "/pengaturan": "Pengaturan",
   "/tools/import-export": "Import/Export",
   "/warga-dashboard": "Dashboard Warga",

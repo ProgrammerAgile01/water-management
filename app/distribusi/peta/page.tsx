@@ -162,7 +162,7 @@ export default function DistribusiPetaTablePage() {
       "Pemakaian (m³)": r.pemakaianM3,
       "Rata-rata Pembanding (m³)": r.baselineAvg ?? "",
       "Jumlah Bulan Pembanding": r.baselineCount,
-      "Selisih vs Rata-rata":
+      "Perubahan vs Rata-rata":
         typeof r.pctChange === "number"
           ? (r.pctChange * 100).toFixed(0) + "%"
           : "",
@@ -439,7 +439,7 @@ export default function DistribusiPetaTablePage() {
                   <span className="font-medium">{r.pemakaianM3} m³</span>
                 </div>
                 <div className="flex justify-between col-span-2">
-                  <span className="text-muted-foreground">Selisih vs Rata-rata (%)</span>
+                  <span className="text-muted-foreground">Perubahan vs Rata-rata (%)</span>
                   <span className="font-medium">{toPct(r.pctChange)}</span>
                 </div>
                 <div className="flex justify-between col-span-2">
@@ -474,7 +474,7 @@ export default function DistribusiPetaTablePage() {
                     Rata-rata Pembanding (m³)
                   </TableHead>
                   <TableHead className="text-right font-bold">
-                    Selisih vs Rata-rata (%)
+                    Perubahan vs Rata-rata (%)
                   </TableHead>
                   <TableHead className="w-40 text-center font-bold">Status</TableHead>
                 </TableRow>
