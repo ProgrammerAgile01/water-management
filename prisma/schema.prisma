@@ -620,6 +620,7 @@ model Hutang {
   status         HutangStatus  @default(DRAFT)
 
   details        HutangDetail[]
+  payments   HutangPaymentDetail[] @relation("HutangToPayment")
 
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
@@ -638,5 +639,31 @@ model HutangDetail {
   updatedAt  DateTime @updatedAt
 
   hutang     Hutang   @relation(fields: [hutangId], references: [id])
+  payments  HutangPaymentDetail[] @relation("HutangDetailToPayment")
   @@index([hutangId])
+}
+
+model HutangPayment {
+  id           String                   @id @default(cuid())
+  pemberi      String
+  tanggalBayar  DateTime                @default(now())
+  refNo        String?
+  note         String?
+  total        Int                      @default(0)
+  createdAt    DateTime                 @default(now())
+
+  details      HutangPaymentDetail[]
+}
+
+model HutangPaymentDetail {
+  id              String         @id @default(cuid())
+  paymentId       String
+  hutangId        String
+  hutangDetailId  String?
+  amount          Int
+  note            String?
+
+  payment     HutangPayment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  hutang      Hutang         @relation("HutangToPayment", fields: [hutangId], references: [id], onDelete: Cascade)
+  hutangDetail HutangDetail? @relation("HutangDetailToPayment", fields: [hutangDetailId], references: [id])
 }

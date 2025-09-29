@@ -451,6 +451,7 @@ import {
   Grid3X3,
   ChevronRight,
   Droplets,
+  HandCoins,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter, usePathname } from "next/navigation";
@@ -590,7 +591,14 @@ const MENU_ITEMS: MenuItem[] = [
     group: "Admin",
     section: "Keuangan",
   },
-
+  {
+    href: "/hutang-pembayaran",
+    label: "Pembayaran Hutang",
+    icon: HandCoins,
+    roles: ["ADMIN", "OPERATOR"],
+    group: "Admin",
+    section: "Keuangan",
+  },
   // Admin > Laporan
   {
     href: "/laporan-catat-meter",

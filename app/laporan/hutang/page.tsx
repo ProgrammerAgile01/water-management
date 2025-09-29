@@ -357,11 +357,11 @@ export default function LaporanHutangPage() {
                           Deskripsi
                         </th>
                         <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
-                          Pengelola/Vendor
+                          Pemberi
                         </th>
-                        <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
+                        {/* <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
                           Kategori
-                        </th>
+                        </th> */}
                         <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
                           Ref
                         </th>
@@ -398,9 +398,9 @@ export default function LaporanHutangPage() {
                             <td className="py-3 px-2 text-sm">
                               {r.pihak || "-"}
                             </td>
-                            <td className="py-3 px-2 text-sm">
+                            {/* <td className="py-3 px-2 text-sm">
                               {r.kategori || "-"}
-                            </td>
+                            </td> */}
                             <td className="py-3 px-2 text-sm">
                               {r.refNo || "-"}
                             </td>
@@ -452,7 +452,7 @@ export default function LaporanHutangPage() {
                               {r.deskripsi}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {r.pihak || "-"} • {r.kategori || "-"} • Ref:{" "}
+                              {/* {r.pihak || "-"} • {r.kategori || "-"} • Ref:{" "} */}
                               {r.refNo || "-"}
                             </p>
                           </div>
