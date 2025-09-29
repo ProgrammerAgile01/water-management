@@ -173,6 +173,7 @@ export async function GET(req: NextRequest) {
             userId: true,
             kode: true,
             nama: true,
+            wa: true,
             zona: { select: { id: true, nama: true } },
           },
         },
@@ -218,6 +219,7 @@ export async function GET(req: NextRequest) {
         pelangganKode: t.pelanggan?.kode ?? null,
         namaWarga: t.pelanggan?.nama ?? "-",
         zona: t.pelanggan?.zona?.nama ?? "-",
+        wa: t.pelanggan?.wa ?? null,
 
         // ← langsung dari Tagihan.catatMeter
         meterAwal: t.catatMeter?.meterAwal ?? null,
