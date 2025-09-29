@@ -603,3 +603,40 @@ model StockLedger {
   @@index([tanggal])
   @@index([itemId, tanggal])
 }
+
+enum HutangStatus {
+  DRAFT
+  CLOSE
+}
+
+model Hutang {
+  id             String        @id @default(cuid())
+  noBukti        String        @unique
+  tanggalInput   DateTime      @default(now())
+  tanggalHutang  DateTime
+  keterangan     String
+  pemberi        String
+  nominal        Int           @default(0)      // total dari details
+  status         HutangStatus  @default(DRAFT)
+
+  details        HutangDetail[]
+
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([tanggalHutang])
+}
+
+model HutangDetail {
+  id         String   @id @default(cuid())
+  hutangId   String
+  keterangan String
+  nominal    Int
+  no         Int      @default(0)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  hutang     Hutang   @relation(fields: [hutangId], references: [id])
+  @@index([hutangId])
+}
