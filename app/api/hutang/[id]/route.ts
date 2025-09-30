@@ -15,6 +15,10 @@ const toHeader = (h: any) => ({
     no: d.no || i + 1,
     keterangan: d.keterangan,
     nominal: d.nominal,
+    tanggal:
+      (d.tanggal instanceof Date
+        ? d.tanggal.toISOString().slice(0, 10)
+        : d.tanggal) ?? null, // ⬅️ NEW
   })),
 });
 
@@ -45,12 +49,11 @@ export async function PATCH(
       { ok: false, error: "NOT_FOUND" },
       { status: 404 }
     );
-  if (h.status === "CLOSE") {
+  if (h.status === "CLOSE")
     return NextResponse.json(
       { ok: false, error: "HUTANG_CLOSE" },
       { status: 400 }
     );
-  }
 
   const data: any = {};
   if (typeof body.noBukti === "string" && body.noBukti.trim())

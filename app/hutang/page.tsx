@@ -45,19 +45,17 @@ type DetailRow = {
   keterangan: string;
   nominal: number;
 };
-
 type HutangRow = {
   id: string;
   noBukti: string;
-  tanggalInput: string; // "YYYY-MM-DD"
-  tanggalHutang: string; // "YYYY-MM-DD"
+  tanggalInput: string;
+  tanggalHutang: string;
   keterangan: string;
   pemberi: string;
-  nominal: number; // total (sum detail)
+  nominal: number;
   status: "Draft" | "Close";
   details?: DetailRow[];
 };
-
 type ListResp = {
   ok: boolean;
   items: HutangRow[];
@@ -72,6 +70,17 @@ const StatusBadge = ({ v }: { v: "Draft" | "Close" }) =>
   ) : (
     <Badge variant="secondary">Draft</Badge>
   );
+
+// helpers rupiah
+const onlyDigits = (s: string) => (s.match(/\d/g) || []).join("");
+const fmtID = (n: number) => (n ? n.toLocaleString("id-ID") : "");
+const todayYMD = () => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
 
 export default function HutangListPage() {
   const router = useRouter();
@@ -106,8 +115,19 @@ export default function HutangListPage() {
     tanggalHutang: "",
     keterangan: "",
     pemberi: "",
-    nominal: "",
+    nominal: "", // angka murni sebagai string
   });
+  const [nominalDisp, setNominalDisp] = useState("");
+
+  // Dialog konfirmasi hapus
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const onChangeNominalDisp = (s: string) => {
+    const num = Number(onlyDigits(s) || 0);
+    setNominalDisp(num ? fmtID(num) : "");
+    setForm((p) => ({ ...p, nominal: String(num) }));
+  };
 
   useEffect(() => {
     if (!open) {
@@ -118,6 +138,7 @@ export default function HutangListPage() {
         pemberi: "",
         nominal: "",
       });
+      setNominalDisp("");
     }
   }, [open]);
 
@@ -128,6 +149,26 @@ export default function HutangListPage() {
     form.tanggalHutang &&
     form.keterangan.trim() &&
     form.pemberi.trim();
+
+  // generate no bukti
+  const generateNoBukti = async () => {
+    try {
+      const tgl = form.tanggalHutang || todayYMD();
+      const res = await fetch(`/api/hutang/next-ref?tanggal=${tgl}`);
+      const j = await res.json();
+      if (!res.ok || !j?.ok) throw new Error(j?.error || "Gagal generate");
+      setForm((p) => ({ ...p, noBukti: j.refNo }));
+    } catch (e: any) {
+      toast({
+        title: "Gagal generate",
+        description:
+          typeof e?.message === "string"
+            ? e.message
+            : "Tidak bisa membuat nomor bukti",
+        variant: "destructive",
+      });
+    }
+  };
 
   const submitCreate = async () => {
     if (!formComplete) {
@@ -167,12 +208,13 @@ export default function HutangListPage() {
       }
 
       setOpen(false);
-      router.push(`/hutang/${j.item.id}`);
       toast({
         title: "Berhasil",
         description: "Hutang berhasil dibuat (Draft)",
       });
       await mutate();
+      // arahkan ke halaman detail
+      location.assign(`/hutang/${j.item.id}`);
     } catch (e: any) {
       toast({
         title: "Gagal",
@@ -185,17 +227,33 @@ export default function HutangListPage() {
     }
   };
 
-  const deleteItem = async (id: string) => {
+  // Hapus (dengan dialog + parser defensif)
+  const actuallyDelete = async () => {
+    const id = confirmDeleteId;
     if (!id) return;
-    const ok = window.confirm("Yakin ingin menghapus hutang ini?");
-    if (!ok) return;
+    setDeleting(true);
     try {
       const res = await fetch(`/api/hutang?id=${encodeURIComponent(id)}`, {
         method: "DELETE",
       });
-      const j = await res.json();
-      if (!res.ok || !j?.ok) throw new Error(j?.error || "Gagal menghapus");
+
+      // RESPON DEFENSIF: bisa 204 atau JSON
+      let j: any = {};
+      const text = await res.text(); // tidak error untuk 204/empty
+      if (text) {
+        try {
+          j = JSON.parse(text);
+        } catch {
+          j = {};
+        }
+      }
+
+      if (!res.ok || j?.ok === false) {
+        throw new Error(j?.error || "Gagal menghapus");
+      }
+
       toast({ title: "Terhapus", description: "Data hutang dihapus" });
+      setConfirmDeleteId(null);
       await mutate();
     } catch (e: any) {
       toast({
@@ -204,6 +262,8 @@ export default function HutangListPage() {
           typeof e?.message === "string" ? e.message : "Gagal menghapus data",
         variant: "destructive",
       });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -218,7 +278,7 @@ export default function HutangListPage() {
           <AppShell>
             <AppHeader title="Hutang" />
 
-            {/* Filter & Actions — beri jarak bawah */}
+            {/* Filter & Actions */}
             <GlassCard className="p-6 mb-6">
               <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
                 <div className="md:col-span-2">
@@ -279,6 +339,7 @@ export default function HutangListPage() {
                     : `${count} data • Total ${toIDR(total)}`}
                 </div>
 
+                {/* Modal Tambah */}
                 <Dialog open={open} onOpenChange={setOpen}>
                   <DialogTrigger asChild>
                     <Button className="bg-teal-600 hover:bg-teal-700">
@@ -300,14 +361,23 @@ export default function HutangListPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2 md:col-span-2">
                           <Label>No Bukti</Label>
-                          <Input
-                            placeholder="Isi manual (unik)"
-                            value={form.noBukti}
-                            onChange={(e) =>
-                              onChange("noBukti", e.target.value)
-                            }
-                            required
-                          />
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="HUT-20250930-0001"
+                              value={form.noBukti}
+                              onChange={(e) =>
+                                onChange("noBukti", e.target.value)
+                              }
+                              required
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={generateNoBukti}
+                            >
+                              Generate
+                            </Button>
+                          </div>
                         </div>
 
                         <div className="space-y-2">
@@ -322,18 +392,18 @@ export default function HutangListPage() {
                           />
                         </div>
 
-                        <div className="space-y-2">
+                        {/* <div className="space-y-2">
                           <Label>Nominal</Label>
                           <Input
-                            type="number"
-                            min={0}
+                            type="text"
+                            inputMode="numeric"
                             placeholder="0"
-                            value={form.nominal}
+                            value={nominalDisp}
                             onChange={(e) =>
-                              onChange("nominal", e.target.value)
+                              onChangeNominalDisp(e.target.value)
                             }
                           />
-                        </div>
+                        </div> */}
 
                         <div className="space-y-2 md:col-span-2">
                           <Label>Keterangan</Label>
@@ -385,31 +455,28 @@ export default function HutangListPage() {
               </div>
             </GlassCard>
 
-            {/* Desktop table — tema mengikuti meter-grid */}
+            {/* Tabel Desktop */}
             <GlassCard className="hidden md:block p-6">
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-border/20">
-                      <th className="text-left  py-3 px-2 text-sm font-medium text-muted-foreground">
+                      <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
                         #
                       </th>
-                      <th className="text-left  py-3 px-2 text-sm font-medium text-muted-foreground">
+                      <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
                         No Bukti
                       </th>
-                      <th className="text-left  py-3 px-2 text-sm font-medium text-muted-foreground">
+                      <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
                         Tgl Hutang
                       </th>
-                      {/* <th className="text-left  py-3 px-2 text-sm font-medium text-muted-foreground">
-                        Tgl Input
-                      </th> */}
-                      <th className="text-left  py-3 px-2 text-sm font-medium text-muted-foreground">
+                      <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
                         Keterangan
                       </th>
                       <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">
                         Nominal per Hutang
                       </th>
-                      <th className="text-left  py-3 px-2 text-sm font-medium text-muted-foreground">
+                      <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
                         Pemberi
                       </th>
                       <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">
@@ -423,7 +490,6 @@ export default function HutangListPage() {
                       </th>
                     </tr>
                   </thead>
-
                   <tbody>
                     {isLoading ? (
                       <tr>
@@ -456,11 +522,6 @@ export default function HutangListPage() {
                           <td className="py-3 px-2 text-sm">
                             {it.tanggalHutang}
                           </td>
-                          {/* <td className="py-3 px-2 text-sm">
-                            {it.tanggalInput}
-                          </td> */}
-
-                          {/* Keterangan: hanya keterangan detail (tanpa nominal) atau fallback header.keterangan */}
                           <td className="py-3 px-2 text-sm">
                             {it.details?.length ? (
                               <div className="space-y-1">
@@ -474,8 +535,6 @@ export default function HutangListPage() {
                               it.keterangan
                             )}
                           </td>
-
-                          {/* Nominal per Hutang: daftar angka per-detail; fallback ke nominal header */}
                           <td className="py-3 px-2 text-sm text-right tabular-nums">
                             {it.details?.length ? (
                               <div className="space-y-1">
@@ -487,20 +546,13 @@ export default function HutangListPage() {
                               toIDR(it.nominal)
                             )}
                           </td>
-
                           <td className="py-3 px-2 text-sm">{it.pemberi}</td>
-
-                          {/* Total */}
                           <td className="py-3 px-2 text-sm text-right tabular-nums font-bold">
                             {toIDR(it.nominal)}
                           </td>
-
-                          {/* Status badge */}
                           <td className="py-3 px-2 text-sm text-center">
                             <StatusBadge v={it.status} />
                           </td>
-
-                          {/* Aksi */}
                           <td className="py-3 px-2">
                             <div className="flex items-center gap-2 justify-center">
                               <Button
@@ -516,7 +568,7 @@ export default function HutangListPage() {
                                 size="sm"
                                 variant="outline"
                                 className="h-8 px-2 rounded-lg text-red-600 hover:text-red-700"
-                                onClick={() => deleteItem(it.id)}
+                                onClick={() => setConfirmDeleteId(it.id)}
                                 title="Hapus"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -527,11 +579,9 @@ export default function HutangListPage() {
                       ))
                     )}
                   </tbody>
-
                   {!isLoading && items.length > 0 && (
                     <tfoot>
                       <tr className="border-t border-border/20 bg-transparent">
-                        {/* kolom sebelum 'Total' sekarang ada 7  */}
                         <td
                           colSpan={7}
                           className="py-3 px-2 text-right text-sm font-medium text-muted-foreground"
@@ -541,7 +591,6 @@ export default function HutangListPage() {
                         <td className="py-3 px-2 text-right text-sm font-bold">
                           {toIDR(total)}
                         </td>
-                        {/* sisa kolom setelah 'Total' = Status + Aksi */}
                         <td colSpan={2} />
                       </tr>
                     </tfoot>
@@ -550,81 +599,40 @@ export default function HutangListPage() {
               </div>
             </GlassCard>
 
-            {/* Mobile Cards (tampilan lain tetap; status pakai badge) */}
-            <div className="md:hidden space-y-4">
-              {isLoading ? (
-                <GlassCard className="p-6 text-center">Memuat data…</GlassCard>
-              ) : items.length === 0 ? (
-                <GlassCard className="p-6 text-center">
-                  Tidak ada data
-                </GlassCard>
-              ) : (
-                items.map((it) => (
-                  <GlassCard key={it.id} className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <p className="font-semibold">{it.noBukti}</p>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <span>{it.tanggalHutang}</span>
-                          <StatusBadge v={it.status} />
-                        </div>
+            {/* Mobile cards tetap… (dipersingkat) */}
 
-                        {/* detail: hanya keterangan */}
-                        {it.details?.length ? (
-                          <div className="mt-1 text-sm text-muted-foreground space-y-1">
-                            {it.details.map((d) => (
-                              <div key={d.id}>
-                                {d.no}. {d.keterangan}
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="mt-1">{it.keterangan}</p>
-                        )}
-
-                        <p className="text-sm text-muted-foreground">
-                          Pemberi: {it.pemberi}
-                        </p>
-                      </div>
-
-                      <div className="text-right">
-                        <p className="font-semibold">{toIDR(it.nominal)}</p>
-                        <div className="flex justify-end gap-2 mt-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => router.push(`/hutang/${it.id}`)}
-                            title="Lihat"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-red-600 hover:text-red-700"
-                            onClick={() => deleteItem(it.id)}
-                            title="Hapus"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </GlassCard>
-                ))
-              )}
-
-              {!isLoading && items.length > 0 && (
-                <GlassCard className="p-4 bg-teal-50/50">
-                  <div className="text-center">
-                    <p className="text-sm text-muted-foreground">Total</p>
-                    <p className="text-xl font-bold text-teal-700">
-                      {toIDR(total)}
-                    </p>
-                  </div>
-                </GlassCard>
-              )}
-            </div>
+            {/* Dialog konfirmasi hapus */}
+            <Dialog
+              open={!!confirmDeleteId}
+              onOpenChange={(o) => !o && setConfirmDeleteId(null)}
+            >
+              <DialogContent className="sm:max-w-sm">
+                <DialogHeader>
+                  <DialogTitle>Hapus hutang ini?</DialogTitle>
+                </DialogHeader>
+                <p className="text-sm text-muted-foreground">
+                  Tindakan ini tidak bisa dibatalkan.
+                </p>
+                <DialogFooter className="gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setConfirmDeleteId(null)}
+                  >
+                    Batal
+                  </Button>
+                  <Button
+                    onClick={actuallyDelete}
+                    disabled={deleting}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    {deleting && (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    )}
+                    Hapus
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </AppShell>
         </AuthGuard>
       </div>

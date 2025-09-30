@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 
 /* ---------- helpers ---------- */
 const int = (v: any) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+
 const genRef = (prefix = "BYR") => {
   const n = new Date();
   const y = n.getFullYear();
@@ -126,7 +127,7 @@ export async function GET(req: Request) {
   }
 }
 
-/* ---------- POST ---------- */
+/* ---------- POST (Create Payment; status = DRAFT) ---------- */
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -230,7 +231,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // refNo unik
+    // refNo unik (kalau kosong → generate)
     let refNo = refNoRaw || genRef("BYR");
     const dup = await prisma.hutangPayment.findFirst({
       where: { refNo },
@@ -240,7 +241,7 @@ export async function POST(req: Request) {
 
     const total = finalLines.reduce((a, b) => a + b.amount, 0);
 
-    // simpan (tanpa field 'hutang'/'hutangId' di header!)
+    // simpan (header: status DRAFT)
     const payment = await prisma.$transaction(async (tx) => {
       const header = await tx.hutangPayment.create({
         data: {
@@ -248,7 +249,8 @@ export async function POST(req: Request) {
           note,
           total,
           pemberi: giver,
-          tanggalBayar, // jam real diset di atas
+          tanggalBayar,
+          status: "DRAFT", // ← penting
         },
       });
 
@@ -267,6 +269,74 @@ export async function POST(req: Request) {
     // kirim daftar terbaru (biar sisa langsung update)
     const items = await compose(giver);
     return NextResponse.json({ ok: true, payment, items });
+  } catch (e: any) {
+    return NextResponse.json(
+      { ok: false, error: e?.message || "Server error" },
+      { status: 500 }
+    );
+  }
+}
+
+/* ---------- PATCH (Posting / Unposting) ----------
+   Body:
+   { action: "post" | "unpost", id: string, userId?: string }
+--------------------------------------------------- */
+export async function PATCH(req: Request) {
+  try {
+    const body = await req.json();
+    const action = String(body?.action || "").toLowerCase();
+    const id = String(body?.id || "");
+    const userId = body?.userId ? String(body.userId) : undefined;
+
+    if (!id || (action !== "post" && action !== "unpost")) {
+      return NextResponse.json(
+        { ok: false, error: "Invalid request" },
+        { status: 400 }
+      );
+    }
+
+    const payment = await prisma.hutangPayment.findUnique({ where: { id } });
+    if (!payment) {
+      return NextResponse.json(
+        { ok: false, error: "Payment tidak ditemukan." },
+        { status: 404 }
+      );
+    }
+
+    if (action === "post") {
+      if (payment.status === "CLOSE") {
+        return NextResponse.json(
+          { ok: false, error: "Payment sudah di-posting." },
+          { status: 400 }
+        );
+      }
+      const updated = await prisma.hutangPayment.update({
+        where: { id },
+        data: {
+          status: "CLOSE",
+          postedAt: new Date(),
+          postedBy: userId ?? null,
+        },
+      });
+      return NextResponse.json({ ok: true, payment: updated });
+    } else {
+      // unpost
+      if (payment.status !== "CLOSE") {
+        return NextResponse.json(
+          { ok: false, error: "Payment belum di-posting." },
+          { status: 400 }
+        );
+      }
+      const updated = await prisma.hutangPayment.update({
+        where: { id },
+        data: {
+          status: "DRAFT",
+          postedAt: null,
+          postedBy: null,
+        },
+      });
+      return NextResponse.json({ ok: true, payment: updated });
+    }
   } catch (e: any) {
     return NextResponse.json(
       { ok: false, error: e?.message || "Server error" },

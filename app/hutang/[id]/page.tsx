@@ -31,21 +31,40 @@ import {
 import { Plus, Edit, Trash2, Send, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-/* Helpers */
+/* ---------------- Helpers ---------------- */
 const fetcher = (u: string) => fetch(u).then((r) => r.json());
-const toIDR = (n = 0) =>
+
+const fmtIDR = (n = 0) =>
   new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
     minimumFractionDigits: 0,
   }).format(Number(n || 0));
 
+const onlyDigits = (s: string) => String(s ?? "").replace(/\D/g, "");
+const fmtRupiahInline = (v: string | number) => {
+  const d = onlyDigits(v as any);
+  if (!d) return "";
+  return d.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+};
+const parseRupiahInline = (s: string) => Number(onlyDigits(s) || "0");
+
+const todayYMD = () => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
+/* ---------------- Types ---------------- */
 type DetailRow = {
   id: string;
   no: number;
   keterangan: string;
   nominal: number;
+  // kalau API-mu sudah kirim tanggal detail, aktifkan:
+  tanggal?: string | null;
 };
+
 type HeaderResp = {
   ok: boolean;
   item?: {
@@ -62,6 +81,7 @@ type HeaderResp = {
   error?: string;
 };
 
+/* ---------------- Page ---------------- */
 export default function HutangDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -81,16 +101,18 @@ export default function HutangDetailPage() {
   const header = data?.item;
   const isClose = header?.status === "Close";
 
-  // local header states
+  // local copy header (untuk tampil saja)
   const [noBukti, setNoBukti] = useState("");
+  const [tglInput, setTglInput] = useState("");
   const [tglHutang, setTglHutang] = useState("");
   const [keterangan, setKeterangan] = useState("");
   const [pemberi, setPemberi] = useState("");
-  const [nominal, setNominal] = useState<number | string>(0);
+  const [nominal, setNominal] = useState<number>(0);
 
   useEffect(() => {
     if (header) {
       setNoBukti(header.noBukti || "");
+      setTglInput(header.tanggalInput || "");
       setTglHutang(header.tanggalHutang || "");
       setKeterangan(header.keterangan || "");
       setPemberi(header.pemberi || "");
@@ -98,121 +120,91 @@ export default function HutangDetailPage() {
     }
   }, [header]);
 
-  const safePatch = async (payload: Record<string, any>) => {
-    if (!header) return;
-    try {
-      const res = await fetch(`/api/hutang/${header.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const j = await res.json();
-      if (!res.ok || !j?.ok) throw new Error(j?.error || "Gagal menyimpan");
-      await mutate();
-      toast({ title: "Tersimpan", description: "Perubahan berhasil disimpan" });
-    } catch (e: any) {
-      toast({
-        title: "Gagal",
-        description:
-          typeof e?.message === "string" ? e.message : "Gagal menyimpan",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const onBlurNoBukti = async () => {
-    if (isClose) return;
-    const nb = String(noBukti || "").trim();
-    if (!nb) {
-      toast({ title: "No Bukti wajib diisi", variant: "destructive" });
-      return;
-    }
-    await safePatch({ noBukti: nb });
-  };
-  const onBlurTglHutang = async () => {
-    if (isClose || !tglHutang) return;
-    await safePatch({ tanggalHutang: tglHutang });
-  };
-  const onBlurKeterangan = async () => {
-    if (isClose) return;
-    await safePatch({ keterangan });
-  };
-  const onBlurPemberi = async () => {
-    if (isClose) return;
-    await safePatch({ pemberi });
-  };
-  const onBlurNominal = async () => {
-    if (isClose) return;
-    if (header?.details?.length) {
-      setNominal(header.nominal); // terkunci jika sudah ada detail
-      return;
-    }
-    const n = Number(nominal || 0);
-    await safePatch({ nominal: n });
-  };
-
-  // detail modal
+  /* ---------- Modal Detail ---------- */
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDetailId, setEditingDetailId] = useState<string | null>(null);
   const [detailKet, setDetailKet] = useState("");
-  const [detailNom, setDetailNom] = useState<string>("");
+  const [detailNomDisp, setDetailNomDisp] = useState<string>(""); // masked text
+  const [detailDate, setDetailDate] = useState<string>(todayYMD());
+  const [savingDetail, setSavingDetail] = useState(false);
 
   const openAddDetail = () => {
     setEditingDetailId(null);
     setDetailKet("");
-    setDetailNom("");
+    setDetailNomDisp("");
+    setDetailDate(header?.tanggalHutang || todayYMD());
     setIsModalOpen(true);
   };
+
   const openEditDetail = (d: DetailRow) => {
     setEditingDetailId(d.id);
     setDetailKet(d.keterangan);
-    setDetailNom(String(d.nominal));
+    setDetailNomDisp(fmtRupiahInline(d.nominal));
+    setDetailDate(
+      (d.tanggal && d.tanggal.slice(0, 10)) ||
+        header?.tanggalHutang ||
+        todayYMD()
+    );
     setIsModalOpen(true);
   };
 
   const saveDetail = async () => {
     if (!header) return;
-    if (!detailKet || !detailNom) {
+    if (!detailKet || !detailNomDisp) {
       toast({
         title: "Lengkapi data",
-        description: "Keterangan dan nominal wajib diisi",
+        description: "Keterangan dan nominal wajib diisi.",
         variant: "destructive",
       });
       return;
     }
+    const amount = parseRupiahInline(detailNomDisp);
+    if (amount <= 0) {
+      toast({
+        title: "Nominal tidak valid",
+        description: "Isi nominal lebih dari 0.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSavingDetail(true);
     try {
       if (editingDetailId) {
-        const res = await fetch(
+        const r = await fetch(
           `/api/hutang/${header.id}/detail/${editingDetailId}`,
           {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               keterangan: detailKet,
-              nominal: Number(detailNom),
+              nominal: amount,
+              tanggal: detailDate, // opsional jika API sudah dukung
             }),
           }
         );
-        const j = await res.json();
-        if (!res.ok || !j?.ok) throw new Error(j?.error || "Gagal update");
+        const j = await r.json();
+        if (!r.ok || !j?.ok) throw new Error(j?.error || "Gagal update detail");
       } else {
-        const res = await fetch(`/api/hutang/${header.id}/detail`, {
+        const r = await fetch(`/api/hutang/${header.id}/detail`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             keterangan: detailKet,
-            nominal: Number(detailNom),
+            nominal: amount,
+            tanggal: detailDate, // opsional jika API sudah dukung
           }),
         });
-        const j = await res.json();
-        if (!res.ok || !j?.ok) throw new Error(j?.error || "Gagal menambah");
+        const j = await r.json();
+        if (!r.ok || !j?.ok)
+          throw new Error(j?.error || "Gagal menambah detail");
       }
       setIsModalOpen(false);
       setEditingDetailId(null);
       setDetailKet("");
-      setDetailNom("");
+      setDetailNomDisp("");
       await mutate();
-      toast({ title: "Berhasil", description: "Detail tersimpan" });
+      toast({ title: "Tersimpan", description: "Detail berhasil disimpan." });
     } catch (e: any) {
       toast({
         title: "Gagal",
@@ -220,19 +212,23 @@ export default function HutangDetailPage() {
           typeof e?.message === "string" ? e.message : "Gagal menyimpan detail",
         variant: "destructive",
       });
+    } finally {
+      setSavingDetail(false);
     }
   };
 
   const deleteDetail = async (detailId: string) => {
     if (!header) return;
+    const ok = window.confirm("Hapus detail ini?");
+    if (!ok) return;
     try {
-      const res = await fetch(`/api/hutang/${header.id}/detail/${detailId}`, {
+      const r = await fetch(`/api/hutang/${header.id}/detail/${detailId}`, {
         method: "DELETE",
       });
-      const j = await res.json();
-      if (!res.ok || !j?.ok) throw new Error(j?.error || "Gagal hapus");
+      const j = await r.json();
+      if (!r.ok || !j?.ok) throw new Error(j?.error || "Gagal hapus detail");
       await mutate();
-      toast({ title: "Berhasil", description: "Detail dihapus" });
+      toast({ title: "Terhapus", description: "Detail dihapus." });
     } catch (e: any) {
       toast({
         title: "Gagal",
@@ -243,18 +239,22 @@ export default function HutangDetailPage() {
     }
   };
 
+  /* ---------- Posting ---------- */
+  const [posting, setPosting] = useState(false);
   const doPosting = async () => {
     if (!header) return;
+    setPosting(true);
     try {
       const res = await fetch(`/api/hutang/${header.id}/post`, {
         method: "POST",
       });
       const j = await res.json();
-      if (!res.ok || !j?.ok) throw new Error(j?.error || "Gagal posting");
+      if (!res.ok || !j?.ok)
+        throw new Error(j?.error || "Gagal posting hutang");
       await mutate();
       toast({
         title: "Sukses",
-        description: "Hutang berhasil diposting (Close)",
+        description: "Hutang berhasil diposting (Close).",
       });
     } catch (e: any) {
       toast({
@@ -265,10 +265,12 @@ export default function HutangDetailPage() {
             : "Gagal melakukan posting",
         variant: "destructive",
       });
+    } finally {
+      setPosting(false);
     }
   };
 
-  // loading / not found
+  /* ---------- Loading / Not found ---------- */
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -283,7 +285,7 @@ export default function HutangDetailPage() {
         <div className="container mx-auto p-4">
           <AppHeader title="Detail Hutang" />
           <GlassCard className="p-6 text-center">
-            <p>Hutang tidak ditemukan</p>
+            <p>Hutang tidak ditemukan.</p>
             <Button onClick={() => router.back()} className="mt-4">
               Kembali
             </Button>
@@ -293,6 +295,7 @@ export default function HutangDetailPage() {
     );
   }
 
+  /* ---------- UI ---------- */
   return (
     <div className="min-h-screen">
       <div className="container mx-auto p-4 space-y-6">
@@ -300,10 +303,12 @@ export default function HutangDetailPage() {
           <AppShell>
             <AppHeader title="Detail Hutang" />
 
-            {/* Header Form */}
+            {/* Header (READONLY) */}
             <GlassCard className="p-6 mb-6">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold">Header Hutang</h2>
+                <h2 className="text-xl font-semibold">
+                  Detail Hutang {pemberi?.trim() || header?.pemberi || "-"}
+                </h2>
                 {!isClose && (
                   <Button
                     onClick={openAddDetail}
@@ -318,70 +323,58 @@ export default function HutangDetailPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>No Bukti</Label>
-                  <Input
-                    value={noBukti}
-                    onChange={(e) => setNoBukti(e.target.value)}
-                    onBlur={onBlurNoBukti}
-                    placeholder="Isi manual (unik)"
-                    disabled={isClose}
-                  />
+                  <Input value={noBukti} disabled />
                 </div>
                 <div className="space-y-2">
                   <Label>Tanggal Input</Label>
-                  <Input value={header.tanggalInput} disabled />
+                  <Input value={tglInput} disabled />
                 </div>
                 <div className="space-y-2">
                   <Label>Tgl Hutang</Label>
-                  <Input
-                    type="date"
-                    value={tglHutang}
-                    onChange={(e) => setTglHutang(e.target.value)}
-                    onBlur={onBlurTglHutang}
-                    disabled={isClose}
-                  />
+                  <Input type="date" value={tglHutang} disabled />
                 </div>
 
                 <div className="space-y-2 md:col-span-2">
                   <Label>Keterangan</Label>
-                  <Input
-                    value={keterangan}
-                    onChange={(e) => setKeterangan(e.target.value)}
-                    onBlur={onBlurKeterangan}
-                    placeholder="Pinjam ke Koperasi 10juta"
-                    disabled={isClose}
-                  />
+                  <Input value={keterangan} disabled />
                 </div>
                 <div className="space-y-2">
                   <Label>Pemberi Hutang</Label>
-                  <Input
-                    value={pemberi}
-                    onChange={(e) => setPemberi(e.target.value)}
-                    onBlur={onBlurPemberi}
-                    placeholder="Koperasi / Pihak lain"
-                    disabled={isClose}
-                  />
+                  <Input value={pemberi} disabled />
                 </div>
 
-                <div className="space-y-2 md:col-span-3">
+                {/* <div className="space-y-2 md:col-span-3">
                   <Label>Nominal</Label>
-                  <Input
-                    type="number"
-                    value={nominal}
-                    onChange={(e) => setNominal(e.target.value)}
-                    onBlur={onBlurNominal}
-                    disabled={isClose || (header.details?.length ?? 0) > 0}
-                  />
-                  {(header.details?.length ?? 0) > 0 && (
+                  <Input value={fmtRupiahInline(nominal)} disabled />
+                  {!!(header.details?.length ?? 0) && (
                     <p className="text-xs text-muted-foreground mt-1">
                       Nominal mengikuti jumlah total detail (otomatis).
                     </p>
                   )}
-                </div>
+                </div> */}
               </div>
             </GlassCard>
 
-            {/* Desktop Table */}
-            <GlassCard className="hidden md:block mb-6 p-4">
+            {/* Detail + Posting button on the right */}
+            <GlassCard className="mb-6 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-semibold">Detail Hutang</h3>
+                {header.status === "Draft" && (
+                  <Button
+                    onClick={doPosting}
+                    disabled={posting || isClose}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {posting ? (
+                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                    ) : (
+                      <Send className="h-5 w-5 mr-2" />
+                    )}
+                    {posting ? "Memposting…" : "Posting"}
+                  </Button>
+                )}
+              </div>
+
               <div className="overflow-x-auto">
                 <Table className="w-full border-collapse">
                   <TableHeader>
@@ -406,7 +399,7 @@ export default function HutangDetailPage() {
                         <TableCell className="py-2">{d.no}</TableCell>
                         <TableCell className="py-2">{d.keterangan}</TableCell>
                         <TableCell className="py-2 text-right tabular-nums">
-                          {toIDR(d.nominal)}
+                          Rp {fmtIDR(d.nominal)}
                         </TableCell>
                         <TableCell className="py-2">
                           <div className="flex justify-end gap-2">
@@ -442,7 +435,7 @@ export default function HutangDetailPage() {
                         Total:
                       </TableCell>
                       <TableCell className="py-2 font-bold text-right tabular-nums bg-transparent">
-                        {toIDR(header.nominal)}
+                        Rp {fmtIDR(header.nominal)}
                       </TableCell>
                       <TableCell className="bg-transparent" />
                     </TableRow>
@@ -451,62 +444,17 @@ export default function HutangDetailPage() {
               </div>
             </GlassCard>
 
-            {/* Mobile Cards */}
+            {/* Mobile recap */}
             <div className="md:hidden space-y-4">
-              {(header.details || []).map((d) => (
-                <GlassCard key={d.id} className="p-4">
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-start">
-                      <p className="font-semibold">{d.keterangan}</p>
-                      <p className="font-semibold">{toIDR(d.nominal)}</p>
-                    </div>
-                    <div className="flex gap-2 justify-end">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => openEditDetail(d)}
-                        disabled={isClose}
-                      >
-                        <Edit className="h-4 w-4 mr-1" />
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => deleteDetail(d.id)}
-                        disabled={isClose}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4 mr-1" />
-                        Hapus
-                      </Button>
-                    </div>
-                  </div>
-                </GlassCard>
-              ))}
-
               <GlassCard className="p-4 bg-teal-50/50">
                 <div className="text-center">
                   <p className="text-sm text-muted-foreground">Total</p>
                   <p className="text-xl font-bold text-teal-700">
-                    {toIDR(header.nominal)}
+                    Rp {fmtIDR(header.nominal)}
                   </p>
                 </div>
               </GlassCard>
             </div>
-
-            {header.status === "Draft" && (
-              <div className="flex justify-center mt-2">
-                <Button
-                  onClick={doPosting}
-                  className="bg-green-600 hover:bg-green-700 px-8 py-3 text-lg"
-                  size="lg"
-                >
-                  <Send className="h-5 w-5 mr-2" />
-                  Posting
-                </Button>
-              </div>
-            )}
 
             {/* Modal Tambah/Edit Detail */}
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
@@ -519,6 +467,16 @@ export default function HutangDetailPage() {
 
                 <div className="space-y-4">
                   <div className="space-y-2">
+                    <Label>Tanggal</Label>
+                    <Input
+                      type="date"
+                      value={detailDate}
+                      onChange={(e) => setDetailDate(e.target.value)}
+                      disabled={isClose}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
                     <Label>Keterangan</Label>
                     <Input
                       value={detailKet}
@@ -527,13 +485,17 @@ export default function HutangDetailPage() {
                       disabled={isClose}
                     />
                   </div>
+
                   <div className="space-y-2">
                     <Label>Nominal</Label>
                     <Input
-                      type="number"
-                      value={detailNom}
-                      onChange={(e) => setDetailNom(e.target.value)}
+                      type="text"
+                      inputMode="numeric"
                       placeholder="0"
+                      value={detailNomDisp}
+                      onChange={(e) =>
+                        setDetailNomDisp(fmtRupiahInline(e.target.value))
+                      }
                       disabled={isClose}
                     />
                   </div>
@@ -543,10 +505,17 @@ export default function HutangDetailPage() {
                   <Button
                     variant="outline"
                     onClick={() => setIsModalOpen(false)}
+                    disabled={savingDetail}
                   >
                     Batal
                   </Button>
-                  <Button onClick={saveDetail} disabled={isClose}>
+                  <Button
+                    onClick={saveDetail}
+                    disabled={isClose || savingDetail}
+                  >
+                    {savingDetail && (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    )}
                     Simpan
                   </Button>
                 </DialogFooter>

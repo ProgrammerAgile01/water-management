@@ -27,6 +27,9 @@ model User {
   // Back-relation 1↔1 ke Pelanggan (User PUNYA/terkait 1 Pelanggan)
   // Field FK-nya berada di model Pelanggan (userId), jadi di sini hanya back-relation.
   pelanggan Pelanggan? @relation("UserPelanggan")
+  // Back-relation untuk posting HutangPayment
+  postedHutangPayments HutangPayment[] @relation("UserPostedHutangPayments")
+
 
   // Audit: daftar entitas yang pernah di-soft-delete oleh user ini (1 user bisa hapus banyak)
   deletedPelanggan    Pelanggan[]    @relation("DeletedByUser")
@@ -650,25 +653,47 @@ model HutangDetail {
   keterangan String
   nominal    Int
   no         Int      @default(0)
+  tanggal    DateTime @default(now()) // NEW
 
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   hutang     Hutang   @relation(fields: [hutangId], references: [id])
   payments   HutangPaymentDetail[] @relation("HutangDetailToPayment")
+
   @@index([hutangId])
+  @@index([tanggal]) // optional
+}
+
+
+enum HutangPaymentStatus {
+  DRAFT
+  CLOSE
 }
 
 model HutangPayment {
-  id           String                   @id @default(cuid())
+  id           String   @id @default(cuid())
   pemberi      String
-  tanggalBayar DateTime                 @default(now())
+  tanggalBayar DateTime @default(now())
   refNo        String?
   note         String?
-  total        Int                      @default(0)
-  createdAt    DateTime                 @default(now())
+  total        Int      @default(0)
 
-  details      HutangPaymentDetail[]
+  // STATUS & POSTING
+  status    HutangPaymentStatus @default(DRAFT)
+  postedAt  DateTime?
+  postedBy  String?                                      // FK → User.id
+  postedByUser User? @relation("UserPostedHutangPayments", fields: [postedBy], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  details   HutangPaymentDetail[]
+
+  @@index([tanggalBayar])
+  @@index([status])
+  @@index([postedAt])
+  @@index([postedBy])
 }
 
 model HutangPaymentDetail {

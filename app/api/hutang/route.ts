@@ -63,6 +63,7 @@ export async function POST(req: NextRequest) {
     pemberi,
     nominal = 0,
   } = body ?? {};
+
   if (!noBukti || !tanggalHutang || !keterangan || !pemberi) {
     return NextResponse.json(
       { ok: false, error: "INVALID_INPUT" },
@@ -99,6 +100,44 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json(
       { ok: false, error: e?.message || "ERR_POST" },
+      { status: 500 }
+    );
+  }
+}
+
+/** DELETE /api/hutang?id=... */
+export async function DELETE(req: NextRequest) {
+  const u = new URL(req.url);
+  const id = u.searchParams.get("id");
+  if (!id)
+    return NextResponse.json(
+      { ok: false, error: "ID_REQUIRED" },
+      { status: 400 }
+    );
+
+  try {
+    const head = await prisma.hutang.findUnique({ where: { id } });
+    if (!head)
+      return NextResponse.json(
+        { ok: false, error: "NOT_FOUND" },
+        { status: 404 }
+      );
+    if (head.status === "CLOSE") {
+      return NextResponse.json(
+        { ok: false, error: "HUTANG_CLOSE" },
+        { status: 400 }
+      );
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.hutangDetail.deleteMany({ where: { hutangId: id } });
+      await tx.hutang.delete({ where: { id } });
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    return NextResponse.json(
+      { ok: false, error: e?.message || "ERR_DELETE" },
       { status: 500 }
     );
   }

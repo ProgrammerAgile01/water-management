@@ -6,7 +6,7 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   const body = await req.json().catch(() => ({}));
-  const { keterangan, nominal } = body ?? {};
+  const { keterangan, nominal, tanggal } = body ?? {};
 
   const head = await prisma.hutang.findUnique({ where: { id: params.id } });
   if (!head)
@@ -20,7 +20,7 @@ export async function POST(
       { status: 400 }
     );
   }
-  if (!keterangan || !Number.isFinite(Number(nominal))) {
+  if (!keterangan || !Number.isFinite(Number(nominal)) || !tanggal) {
     return NextResponse.json(
       { ok: false, error: "INVALID_INPUT" },
       { status: 400 }
@@ -37,8 +37,10 @@ export async function POST(
         keterangan: String(keterangan),
         nominal: Number(nominal),
         no: count + 1,
+        tanggal: new Date(`${tanggal}T00:00:00`), // ⬅️ simpan tanggal detail
       },
     });
+
     const agg = await tx.hutangDetail.aggregate({
       where: { hutangId: params.id },
       _sum: { nominal: true },

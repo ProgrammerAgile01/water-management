@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+type P = { id: string; detailId: string };
+
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string; detailId: string } }
+  ctx: { params: P } | { params: Promise<P> }
 ) {
+  const { id, detailId } = await (ctx as any).params;
   const body = await req.json().catch(() => ({}));
   const { keterangan, nominal } = body ?? {};
 
-  const head = await prisma.hutang.findUnique({ where: { id: params.id } });
+  const head = await prisma.hutang.findUnique({ where: { id } });
   if (!head)
     return NextResponse.json(
       { ok: false, error: "NOT_FOUND" },
@@ -20,19 +23,24 @@ export async function PUT(
       { status: 400 }
     );
   }
-
-  const data: any = {};
-  if (typeof keterangan === "string") data.keterangan = keterangan;
-  if (Number.isFinite(Number(nominal))) data.nominal = Number(nominal);
+  if (!keterangan || !Number.isFinite(Number(nominal))) {
+    return NextResponse.json(
+      { ok: false, error: "INVALID_INPUT" },
+      { status: 400 }
+    );
+  }
 
   await prisma.$transaction(async (tx) => {
-    await tx.hutangDetail.update({ where: { id: params.detailId }, data });
+    await tx.hutangDetail.update({
+      where: { id: detailId },
+      data: { keterangan: String(keterangan), nominal: Number(nominal) },
+    });
     const agg = await tx.hutangDetail.aggregate({
-      where: { hutangId: params.id },
+      where: { hutangId: id },
       _sum: { nominal: true },
     });
     await tx.hutang.update({
-      where: { id: params.id },
+      where: { id },
       data: { nominal: agg._sum.nominal ?? 0 },
     });
   });
@@ -41,10 +49,12 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _: NextRequest,
-  { params }: { params: { id: string; detailId: string } }
+  _req: NextRequest,
+  ctx: { params: P } | { params: Promise<P> }
 ) {
-  const head = await prisma.hutang.findUnique({ where: { id: params.id } });
+  const { id, detailId } = await (ctx as any).params;
+
+  const head = await prisma.hutang.findUnique({ where: { id } });
   if (!head)
     return NextResponse.json(
       { ok: false, error: "NOT_FOUND" },
@@ -58,13 +68,14 @@ export async function DELETE(
   }
 
   await prisma.$transaction(async (tx) => {
-    await tx.hutangDetail.delete({ where: { id: params.detailId } });
+    await tx.hutangDetail.delete({ where: { id: detailId } });
+    // re-number optional: skip; only recompute total
     const agg = await tx.hutangDetail.aggregate({
-      where: { hutangId: params.id },
+      where: { hutangId: id },
       _sum: { nominal: true },
     });
     await tx.hutang.update({
-      where: { id: params.id },
+      where: { id },
       data: { nominal: agg._sum.nominal ?? 0 },
     });
   });

@@ -445,13 +445,11 @@ import {
   LibraryIcon,
   Droplet,
   TrendingUp,
-  CircleDollarSign,
-  ChartPie,
   FileBarChart,
-  Grid3X3,
   ChevronRight,
   Droplets,
   HandCoins,
+  Network,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter, usePathname } from "next/navigation";
@@ -460,7 +458,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -489,7 +486,6 @@ type MenuItem = {
 
 /* ============== Master Menu ============== */
 const MENU_ITEMS: MenuItem[] = [
-  // Standalone (di atas modul)
   {
     href: "/dashboard",
     label: "Dashboard",
@@ -573,14 +569,6 @@ const MENU_ITEMS: MenuItem[] = [
     group: "Admin",
     section: "Operasional",
   },
-  // {
-  //   href: "/catat-meter-blok",
-  //   label: "Catat Meter Blok",
-  //   icon: Grid3X3,
-  //   roles: ["ADMIN", "OPERATOR"],
-  //   group: "Admin",
-  //   section: "Meteran",
-  // },
 
   // Admin > Keuangan
   {
@@ -623,6 +611,7 @@ const MENU_ITEMS: MenuItem[] = [
     group: "Admin",
     section: "Keuangan",
   },
+
   // Admin > Laporan
   {
     href: "/laporan-catat-meter",
@@ -691,9 +680,17 @@ const MENU_ITEMS: MenuItem[] = [
 
   // Admin > Distribusi
   {
+    href: "/distribusi/hirarki",
+    label: "Hirarki",
+    icon: Network,
+    roles: ["ADMIN"],
+    group: "Admin",
+    section: "Distribusi",
+  },
+  {
     href: "/distribusi/rekonsiliasi",
     label: "Rekonsiliasi",
-    icon: ChartPie,
+    icon: BarChart3,
     roles: ["ADMIN"],
     group: "Admin",
     section: "Distribusi",
@@ -771,7 +768,6 @@ const MENU_ITEMS: MenuItem[] = [
 ];
 
 /* ====== Urutan section & sub menu ====== */
-// urutan section setelah Dashboard
 const SECTION_ORDER = [
   "Master",
   "Operasional",
@@ -787,7 +783,6 @@ const getSectionOrder = (s: string) => {
   return i === -1 ? 1000 : i;
 };
 
-// urutan item per section (by href). Item tak terdaftar tetap muncul di belakang (lalu sort alfabet).
 const SECTION_ITEM_ORDER: Record<string, string[]> = {
   Operasional: ["/jadwal-pencatatan", "/catat-meter", "/reset-meteran"],
   Master: ["/pelanggan", "/zona", "/inventaris"],
@@ -803,7 +798,11 @@ const SECTION_ITEM_ORDER: Record<string, string[]> = {
     "/laporan/keuangan",
     "/laporan/piutang",
   ],
-  distribusi: ["/distribusi/rekonsiliasi", "/distribusi/peta"],
+  distribusi: [
+    "/distribusi/hirarki",
+    "/distribusi/rekonsiliasi",
+    "/distribusi/peta",
+  ],
   Pengaturan: ["/pengaturan", "/whatsapp-setting", "/tools/import-export"],
 };
 const getItemOrder = (section: string, href: string) => {
@@ -837,6 +836,7 @@ const PATH_LABELS: Record<string, string> = {
   "/laporan/keuangan": "Laporan Keuangan",
   "/laporan-catat-meter": "Laporan Catat Meter",
   "/laporan/piutang": "Laporan Piutang",
+  "/distribusi/hirarki": "Hirarki",
   "/distribusi/rekonsiliasi": "Rekonsiliasi",
   "/distribusi/peta": "Peta Pemakaian Air",
   "/pengaturan": "Pengaturan",
@@ -870,7 +870,6 @@ export function AppHeader({
 
   const role: Role | undefined = user?.role;
 
-  // Filter menu sesuai role
   const visibleMenu = useMemo(() => {
     return MENU_ITEMS.filter((m) => {
       if (!m.roles || m.roles.length === 0) return true;
@@ -879,7 +878,6 @@ export function AppHeader({
     });
   }, [role]);
 
-  // Admin standalone (Dashboard)
   const standaloneAdmin = useMemo(
     () =>
       visibleMenu
@@ -888,7 +886,6 @@ export function AppHeader({
     [visibleMenu]
   );
 
-  // Admin sections (pakai urutan khusus + urutan item per section)
   const adminSections = useMemo(() => {
     const map = new Map<string, MenuItem[]>();
     for (const item of visibleMenu) {
@@ -915,7 +912,6 @@ export function AppHeader({
       });
   }, [visibleMenu]);
 
-  // Petugas & Warga flat
   const petugasItems = useMemo(
     () =>
       visibleMenu
@@ -931,7 +927,6 @@ export function AppHeader({
     [visibleMenu]
   );
 
-  // State expand/collapse section
   const [openSections, setOpenSections] = useState<Set<string>>(new Set());
   const toggleSection = (sec: string) => {
     setOpenSections((prev) => {
@@ -1029,9 +1024,10 @@ export function AppHeader({
             </Button>
           </DropdownMenuTrigger>
 
+          {/* HILANGKAN GARIS: border-0 & tanpa Separator */}
           <DropdownMenuContent
             align="end"
-            className="w-72 bg-white/95 backdrop-blur-md border-white/20"
+            className="w-72 bg-white/95 backdrop-blur-md border-0 shadow-lg rounded-lg p-1"
           >
             {/* user header */}
             <div className="px-3 py-2 text-xs text-muted-foreground">
@@ -1048,14 +1044,17 @@ export function AppHeader({
             {/* ADMIN/OPERATOR */}
             {(role === "ADMIN" || role === "OPERATOR") && (
               <>
-                {/* Standalone (Dashboard) */}
                 {standaloneAdmin.map((item) => {
                   const Icon = item.icon;
                   return (
-                    <DropdownMenuItem key={item.href} asChild>
+                    <DropdownMenuItem
+                      key={item.href}
+                      asChild
+                      className="cursor-pointer rounded-md"
+                    >
                       <Link
                         href={item.href}
-                        className="flex items-center gap-2 cursor-pointer"
+                        className="flex items-center gap-2"
                       >
                         <Icon className="h-4 w-4" />
                         <span>{item.label}</span>
@@ -1065,14 +1064,13 @@ export function AppHeader({
                 })}
 
                 {standaloneAdmin.length > 0 && adminSections.length > 0 && (
-                  <DropdownMenuSeparator />
+                  <div className="h-1" />
                 )}
 
-                {/* Section accordion */}
                 {adminSections.map(({ section, items }, idx) => (
                   <div key={section}>
                     <DropdownMenuItem
-                      className="justify-between font-medium"
+                      className="justify-between font-medium rounded-md"
                       onSelect={(e) => e.preventDefault()}
                       onClick={() => toggleSection(section)}
                     >
@@ -1089,10 +1087,14 @@ export function AppHeader({
                         {items.map((item) => {
                           const Icon = item.icon;
                           return (
-                            <DropdownMenuItem key={item.href} asChild>
+                            <DropdownMenuItem
+                              key={item.href}
+                              asChild
+                              className="pl-6 pr-2 py-2 rounded-md"
+                            >
                               <Link
                                 href={item.href}
-                                className="flex items-center gap-2 pl-6 pr-2 py-2 cursor-pointer"
+                                className="flex items-center gap-2 cursor-pointer"
                               >
                                 <Icon className="h-4 w-4" />
                                 <span>{item.label}</span>
@@ -1103,9 +1105,7 @@ export function AppHeader({
                       </div>
                     )}
 
-                    {idx < adminSections.length - 1 && (
-                      <DropdownMenuSeparator />
-                    )}
+                    {idx < adminSections.length - 1 && <div className="h-1" />}
                   </div>
                 ))}
               </>
@@ -1116,11 +1116,12 @@ export function AppHeader({
               petugasItems.map((item) => {
                 const Icon = item.icon;
                 return (
-                  <DropdownMenuItem key={item.href} asChild>
-                    <Link
-                      href={item.href}
-                      className="flex items-center gap-2 cursor-pointer"
-                    >
+                  <DropdownMenuItem
+                    key={item.href}
+                    asChild
+                    className="cursor-pointer rounded-md"
+                  >
+                    <Link href={item.href} className="flex items-center gap-2">
                       <Icon className="h-4 w-4" />
                       <span>{item.label}</span>
                     </Link>
@@ -1133,11 +1134,12 @@ export function AppHeader({
               wargaItems.map((item) => {
                 const Icon = item.icon;
                 return (
-                  <DropdownMenuItem key={item.href} asChild>
-                    <Link
-                      href={item.href}
-                      className="flex items-center gap-2 cursor-pointer"
-                    >
+                  <DropdownMenuItem
+                    key={item.href}
+                    asChild
+                    className="cursor-pointer rounded-md"
+                  >
+                    <Link href={item.href} className="flex items-center gap-2">
                       <Icon className="h-4 w-4" />
                       <span>{item.label}</span>
                     </Link>
@@ -1145,27 +1147,11 @@ export function AppHeader({
                 );
               })}
 
-            <DropdownMenuSeparator />
+            <div className="h-1" />
+
             <DropdownMenuItem
-              onClick={async () => {
-                try {
-                  await fetch("/api/auth/logout", { method: "POST" });
-                  toast({
-                    title: "Logout berhasil",
-                    description: "Anda telah keluar dari sistem.",
-                  });
-                } catch {
-                  toast({
-                    title: "Logout gagal",
-                    description: "Terjadi error, coba lagi.",
-                    variant: "destructive",
-                  });
-                } finally {
-                  localStorage.removeItem("tb_user");
-                  router.push("/login");
-                }
-              }}
-              className="flex items-center gap-2 cursor-pointer text-red-600"
+              onClick={handleLogout}
+              className="flex items-center gap-2 cursor-pointer text-red-600 rounded-md"
             >
               <LogOut className="h-4 w-4" />
               <span>Logout</span>
