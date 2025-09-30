@@ -9,7 +9,7 @@ import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Phone, MapPin, Droplet, Barcode, User } from "lucide-react";
+import { Phone, MapPin, Droplet, Barcode, User, Crosshair } from "lucide-react";
 
 type WargaProfile = {
   customerId: string;
@@ -19,6 +19,8 @@ type WargaProfile = {
   meterSerial: string;
   address: string;
   phone?: string | null;
+  lat?: number | null;
+  lng?: number | null;
 };
 
 function InfoRow({
@@ -115,19 +117,29 @@ export default function ProfilWargaPage() {
             ) : data ? (
               <div className="space-y-6">
                 {/* Header Identitas */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <User className="w-5 h-5 text-primary" />
-                    <h2 className="text-xl font-semibold">{data.name}</h2>
+                <div className="flex justify-between">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <User className="w-5 h-5 text-primary" />
+                      <h2 className="text-xl font-semibold">{data.name}</h2>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Kode Pelanggan:{" "}
+                      <span className="font-medium">{data.code}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Droplet className="w-4 h-4 text-cyan-500" />
+                      <Badge variant="secondary">Zona: {data.zone}</Badge>
+                    </div>
                   </div>
-                  <div className="text-sm text-muted-foreground">
-                    Kode Pelanggan:{" "}
-                    <span className="font-medium">{data.code}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Droplet className="w-4 h-4 text-cyan-500" />
-                    <Badge variant="secondary">Zona: {data.zone}</Badge>
-                  </div>
+                  <Button
+                    className="px-6 shadow-lg"
+                    onClick={() =>
+                      (window.location.href = "/warga-profil/edit")
+                    }
+                  >
+                    Edit Profil
+                  </Button>
                 </div>
 
                 <Separator />
@@ -145,6 +157,15 @@ export default function ProfilWargaPage() {
                       label="Alamat"
                       value={data.address}
                     />
+                    <InfoRow
+                      icon={Crosshair}
+                      label="Koordinat (Latitude, Longitude)"
+                      value={
+                        data.lat != null && data.lng != null
+                          ? `${data.lat.toFixed(6)}, ${data.lng.toFixed(6)}`
+                          : "-"
+                      }
+                    />
                   </div>
                   <div className="space-y-4">
                     <InfoRow
@@ -159,32 +180,16 @@ export default function ProfilWargaPage() {
           </GlassCard>
 
           {/* Tombol Aksi Desktop (Hubungi Admin dihapus) */}
-          <div className="hidden md:flex items-center justify-end gap-3">
+          {/* <div className="hidden md:flex items-center justify-end gap-3">
             <Button
               onClick={() => (window.location.href = "/warga-profil/edit")}
             >
               Edit Profil
             </Button>
-          </div>
+          </div> */}
 
           {/* Spacer agar konten tidak ketutup bottom nav (khusus mobile) */}
           <div className="md:hidden h-28" />
-
-          {/* Floating Edit button (mobile) – center & sedikit di atas bottom nav */}
-          <div
-            className="
-    md:hidden fixed left-0 right-0
-    bottom-[calc(env(safe-area-inset-bottom)+84px)]
-    z-50 flex justify-center
-  "
-          >
-            <Button
-              className="px-6 shadow-lg"
-              onClick={() => (window.location.href = "/warga-profil/edit")}
-            >
-              Edit Profil
-            </Button>
-          </div>
         </div>
       </AppShell>
     </AuthGuard>

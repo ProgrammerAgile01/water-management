@@ -23,6 +23,20 @@ function genUsername(name: string) {
 }
 
 // ========= Validasi body (CREATE) =========
+const latSchema = z
+  .preprocess(
+    (v) => (v === "" || v === undefined ? null : Number(v)),
+    z.number().gte(-90).lte(90)
+  )
+  .nullable();
+
+const lngSchema = z
+  .preprocess(
+    (v) => (v === "" || v === undefined ? null : Number(v)),
+    z.number().gte(-180).lte(180)
+  )
+  .nullable();
+
 // 🔹 TAMBAH zonaId (opsional)
 const bodySchema = z.object({
   nama: z.string().min(1, "Nama wajib diisi"),
@@ -38,6 +52,8 @@ const bodySchema = z.object({
     .regex(/^[a-z0-9_]+$/i)
     .optional(),
   password: z.string().min(6).max(100).optional(),
+  lat: latSchema.optional(),
+  lng: lngSchema.optional(),
 });
 
 // ========= CREATE =========
@@ -50,9 +66,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, message: msg }, { status: 400 });
     }
 
-    const { nama, wa, alamat, meterAwal, username, password } = parsed.data;
+    const {
+      nama,
+      wa,
+      alamat,
+      meterAwal,
+      username,
+      password,
+      lat: latIn,
+      lng: lngIn,
+    } = parsed.data;
     const zonaId = parsed.data.zonaId ? parsed.data.zonaId : null;
     let noUrutRumah = parsed.data.noUrutRumah ?? null;
+
+    const lat = latIn ?? null; // number | null
+    const lng = lngIn ?? null; // number | null
 
     if (zonaId) {
       const existsZona = await prisma.zona.findUnique({
@@ -111,6 +139,8 @@ export async function POST(req: NextRequest) {
           zonaId,
           noUrutRumah,
           passwordPlain: rawPassword,
+          lat,
+          lng,
         },
         select: {
           id: true,
@@ -118,6 +148,8 @@ export async function POST(req: NextRequest) {
           nama: true,
           zonaId: true,
           noUrutRumah: true,
+          lat: true,
+          lng: true,
         },
       });
 
@@ -244,6 +276,8 @@ export async function GET(req: NextRequest) {
         createdAt: true,
         zonaId: true,
         noUrutRumah: true,
+        lat: true,
+        lng: true,
         zona: { select: { id: true, nama: true, deskripsi: true } },
       },
     });
@@ -290,6 +324,8 @@ export async function PUT(req: NextRequest) {
       status: z.enum(["aktif", "nonaktif"]).optional(),
       zonaId: z.string().nullable().optional(),
       noUrutRumah: z.number().int().positive().nullable().optional(),
+      lat: z.number().min(-90).max(90).nullable().optional(),
+      lng: z.number().min(-180).max(180).nullable().optional(),
     });
 
     const parsed = schema.safeParse(rawBody);
@@ -359,6 +395,9 @@ export async function PUT(req: NextRequest) {
     if (body.alamat !== undefined) data.alamat = body.alamat;
     if (body.wa !== undefined) data.wa = normalizeWA(body.wa);
     if (body.status !== undefined) data.statusAktif = body.status === "aktif";
+    // lat/lng boleh null (untuk mengosongkan)
+    if (body.lat !== undefined) (data as any).lat = body.lat;
+    if (body.lng !== undefined) (data as any).lng = body.lng;
 
     const wantChangeMeterAwal =
       body.meterAwal !== undefined && body.meterAwal !== current.meterAwal;
@@ -515,6 +554,8 @@ export async function PUT(req: NextRequest) {
           zonaId: true,
           zona: { select: { id: true, nama: true } },
           noUrutRumah: true,
+          lat: true,
+          lng: true,
         },
       });
 
@@ -545,6 +586,8 @@ export async function PUT(req: NextRequest) {
         zonaId: updated.zonaId ?? null,
         zonaNama: updated.zona?.nama ?? null,
         noUrutRumah: updated.noUrutRumah ?? null,
+        lat: updated.lat != null ? Number(updated.lat) : null,
+        lng: updated.lng != null ? Number(updated.lng) : null,
       },
       message: successMsg,
     });

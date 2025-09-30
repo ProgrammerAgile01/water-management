@@ -124,7 +124,7 @@ export default function InputPembayaranPage() {
     if (nominalBayar !== "") return;
 
     if (payDB?.jumlahBayar && payDB.jumlahBayar > 0) {
-      setNominalBayar(String(payDB.jumlahBayar));
+      setNominalBayar(formatThousandsID(String(payDB.jumlahBayar)));
       if (payDB?.tanggalBayar) {
         const iso = toISODate(payDB.tanggalBayar);
         if (iso) setTanggalBayar(iso);
@@ -323,6 +323,46 @@ export default function InputPembayaranPage() {
       minimumFractionDigits: 0,
     }).format(n);
 
+  // ===== Helpers untuk format nominal =====
+  function onlyDigits(s: string) {
+    return s.replace(/\D/g, "");
+  }
+  function formatThousandsID(digits: string) {
+    // input: "5000" -> output: "5.000"
+    return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  }
+  function parseNominalToInt(nominalStr: string) {
+    // "5.000" -> 5000; "" -> 0
+    const d = onlyDigits(nominalStr || "");
+    return d ? parseInt(d, 10) : 0;
+  }
+  /**
+   * Hitung posisi kursor baru agar "terasa natural":
+   * jaga jumlah digit di kiri kursor tetap sama sebelum & sesudah format.
+   */
+  function setCaretByDigitCount(
+    input: HTMLInputElement,
+    formatted: string,
+    digitsBeforeCursor: number
+  ) {
+    let seen = 0;
+    let pos = 0;
+    for (; pos < formatted.length; pos++) {
+      if (/\d/.test(formatted[pos])) {
+        seen++;
+        if (seen === digitsBeforeCursor) {
+          pos++; // kursor berada setelah digit ini
+          break;
+        }
+      }
+    }
+    // jika digit lebih sedikit (mis. hapus semua), kursor di akhir
+    const finalPos = Math.min(pos, formatted.length);
+    requestAnimationFrame(() => {
+      input.setSelectionRange(finalPos, finalPos);
+    });
+  }
+
   function renderSisaKurang(n: number) {
     if (n > 0) {
       return <span className="text-red-600">Kurang {fmt(n)}</span>;
@@ -359,10 +399,10 @@ export default function InputPembayaranPage() {
 
   // Tombol simpan: enable/disable
   const canSave = revisiMode
-    ? Number(nominalBayar || 0) > 0 &&
+    ? parseNominalToInt(nominalBayar) > 0 &&
       !!metode &&
       (cashNoProof || !!paymentProof || !!payDB?.buktiUrl)
-    : Number(nominalBayar || 0) > 0 &&
+    : parseNominalToInt(nominalBayar) > 0 &&
       !!metode &&
       (cashNoProof || !!paymentProof);
 
@@ -370,7 +410,7 @@ export default function InputPembayaranPage() {
   const handleClickSimpan = () => {
     try {
       if (!t) throw new Error("Tagihan tidak ditemukan");
-      const nominal = Number(nominalBayar || 0);
+      const nominal = parseNominalToInt(nominalBayar);
       if (!metode) throw new Error("Pilih metode pembayaran");
       if (nominal <= 0) throw new Error("Nominal bayar harus lebih dari 0");
 
@@ -399,7 +439,7 @@ export default function InputPembayaranPage() {
   // NEW: proses upload (dipanggil setelah konfirmasi)
   const performUpload = async () => {
     try {
-      const nominal = Number(nominalBayar || 0);
+      const nominal = parseNominalToInt(nominalBayar);
       if (!t) throw new Error("Tagihan tidak ditemukan");
 
       const fd = new FormData();
@@ -558,7 +598,7 @@ export default function InputPembayaranPage() {
 
   async function performRevise() {
     if (!t || !payDB) throw new Error("Data belum siap untuk revisi");
-    const nominal = Number(nominalBayar || 0);
+    const nominal = parseNominalToInt(nominalBayar);
     if (!nominal || nominal <= 0) throw new Error("Nominal bayar tidak valid");
 
     const fd = new FormData();
@@ -932,24 +972,58 @@ export default function InputPembayaranPage() {
                             htmlFor="nominal"
                             className="text-sm font-medium"
                           >
-                            Nominal Bayar
+                            Nominal Bayar{" "}
                             <span className="text-red-600">*</span>
                           </Label>
+
                           <Input
                             id="nominal"
-                            type="number"
+                            type="text" // penting: gunakan text agar bisa ada titik (.)
                             inputMode="numeric"
-                            min={0}
+                            autoComplete="off"
                             value={nominalBayar}
-                            onChange={(e) => setNominalBayar(e.target.value)}
+                            onChange={(e) => {
+                              const input = e.currentTarget;
+                              const raw = input.value;
+
+                              // hitung digit di kiri kursor sebelum diformat
+                              const caret = input.selectionStart ?? raw.length;
+                              const digitsLeft = onlyDigits(
+                                raw.slice(0, caret)
+                              ).length;
+
+                              // bersihkan ke digit & format ulang
+                              const digits = onlyDigits(raw);
+                              const formatted = digits
+                                ? formatThousandsID(digits)
+                                : "";
+
+                              setNominalBayar(formatted);
+
+                              // atur kursor berdasarkan jumlah digit di kiri kursor
+                              setCaretByDigitCount(
+                                input,
+                                formatted,
+                                digitsLeft
+                              );
+                            }}
+                            onBlur={(e) => {
+                              // rapikan saat blur (kalau user kosongin, biarkan kosong)
+                              const digits = onlyDigits(e.currentTarget.value);
+                              setNominalBayar(
+                                digits ? formatThousandsID(digits) : ""
+                              );
+                            }}
                             className="mt-1"
                             disabled={lockForm}
-                            placeholder="Masukkan jumlah yang dibayar"
+                            placeholder="Masukkan nominal bayar"
                             required
                           />
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            *format tanpa titik, contoh: 20000
-                          </p>
+
+                          {/* <p className="mt-1 text-xs text-muted-foreground">
+                            *otomatis diformat titik ribuan (tanpa “Rp”). Data
+                            yang tersimpan tetap angka murni.
+                          </p> */}
                         </div>
 
                         {/* Metode Pembayaran */}
@@ -1310,7 +1384,7 @@ export default function InputPembayaranPage() {
                         pelangganNama: t.pelangganNama,
                         pelangganKode: t.pelangganKode,
                         periode: t.periode,
-                        nominal: Number(nominalBayar || 0),
+                        nominal: parseNominalToInt(nominalBayar),
                         metodeBayar: metode,
                         tanggalBayar,
                         willReplaceFile: !!paymentProof,

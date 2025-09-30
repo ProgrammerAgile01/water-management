@@ -41,6 +41,8 @@ type ServerPelanggan = {
   zonaId?: string | null;
   zona?: { id: string; nama: string } | null;
   noUrutRumah?: number | null;
+  lat?: number | null;
+  lng?: number | null;
 };
 
 // ——— UI types ———
@@ -56,6 +58,8 @@ interface Customer {
   zonaId: string | null;
   zonaNama: string | null;
   noUrutRumah: number | null;
+  lat?: number | null;
+  lng?: number | null;
 }
 
 type ApiResp = {
@@ -177,6 +181,8 @@ export function CustomerList() {
             zonaId: p.zonaId ?? null,
             zonaNama: p.zona?.nama ?? null,
             noUrutRumah: p.noUrutRumah ?? null,
+            lat: p.lat ?? null,
+            lng: p.lng ?? null,
           }))
         : [];
 

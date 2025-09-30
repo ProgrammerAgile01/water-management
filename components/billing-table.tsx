@@ -16,6 +16,9 @@ import {
   Download,
   Loader2,
   MessageCircle,
+  ChevronDown,
+  Send,
+  FileLock2,
 } from "lucide-react";
 import { useMobile } from "@/hooks/use-mobile";
 import { Input } from "./ui/input";
@@ -27,6 +30,13 @@ import {
   SelectValue,
 } from "./ui/select";
 import { useToast } from "@/hooks/use-toast";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 
 /* =========================
    TYPES & HELPERS
@@ -470,7 +480,14 @@ export function BillingTable() {
   const [loadingKwitansi, setLoadingKwitansi] = useState<Set<string>>(
     new Set()
   );
-  const [loadingKirimWA, setLoadingKirimWA] = useState<Set<string>>(new Set()); // ⬅️ NEW
+
+  // kirim wa
+  const [loadingWATagihan, setLoadingWATagihan] = useState<Set<string>>(
+    new Set()
+  );
+  const [loadingWAKwitansi, setLoadingWAKwitansi] = useState<Set<string>>(
+    new Set()
+  );
 
   function setRowLoading(
     setter: React.Dispatch<React.SetStateAction<Set<string>>>,
@@ -677,17 +694,16 @@ export function BillingTable() {
     }
   }
 
-  // kirim WA (teks + gambar)
-  async function handleKirimWA(b: BillingItem) {
+  // kirim WA Tagihan(teks + gambar)
+  async function handleKirimWATagihan(b: BillingItem) {
     try {
-      setRowLoading(setLoadingKirimWA, b.id, true);
+      setRowLoading(setLoadingWATagihan, b.id, true);
       const res = await fetch(`/api/tagihan/kirim-wa`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tagihanId: b.id }),
       });
       const json = await res.json();
-
       if (res.ok && json?.ok) {
         toast({
           title: "Berhasil",
@@ -707,9 +723,50 @@ export function BillingTable() {
         variant: "destructive",
       });
     } finally {
-      setRowLoading(setLoadingKirimWA, b.id, false);
+      setRowLoading(setLoadingWATagihan, b.id, false);
     }
   }
+
+  // kirim wa Kwitansi (teks + gambar)
+  async function handleKirimWAKwitansi(b: BillingItem) {
+    try {
+      setRowLoading(setLoadingWAKwitansi, b.id, true);
+      const res = await fetch(`/api/tagihan/kirim-wa-kwitansi`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tagihanId: b.id }),
+      });
+      const json = await res.json();
+      if (res.ok && json?.ok) {
+        toast({
+          title: "Berhasil",
+          description: "Kwitansi sedang dikirim via WhatsApp.",
+        });
+      } else {
+        toast({
+          title: "Gagal mengirim",
+          description: json?.message || "Terjadi kesalahan saat mengirim WA.",
+          variant: "destructive",
+        });
+      }
+    } catch (e: any) {
+      toast({
+        title: "Error",
+        description: e?.message || "Terjadi kesalahan jaringan/server.",
+        variant: "destructive",
+      });
+    } finally {
+      setRowLoading(setLoadingWAKwitansi, b.id, false);
+    }
+  }
+
+  // tampilkan loading di trigger "Unduh" bila salah satu unduh sedang berjalan
+  const isAnyDownloadLoading = (id: string) =>
+    loadingTagihan.has(id) || loadingKwitansi.has(id);
+
+  // helper untuk tombol trigger menunjukkan loading bila salah satu proses jalan
+  const isAnyWALoading = (id: string) =>
+    loadingWATagihan.has(id) || loadingWAKwitansi.has(id);
 
   /* =========================
      RENDER
@@ -870,51 +927,49 @@ export function BillingTable() {
               </div>
 
               <div className="flex flex-col sm:flex-row gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleUnduhTagihan(b)}
-                  disabled={loadingTagihan.has(b.id)}
-                  className="flex-1"
-                >
-                  {loadingTagihan.has(b.id) ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />{" "}
-                      Menyiapkan…
-                    </>
-                  ) : (
-                    <>
-                      <FileText className="h-4 w-4 mr-2" /> Unduh Tagihan
-                    </>
-                  )}
-                </Button>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleUnduhKwitansi(b)}
-                  disabled={
-                    getPelunasanStatus(b) !== "lunas" ||
-                    loadingKwitansi.has(b.id)
-                  }
-                  title={
-                    getPelunasanStatus(b) !== "lunas"
-                      ? "Kwitansi bisa diunduh setelah lunas"
-                      : undefined
-                  }
-                  className="flex-1"
-                >
-                  {loadingKwitansi.has(b.id) ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />{" "}
-                      Menyiapkan…
-                    </>
-                  ) : (
-                    <>
-                      <Download className="h-4 w-4 mr-2" /> Unduh Kwitansi
-                    </>
-                  )}
-                </Button>
+                {/* === Dropdown Unduh === */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="flex-1">
+                      {isAnyDownloadLoading(b.id) ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Menyiapkan…
+                        </>
+                      ) : (
+                        <>
+                          <Download className="h-4 w-4 mr-2" />
+                          Unduh
+                          <ChevronDown className="h-4 w-4 ml-1 opacity-80" />
+                        </>
+                      )}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem
+                      onClick={() => handleUnduhTagihan(b)}
+                      disabled={loadingTagihan.has(b.id)}
+                    >
+                      <FileText />
+                      Tagihan (JPG)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleUnduhKwitansi(b)}
+                      disabled={
+                        getPelunasanStatus(b) !== "lunas" ||
+                        loadingKwitansi.has(b.id)
+                      }
+                      title={
+                        getPelunasanStatus(b) !== "lunas"
+                          ? "Kwitansi bisa diunduh setelah lunas"
+                          : undefined
+                      }
+                    >
+                      <FileLock2 />
+                      Kwitansi (JPG)
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
                 {b.buktiPembayaran && (
                   <Button
@@ -944,36 +999,70 @@ export function BillingTable() {
 
                 {/* Kirim Tagihan via WA (ADMIN) */}
                 {authUser?.role === "ADMIN" && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleKirimWA(b)}
-                    disabled={
-                      loadingKirimWA.has(b.id) ||
-                      !b.wa ||
-                      getPelunasanStatus(b) === "lunas"
-                    }
-                    title={
-                      !b.wa
-                        ? "Nomor WA pelanggan tidak ada"
-                        : getPelunasanStatus(b) === "lunas"
-                        ? "Tagihan sudah lunas"
-                        : undefined
-                    }
-                    className="flex-1 bg-green-500 text-white"
-                  >
-                    {loadingKirimWA.has(b.id) ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />{" "}
-                        Mengirim…
-                      </>
-                    ) : (
-                      <>
-                        <MessageCircle className="h-4 w-4 mr-2" /> Kirim WA
-                        Tagihan
-                      </>
-                    )}
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 bg-green-500 text-white"
+                        disabled={!b.wa}
+                        title={
+                          !b.wa ? "Nomor WA pelanggan tidak ada" : undefined
+                        }
+                      >
+                        {isAnyWALoading(b.id) ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />{" "}
+                            Mengirim…
+                          </>
+                        ) : (
+                          <>
+                            <MessageCircle className="h-4 w-4 mr-2" /> Kirim WA
+                            <ChevronDown className="h-4 w-4 ml-1 opacity-80" />
+                          </>
+                        )}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-52">
+                      <DropdownMenuItem
+                        onClick={() => handleKirimWATagihan(b)}
+                        disabled={
+                          loadingWATagihan.has(b.id) ||
+                          !b.wa ||
+                          getPelunasanStatus(b) === "lunas"
+                        }
+                        title={
+                          !b.wa
+                            ? "Nomor WA pelanggan tidak ada"
+                            : getPelunasanStatus(b) === "lunas"
+                            ? "Tagihan sudah lunas"
+                            : undefined
+                        }
+                      >
+                        <Send />
+                        Kirim WA Tagihan
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => handleKirimWAKwitansi(b)}
+                        disabled={
+                          loadingWAKwitansi.has(b.id) ||
+                          !b.wa ||
+                          getPelunasanStatus(b) === "belum-lunas"
+                        }
+                        title={
+                          !b.wa
+                            ? "Nomor WA pelanggan tidak ada"
+                            : getPelunasanStatus(b) === "belum-lunas"
+                            ? "Tagihan belum lunas"
+                            : undefined
+                        }
+                      >
+                        <Send />
+                        Kirim WA Kwitansi
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 )}
               </div>
             </GlassCard>
@@ -1118,50 +1207,49 @@ export function BillingTable() {
                     </td>
                     <td className="p-4 w-96">
                       <div className="flex flex-wrap gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleUnduhTagihan(b)}
-                          disabled={loadingTagihan.has(b.id)}
-                        >
-                          {loadingTagihan.has(b.id) ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />{" "}
-                              Menyiapkan…
-                            </>
-                          ) : (
-                            <>
-                              <FileText className="h-4 w-4 mr-2" /> Unduh
-                              Tagihan
-                            </>
-                          )}
-                        </Button>
-
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleUnduhKwitansi(b)}
-                          disabled={
-                            pelunasan !== "lunas" || loadingKwitansi.has(b.id)
-                          }
-                          title={
-                            pelunasan !== "lunas"
-                              ? "Kwitansi bisa diunduh setelah lunas"
-                              : undefined
-                          }
-                        >
-                          {loadingKwitansi.has(b.id) ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />{" "}
-                              Menyiapkan…
-                            </>
-                          ) : (
-                            <>
-                              <Download className="h-4 w-4 mr-2" /> Unduh
-                              Kwitansi
-                            </>
-                          )}
-                        </Button>
+                        {/* === Dropdown Unduh === */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm">
+                              {isAnyDownloadLoading(b.id) ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  Menyiapkan…
+                                </>
+                              ) : (
+                                <>
+                                  <Download className="h-4 w-4 mr-2" />
+                                  Unduh
+                                  <ChevronDown className="h-4 w-4 ml-1 opacity-80" />
+                                </>
+                              )}
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-52">
+                            <DropdownMenuItem
+                              onClick={() => handleUnduhTagihan(b)}
+                              disabled={loadingTagihan.has(b.id)}
+                            >
+                              <FileText />
+                              Tagihan (JPG)
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleUnduhKwitansi(b)}
+                              disabled={
+                                getPelunasanStatus(b) !== "lunas" ||
+                                loadingKwitansi.has(b.id)
+                              }
+                              title={
+                                getPelunasanStatus(b) !== "lunas"
+                                  ? "Kwitansi bisa diunduh setelah lunas"
+                                  : undefined
+                              }
+                            >
+                              <FileLock2 />
+                              Kwitansi (JPG)
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
 
                         {b.buktiPembayaran && (
                           <Button
@@ -1192,36 +1280,73 @@ export function BillingTable() {
 
                         {/* Kirim Tagihan via WA */}
                         {authUser?.role === "ADMIN" && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleKirimWA(b)}
-                            disabled={
-                              loadingKirimWA.has(b.id) ||
-                              !b.wa ||
-                              getPelunasanStatus(b) === "lunas"
-                            }
-                            title={
-                              !b.wa
-                                ? "Nomor WA pelanggan tidak ada"
-                                : getPelunasanStatus(b) === "lunas"
-                                ? "Tagihan sudah lunas"
-                                : undefined
-                            }
-                            className="bg-green-500 text-white"
-                          >
-                            {loadingKirimWA.has(b.id) ? (
-                              <>
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />{" "}
-                                Mengirim…
-                              </>
-                            ) : (
-                              <>
-                                <MessageCircle className="h-4 w-4 mr-2" /> Kirim
-                                WA Tagihan
-                              </>
-                            )}
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="bg-green-500 text-white"
+                                disabled={!b.wa}
+                                title={
+                                  !b.wa
+                                    ? "Nomor WA pelanggan tidak ada"
+                                    : undefined
+                                }
+                              >
+                                {isAnyWALoading(b.id) ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />{" "}
+                                    Mengirim…
+                                  </>
+                                ) : (
+                                  <>
+                                    <MessageCircle className="h-4 w-4 mr-2" />{" "}
+                                    Kirim WA
+                                    <ChevronDown className="h-4 w-4 ml-1 opacity-80" />
+                                  </>
+                                )}
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-56">
+                              <DropdownMenuItem
+                                onClick={() => handleKirimWATagihan(b)}
+                                disabled={
+                                  loadingWATagihan.has(b.id) ||
+                                  !b.wa ||
+                                  getPelunasanStatus(b) === "lunas"
+                                }
+                                title={
+                                  !b.wa
+                                    ? "Nomor WA pelanggan tidak ada"
+                                    : getPelunasanStatus(b) === "lunas"
+                                    ? "Tagihan sudah lunas"
+                                    : undefined
+                                }
+                              >
+                                <Send />
+                                Kirim WA Tagihan
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => handleKirimWAKwitansi(b)}
+                                disabled={
+                                  loadingWAKwitansi.has(b.id) ||
+                                  !b.wa ||
+                                  getPelunasanStatus(b) === "belum-lunas"
+                                }
+                                title={
+                                  !b.wa
+                                    ? "Nomor WA pelanggan tidak ada"
+                                    : getPelunasanStatus(b) === "belum-lunas"
+                                    ? "Tagihan belum lunas"
+                                    : undefined
+                                }
+                              >
+                                <Send />
+                                Kirim WA Kwitansi
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         )}
                       </div>
                     </td>

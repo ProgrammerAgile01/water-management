@@ -71,6 +71,10 @@ model Pelanggan {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  // koordinat (nullable)
+  lat          Float?
+  lng          Float?
+
   // NEW: simpan password plaintext
   passwordPlain String? @db.VarChar(100) // atau @db.Text kalau mau bebas panjang
 

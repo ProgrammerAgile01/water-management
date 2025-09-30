@@ -3,13 +3,12 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
+// ======================= Utilities =======================
+
 /**
- * Utility: dari kode periode "YYYY-MM" kembalikan list mundur n bulan
- * (TIDAK termasuk periode targetnya).
- *
- * Contoh:
- *   prevPeriods("2025-09", 6)
- *   -> ["2025-08","2025-07","2025-06","2025-05","2025-04","2025-03"]
+ * Buat daftar periode mundur n bulan dari "YYYY-MM".
+ * Tidak termasuk periode asalnya.
+ * Contoh: prevPeriods("2025-09", 3) -> ["2025-08","2025-07","2025-06"]
  */
 function prevPeriods(kode: string, n = 6) {
   const [yy, mm] = kode.split("-").map(Number);
@@ -26,24 +25,20 @@ function prevPeriods(kode: string, n = 6) {
   }
   return out;
 }
-// Klasifikasi status per pelanggan
+
 type Status = "NORMAL" | "ANOMALY" | "ZERO";
 
 /**
- * Business rule status:
- * - 0 m³  -> ZERO
- * - baseline kosong/<=0 -> NORMAL (karena belum cukup riwayat)
- * - |selisih| > threshold -> ANOMALY
- * - lainnya -> NORMAL
- *
- * curr: pemakaian bulan aktif
- * baselineAvg: rata-rata dari riwayat n bulan sebelumnya (jika ada)
- * thresholdPct: ambang deteksi (0.5 = 50%)
+ * Aturan status:
+ * - 0 m³                -> ZERO
+ * - baseline kosong/<=0 -> NORMAL (karena belum ada pembanding)
+ * - |(curr-baseline)/baseline| > threshold -> ANOMALY
+ * - selain itu -> NORMAL
  */
 function deriveStatus(
   curr: number,
   baselineAvg: number | null,
-  thresholdPct = 0.5
+  thresholdPct = 0.75
 ): Status {
   if (!curr) return "ZERO";
   if (!baselineAvg || baselineAvg <= 0) return "NORMAL";
@@ -51,22 +46,19 @@ function deriveStatus(
   return Math.abs(pct) > thresholdPct ? "ANOMALY" : "NORMAL";
 }
 
+// ======================= Handler =======================
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
 
-    // ====== BACA PARAM FILTER DARI QUERY ======
-    // periode   : "YYYY-MM" (jika kosong -> otomatis periode terbaru)
-    // zonaId    : filter by zona snapshot pada saat catat
-    // threshold : ambang anomali (0.3/0.5/0.7)
-    // nBaseline : jumlah bulan pembanding (3/6/12)
+    // -------- Query filter dari UI --------
     const periodeQ = (searchParams.get("periode") || "").trim(); // "YYYY-MM"
-    const zonaId = searchParams.get("zonaId") || undefined;
-    const thresholdPct = Number(searchParams.get("thresholdPct") || "0.5"); // ±50%
-    const nBaseline = Number(searchParams.get("n") || "6"); // 3/6/12, default 6
+    const zonaId = searchParams.get("zonaId") || undefined; // filter zona snapshot
+    const thresholdPct = Number(searchParams.get("thresholdPct") || "0.75"); // 0.3/0.5/0.75
+    const nBaseline = Number(searchParams.get("n") || "3"); // 3/6/12
 
-    // ====== DROPDOWN DATA (PERIODE & ZONA) ======
-    // Ambil semua periode untuk diisi ke dropdown (urut terbaru dulu)
+    // -------- Dropdown data: periode dan zona --------
     const periodeList = await prisma.catatPeriode.findMany({
       where: { deletedAt: null },
       select: { kodePeriode: true, tahun: true, bulan: true },
@@ -74,17 +66,16 @@ export async function GET(req: NextRequest) {
     });
     const periods = periodeList.map((p) => p.kodePeriode);
 
-    // Pilih periode aktif: query ?periode=... kalau kosong ambil paling baru
+    // periode aktif = ?periode atau default terbaru
     let periode = periodeQ || periods[0] || null;
 
-    // Ambil semua zona untuk dropdown (supaya muncul meskipun tabel kosong)
     const zonaList = await prisma.zona.findMany({
       select: { id: true, nama: true },
       orderBy: { nama: "asc" },
     });
     const zones = zonaList.map((z) => ({ id: z.id, nama: z.nama }));
 
-    // Jika belum ada satupun periode di DB, kembalikan meta saja
+    // jika belum ada periode sama sekali
     if (!periode) {
       return NextResponse.json({
         ok: true,
@@ -96,18 +87,17 @@ export async function GET(req: NextRequest) {
           { color: "#ef4444", label: "Tidak seperti biasanya" },
           { color: "#9ca3af", label: "0 m³" },
         ],
-        missingCoords: 0, // tidak dipakai di versi tabel
+        missingCoords: 0,
         data: [],
       });
     }
 
-    // Validasi periode yang dipilih
+    // validasi periode aktif
     const periodeRec = await prisma.catatPeriode.findUnique({
       where: { kodePeriode: periode },
       select: { id: true, kodePeriode: true },
     });
     if (!periodeRec) {
-      // Periode yang diminta tidak ditemukan -> kembalikan meta supaya UI tetap hidup
       return NextResponse.json({
         ok: true,
         periode,
@@ -118,14 +108,12 @@ export async function GET(req: NextRequest) {
           { color: "#ef4444", label: "Tidak seperti biasanya" },
           { color: "#9ca3af", label: "0 m³" },
         ],
-        missingCoords: 0, // tidak dipakai di versi tabel
+        missingCoords: 0,
         data: [],
       });
     }
 
-    // ====== DATA BULAN PERIODE CATAT METER AKTIF ======
-    // Ambil pemakaian bulan ini per pelanggan dari CatatMeter
-    // (pakai zonaIdSnapshot untuk filter zona jika ada)
+    // -------- Data bulan aktif: pemakaian per pelanggan --------
     const entries = await prisma.catatMeter.findMany({
       where: {
         periodeId: periodeRec.id,
@@ -135,73 +123,70 @@ export async function GET(req: NextRequest) {
       select: {
         pelangganId: true,
         pemakaianM3: true,
-        zonaNamaSnapshot: true, // fallback jika relasi zona tidak ada
+        zonaNamaSnapshot: true,
         pelanggan: {
           select: {
             id: true,
             kode: true,
             nama: true,
-            // NB: lat/lng tidak di-select karena belum ada di schema
+            lat: true, // <— koordinat dari master pelanggan (nullable)
+            lng: true,
             zona: { select: { id: true, nama: true } },
           },
         },
       },
     });
 
-    // Kumpulkan ID pelanggan terkait bulan aktif
     const pelangganIds = Array.from(new Set(entries.map((e) => e.pelangganId)));
 
-    // ====== DATA RIWAYAT (BASELINE) ======
-    // Buat daftar kode periode target mundur n bulan (mis. 3/6/12)
+    // -------- Data riwayat (baseline) --------
+    // target periode pembanding = n bulan ke belakang dari periode aktif
     const prevList = prevPeriods(periode, nBaseline);
 
-    // Ambil catat meter riwayat untuk pelanggan-pelanggan terpilih
-    // Catatan: kalau prevIds kosong, bagian ini dilewati (histori tidak ada)
+    // ambil ID periode yang benar-benar ada di DB
+    const prevPeriodes = await prisma.catatPeriode.findMany({
+      where: { kodePeriode: { in: prevList }, deletedAt: null },
+      select: { id: true },
+    });
+    const prevIds = prevPeriodes.map((p) => p.id);
+
+    // ambil catatMeter untuk pelanggan pada periode-periode pembanding yang tersedia
     let histByPelanggan: Record<string, number[]> = {};
-    if (pelangganIds.length && prevList.length) {
-      // Ambil ID periode yang BENAR-BENAR ada di DB dari daftar prevList
-      const prevPeriodes = await prisma.catatPeriode.findMany({
-        where: { kodePeriode: { in: prevList }, deletedAt: null },
-        select: { id: true },
+    if (pelangganIds.length && prevIds.length) {
+      const history = await prisma.catatMeter.findMany({
+        where: {
+          deletedAt: null,
+          periodeId: { in: prevIds },
+          pelangganId: { in: pelangganIds },
+        },
+        select: { pelangganId: true, pemakaianM3: true },
       });
-      const prevIds = prevPeriodes.map((p) => p.id);
 
-      if (prevIds.length) {
-        const history = await prisma.catatMeter.findMany({
-          where: {
-            deletedAt: null,
-            periodeId: { in: prevIds },
-            pelangganId: { in: pelangganIds },
-          },
-          select: { pelangganId: true, pemakaianM3: true },
-        });
-
-        // Grouping: { pelangganId -> [pemakaianM3, ...] }
-        histByPelanggan = history.reduce<Record<string, number[]>>((acc, h) => {
-          (acc[h.pelangganId] ||= []).push(h.pemakaianM3 || 0);
-          return acc;
-        }, {});
-      }
+      // kelompokkan: { pelangganId -> [pemakaianM3, ...] }
+      histByPelanggan = history.reduce<Record<string, number[]>>((acc, h) => {
+        (acc[h.pelangganId] ||= []).push(h.pemakaianM3 || 0);
+        return acc;
+      }, {});
     }
 
-    // ====== RAKIT RESPONSE PER PELANGGAN ======
-    const data = entries.map((e) => {
-      // Ambil list riwayat untuk pelanggan ini (yang tersedia saja)
-      const hist = histByPelanggan[e.pelangganId] || [];
-      const baselineCount = hist.length; // <— berapa bulan histori yang dipakai
+    // -------- Rakit response per pelanggan --------
+    let missingCoords = 0;
 
-      // avg = rata-rata dari histori tersedia (jika ada)
-      const avg = baselineCount
+    const data = entries.map((e) => {
+      const hist = histByPelanggan[e.pelangganId] || [];
+      const baselineCount = hist.length;
+      const baselineAvg = baselineCount
         ? hist.reduce((a, b) => a + b, 0) / baselineCount
         : null;
-
-      // status = ZERO / ANOMALY / NORMAL (lihat deriveStatus)
-      const status = deriveStatus(e.pemakaianM3 || 0, avg, thresholdPct);
-
-      // pctChange = (bulanIni - avg) / avg, jika baseline ada & >0
-      const pctChange = avg && avg > 0 ? (e.pemakaianM3 - avg) / avg : null;
-
-      // Warna untuk legenda/peta (future proof)
+      const pctChange =
+        baselineAvg && baselineAvg > 0
+          ? (e.pemakaianM3 - baselineAvg) / baselineAvg
+          : null;
+      const status = deriveStatus(
+        e.pemakaianM3 || 0,
+        baselineAvg,
+        thresholdPct
+      );
       const color =
         status === "NORMAL"
           ? "#22c55e"
@@ -209,39 +194,43 @@ export async function GET(req: NextRequest) {
           ? "#ef4444"
           : "#9ca3af";
 
+      const lat = e.pelanggan.lat != null ? Number(e.pelanggan.lat) : null;
+      const lng = e.pelanggan.lng != null ? Number(e.pelanggan.lng) : null;
+      if (lat == null || lng == null) missingCoords++;
+
       return {
         pelangganId: e.pelangganId,
         kode: e.pelanggan.kode,
         nama: e.pelanggan.nama,
         zonaId: e.pelanggan.zona?.id || null,
         zonaNama: e.pelanggan.zona?.nama || e.zonaNamaSnapshot || null,
-        lat: null,
-        lng: null,
+        lat,
+        lng,
         pemakaianM3: e.pemakaianM3,
-        baselineAvg: avg,
-        baselineCount, // <— dikirim ke UI
+        baselineAvg,
+        baselineCount,
         pctChange,
         status,
         color,
       };
     });
 
-    // ====== KIRIM KE FRONTEND ======
+    // -------- Kirim ke FE --------
     return NextResponse.json({
       ok: true,
-      periode, // periode aktif (tetap format "YYYY-MM")
-      periods, // list untuk dropdown
-      zones, // list untuk dropdown
+      periode, // tetap "YYYY-MM" (UI kamu memformat "Juli 2025")
+      periods, // dropdown periode
+      zones, // dropdown zona
       legend: [
         { color: "#22c55e", label: "Normal" },
         { color: "#ef4444", label: "Tidak seperti biasanya" },
         { color: "#9ca3af", label: "0 m³" },
       ],
-      missingCoords: 0, // tidak relevan untuk versi tabel
-      data, // dataset yang ditampilkan di UI
+      missingCoords,
+      data,
     });
   } catch (err: any) {
-    console.error(err);
+    console.error("❌ GET /api/distribusi/peta:", err);
     return NextResponse.json(
       { ok: false, error: err?.message || "Server error" },
       { status: 500 }
