@@ -24,7 +24,7 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  // Back-relation 1â†”1 ke Pelanggan (User PUNYA/terkait 1 Pelanggan)
+  // Back-relation 1↔1 ke Pelanggan (User PUNYA/terkait 1 Pelanggan)
   // Field FK-nya berada di model Pelanggan (userId), jadi di sini hanya back-relation.
   pelanggan Pelanggan? @relation("UserPelanggan")
 
@@ -36,16 +36,21 @@ model User {
   deletedCatatPeriode CatatPeriode[] @relation("DeletedByUserCatatPeriode")
   lockedPeriods       CatatPeriode[] @relation("LockedByUser")
   petugasCatat        CatatPeriode[] @relation("PetugasCatatPeriode")
-  // ðŸ”¹ back-relation: 1 petugas bisa pegang banyak zona
+  // 🔁 back-relation: 1 petugas bisa pegang banyak zona
   zonasDipegang       Zona[]         @relation("UserZonaPetugas")
 
+  // Relasi opsional user→tandon (jika user terikat ke tandon tertentu)
+  tandonId String?
+  tandon   Tandon? @relation("UserToTandon", fields: [tandonId], references: [id])
+
   // Soft delete untuk User itu sendiri
-  deletedAt        DateTime? // kapan user â€œdihapusâ€
-  deletedBy        String? // FK â†’ User.id yang menghapus
+  deletedAt        DateTime? // kapan user “dihapus”
+  deletedBy        String? // FK → User.id yang menghapus
   deletedByUser    User?              @relation("DeletedByUserSelf", fields: [deletedBy], references: [id])
   deletedUsers     User[]             @relation("DeletedByUserSelf") // daftar user yang dia hapus
   JadwalPencatatan JadwalPencatatan[]
 
+  @@index([tandonId])
   @@index([deletedAt]) // index untuk query cepat by deletedAt
   @@index([deletedBy]) // index untuk query cepat by deletedBy
 
@@ -80,9 +85,9 @@ model Pelanggan {
   deletedBy     String?
   deletedByUser User?     @relation("DeletedByUser", fields: [deletedBy], references: [id])
 
-  catatans      CatatMeter[]
-  tagihans      Tagihan[]
-  resets        ResetMeter[] @relation("PelangganReset")
+  catatans       CatatMeter[]
+  tagihans       Tagihan[]
+  resets         ResetMeter[]   @relation("PelangganReset")
   catatMeterBlok CatatMeterBlok[] @relation("PelangganToCatatMeterBlok")
 
   @@unique([zonaId, noUrutRumah])
@@ -91,7 +96,6 @@ model Pelanggan {
   @@index([deletedBy])
   @@index([zonaId, noUrutRumah])
 }
-
 
 enum PeriodeStatus {
   DRAFT
@@ -129,8 +133,12 @@ model CatatPeriode {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  entries CatatMeter[]
+  entries          CatatMeter[]
   catatMeterBlok   CatatMeterBlok[]  @relation("PeriodeToCatatMeterBlok")
+
+  // Back-relation untuk tandon/blok reading
+  tandonReadings   TandonReading[] @relation("PeriodeToTandonReading")
+  blokReadings     BlokReading[]   @relation("PeriodeToBlokReading")
 
   // audit delete
   deletedAt     DateTime? @db.DateTime(3)
@@ -150,11 +158,11 @@ model CatatPeriode {
 model CatatMeter {
   id String @id @default(cuid())
 
-  // FK â†’ master periode
+  // FK → master periode
   periodeId String
   periode   CatatPeriode @relation(fields: [periodeId], references: [id])
 
-  // FK â†’ pelanggan
+  // FK → pelanggan
   pelangganId String
   pelanggan   Pelanggan @relation(fields: [pelangganId], references: [id])
 
@@ -168,7 +176,7 @@ model CatatMeter {
   abonemen   Int @default(0)
   total      Int @default(0) // (tarifPerM3 * pemakaianM3) + abonemen
 
-  kendala String? @db.Text // <â€” TAMBAH BARIS INI
+  kendala String? @db.Text
 
   // status entri
   status CatatStatus @default(PENDING)
@@ -177,13 +185,13 @@ model CatatMeter {
   waTerkirim Boolean   @default(false)
   waSentAt   DateTime?
 
-  // Tambahan untuk â€œlock per pelangganâ€
+  // Tambahan untuk “lock per pelanggan”
   isLocked   Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
-  // â¬‡ï¸ SIMPAN SNAPSHOT ZONA SAAT ENTRY DIBUAT
+  // ⬇️ SIMPAN SNAPSHOT ZONA SAAT ENTRY DIBUAT
   zonaIdSnapshot   String?
   zonaNamaSnapshot String?
 
@@ -203,7 +211,6 @@ model CatatMeter {
   @@index([deletedBy])
 }
 
-// enum status entri
 enum CatatStatus {
   PENDING
   DONE
@@ -218,9 +225,9 @@ model Tagihan {
   denda         Int      @default(0)
   totalTagihan  Int      // nominal bulan ini (tanpa carry): tarif*pemakaian + abonemen + denda
 
-  // ðŸ”½ Tambahan untuk carry-over tagihan lalu dan sisa/kurang
-  tagihanLalu   Int      @default(0) // saldo bulan lalu (boleh + atau âˆ’)
-  sisaKurang    Int      @default(0) // saldo akhir bulan ini (boleh + atau âˆ’)
+  // Tambahan untuk carry-over tagihan lalu dan sisa/kurang
+  tagihanLalu   Int      @default(0) // saldo bulan lalu (boleh + atau −)
+  sisaKurang    Int      @default(0) // saldo akhir bulan ini (boleh + atau −)
   
   statusBayar   String   @default("UNPAID")
   statusVerif   String   @default("UNVERIFIED")
@@ -230,7 +237,7 @@ model Tagihan {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  // FK â†’ Pelanggan (banyak Tagihan milik 1 Pelanggan)
+  // FK → Pelanggan (banyak Tagihan milik 1 Pelanggan)
   pelangganId String
   pelanggan   Pelanggan @relation(fields: [pelangganId], references: [id])
 
@@ -258,7 +265,6 @@ model Tagihan {
   magicLinkTokens MagicLinkToken[] @relation("TagihanMagicLinks")
 }
 
-// enum metode bayar
 enum MetodeBayar {
   TUNAI
   TRANSFER
@@ -273,13 +279,13 @@ model Pembayaran {
   buktiUrl     String?
   adminBayar   String? // misal nama admin yang memproses
 
-  // FK â†’ Tagihan (banyak Pembayaran milik 1 Tagihan)
+  // FK → Tagihan (banyak Pembayaran milik 1 Tagihan)
   tagihanId String
   tagihan   Tagihan @relation(fields: [tagihanId], references: [id])
 
   metode    MetodeBayar    @default(TUNAI)
 
-  // âœ… Catatan/keterangan pelunasan
+  // Catatan/keterangan pelunasan
   keterangan   String?  @db.Text
 
   // Soft delete pembayaran
@@ -297,7 +303,7 @@ model Pembayaran {
 model Setting {
   id                     Int      @id @default(1)
 
-  // â€”â€”â€” Tarif & penagihan â€”â€”â€”
+  // ——— Tarif & penagihan ———
   tarifPerM3             Int      @default(3000)
   abonemen               Int      @default(10000)
   biayaAdmin             Int      @default(2500)
@@ -305,21 +311,21 @@ model Setting {
   dendaTelatBulanSama    Int      @default(5000)
   dendaTelatBulanBerbeda Int      @default(10000)
 
-  // â€”â€”â€” Profil sistem â€”â€”â€”
+  // ——— Profil sistem ———
   namaPerusahaan String? @db.VarChar(120)
   alamat         String? @db.VarChar(255)
   telepon        String? @db.VarChar(30)
   email          String? @db.VarChar(120)
   logoUrl        String? @db.VarChar(255)
 
-  // â€”â€”â€” Informasi pembayaran & kontak â€”â€”â€”
+  // ——— Informasi pembayaran & kontak ———
   namaBankPembayaran String? @db.VarChar(120)
   norekPembayaran    String? @db.VarChar(50)
   anNorekPembayaran  String? @db.VarChar(120)
   namaBendahara      String? @db.VarChar(120)
   whatsappCs         String? @db.VarChar(30)
 
-  // â€”â€”â€” Pengaturan Jadwal â€”â€”â€”
+  // ——— Pengaturan Jadwal ———
   tanggalCatatDefault Int?
 
   createdAt DateTime @default(now())
@@ -352,7 +358,18 @@ model Zona {
   pelanggan        Pelanggan[]        @relation("PelangganZona")
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
+  initialMeter     Int                @default(0)
+
+  // Parent Tandon
+  tandonId String?
+  tandon   Tandon? @relation("TandonToZona", fields: [tandonId], references: [id])
+
+  // Back-relation ke BlokReading
+  blokReadings     BlokReading[] @relation("ZonaToBlokReading")
+
   JadwalPencatatan JadwalPencatatan[]
+
+  @@index([tandonId])
 }
 
 enum JadwalUiStatus {
@@ -483,13 +500,11 @@ model MasterBiaya {
   @@map("master_biaya")
 }
 
-/// --- ENUM status pengeluaran ---
 enum PengeluaranStatus {
   DRAFT
   CLOSE
 }
 
-/// --- HEADER PENGELUARAN ---
 model Pengeluaran {
   id                  String            @id @default(cuid())
   noBulan             String            @db.VarChar(20) // contoh: "PG-2025-01"
@@ -509,7 +524,6 @@ model Pengeluaran {
   @@map("pengeluaran")
 }
 
-/// --- DETAIL PENGELUARAN ---
 model PengeluaranDetail {
   id                 String       @id @default(cuid())
 
@@ -553,7 +567,6 @@ model Item {
   @@index([nama])
 }
 
-// Tambah di atas model-model (dekat enum lainnya)
 enum PurchaseStatus {
   DRAFT
   CLOSE
@@ -582,7 +595,6 @@ model Purchase {
   @@index([itemId])
   @@index([status])  // NEW
 }
-
 
 model StockLedger {
   id      String   @id @default(cuid())
@@ -620,7 +632,7 @@ model Hutang {
   status         HutangStatus  @default(DRAFT)
 
   details        HutangDetail[]
-  payments   HutangPaymentDetail[] @relation("HutangToPayment")
+  payments       HutangPaymentDetail[] @relation("HutangToPayment")
 
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
@@ -639,14 +651,14 @@ model HutangDetail {
   updatedAt  DateTime @updatedAt
 
   hutang     Hutang   @relation(fields: [hutangId], references: [id])
-  payments  HutangPaymentDetail[] @relation("HutangDetailToPayment")
+  payments   HutangPaymentDetail[] @relation("HutangDetailToPayment")
   @@index([hutangId])
 }
 
 model HutangPayment {
   id           String                   @id @default(cuid())
   pemberi      String
-  tanggalBayar  DateTime                @default(now())
+  tanggalBayar DateTime                 @default(now())
   refNo        String?
   note         String?
   total        Int                      @default(0)
@@ -666,4 +678,103 @@ model HutangPaymentDetail {
   payment     HutangPayment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
   hutang      Hutang         @relation("HutangToPayment", fields: [hutangId], references: [id], onDelete: Cascade)
   hutangDetail HutangDetail? @relation("HutangDetailToPayment", fields: [hutangDetailId], references: [id])
+}
+
+// === NEW: Tandon (parent tertinggi untuk blok/zona)
+model Tandon {
+  id        String   @id @default(cuid())
+  kode      String   @unique
+  nama      String
+  deskripsi String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+ 
+  initialMeter  Int      @default(0)
+
+  // relasi ke Zona (anak-anak)
+  zonas       Zona[] @relation("TandonToZona")
+
+  // relasi user yang terikat ke tandon
+  users       User[] @relation("UserToTandon")
+
+  // relasi pencatatan tandon & blok
+  readings     TandonReading[] @relation("TandonToTandonReading")
+  blokReadings BlokReading[]   @relation("TandonToBlokReading")
+}
+
+// === NEW: pencatatan meter per Tandon (tanpa tarif)
+model TandonReading {
+  id           String       @id @default(cuid())
+
+  // periode
+  periodeId    String
+  periode      CatatPeriode @relation("PeriodeToTandonReading", fields: [periodeId], references: [id])
+
+  // parent tandon
+  tandonId     String
+  tandon       Tandon       @relation("TandonToTandonReading", fields: [tandonId], references: [id])
+
+  // angka meter
+  meterAwal    Int          @default(0)
+  meterAkhir   Int?
+  pemakaianM3  Int          @default(0)
+
+  // status
+  status       CatatStatus  @default(PENDING)
+  isLocked     Boolean      @default(false)
+  lockedAt     DateTime?
+
+  // catatan opsional
+  kendala      String?
+
+  // audit
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  deletedAt    DateTime?
+
+  @@unique([periodeId, tandonId], name: "uniq_periode_tandon")
+  @@index([tandonId])
+  @@index([periodeId])
+  @@index([status])
+  @@index([isLocked, lockedAt])
+}
+
+// === NEW: pencatatan meter per Zona (child di bawah Tandon), tanpa tarif
+model BlokReading {
+  id           String       @id @default(cuid())
+
+  // periode
+  periodeId    String
+  periode      CatatPeriode @relation("PeriodeToBlokReading", fields: [periodeId], references: [id])
+
+  // foreign keys
+  tandonId     String
+  tandon       Tandon       @relation("TandonToBlokReading", fields: [tandonId], references: [id])
+
+  zonaId       String
+  zona         Zona         @relation("ZonaToBlokReading", fields: [zonaId], references: [id])
+
+  // angka meter
+  meterAwal    Int          @default(0)
+  meterAkhir   Int?
+  pemakaianM3  Int          @default(0)
+
+  // status
+  status       CatatStatus  @default(PENDING)
+  isLocked     Boolean      @default(false)
+  lockedAt     DateTime?
+
+  kendala      String?
+
+  // audit
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  deletedAt    DateTime?
+
+  @@unique([periodeId, zonaId], name: "uniq_periode_zona")
+  @@index([tandonId])
+  @@index([zonaId])
+  @@index([periodeId])
+  @@index([status])
+  @@index([isLocked, lockedAt])
 }

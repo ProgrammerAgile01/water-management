@@ -508,6 +508,14 @@ const MENU_ITEMS: MenuItem[] = [
     section: "Master",
   },
   {
+    href: "/tandon",
+    label: "Tandon",
+    icon: Droplet,
+    roles: ["ADMIN", "OPERATOR"],
+    group: "Admin",
+    section: "Master",
+  },
+  {
     href: "/zona",
     label: "Zona",
     icon: MapPin,
@@ -542,6 +550,22 @@ const MENU_ITEMS: MenuItem[] = [
     section: "Operasional",
   },
   {
+    href: "/catat-tandon",
+    label: "Catat Meter Tandon",
+    icon: ClipboardList,
+    roles: ["ADMIN", "OPERATOR", "PETUGAS"],
+    group: "Admin",
+    section: "Meteran",
+  },
+  {
+    href: "/catat-blok",
+    label: "Catat Meter Blok",
+    icon: ClipboardList,
+    roles: ["ADMIN", "OPERATOR", "PETUGAS"],
+    group: "Admin",
+    section: "Meteran",
+  },
+  {
     href: "/reset-meteran",
     label: "Reset Meteran",
     icon: RotateCcw,
@@ -549,14 +573,14 @@ const MENU_ITEMS: MenuItem[] = [
     group: "Admin",
     section: "Operasional",
   },
-  {
-    href: "/catat-meter-blok",
-    label: "Catat Meter Blok",
-    icon: Grid3X3,
-    roles: ["ADMIN", "OPERATOR"],
-    group: "Admin",
-    section: "Meteran",
-  },
+  // {
+  //   href: "/catat-meter-blok",
+  //   label: "Catat Meter Blok",
+  //   icon: Grid3X3,
+  //   roles: ["ADMIN", "OPERATOR"],
+  //   group: "Admin",
+  //   section: "Meteran",
+  // },
 
   // Admin > Keuangan
   {
@@ -767,7 +791,7 @@ const getSectionOrder = (s: string) => {
 const SECTION_ITEM_ORDER: Record<string, string[]> = {
   Operasional: ["/jadwal-pencatatan", "/catat-meter", "/reset-meteran"],
   Master: ["/pelanggan", "/zona", "/inventaris"],
-  Meteran: ["/catat-meter-blok"],
+  Meteran: ["/catat-tandon", "/catat-blok", "/catat-meter-blok"],
   Keuangan: ["/tagihan-pembayaran", "/biaya", "/pengeluaran", "/hutang"],
   Laporan: [
     "/laporan-catat-meter",
