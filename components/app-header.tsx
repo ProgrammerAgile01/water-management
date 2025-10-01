@@ -513,7 +513,7 @@ const MENU_ITEMS: MenuItem[] = [
   },
   {
     href: "/zona",
-    label: "Zona",
+    label: "Blok",
     icon: MapPin,
     roles: ["ADMIN", "OPERATOR"],
     group: "Admin",
@@ -631,7 +631,7 @@ const MENU_ITEMS: MenuItem[] = [
   },
   {
     href: "/laporan/konsumsi-zona",
-    label: "Laporan Konsumsi Zona",
+    label: "Laporan Konsumsi Blok",
     icon: Droplet,
     roles: ["ADMIN", "OPERATOR"],
     group: "Admin",
@@ -816,7 +816,7 @@ const getItemOrder = (section: string, href: string) => {
 const PATH_LABELS: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/pelanggan": "Pelanggan",
-  "/zona": "Zona",
+  "/zona": "Blok",
   "/jadwal-pencatatan": "Jadwal Pencatatan",
   "/catat-meter": "Catat Meter",
   "/catat-meter-blok": "Catat Meter Blok",
@@ -829,7 +829,7 @@ const PATH_LABELS: Record<string, string> = {
   "/pengeluaran": "Pengeluaran",
   "/hutang": "Hutang",
   "/laporan-summary": "Laporan Summary",
-  "/laporan/konsumsi-zona": "Laporan Konsumsi Zona",
+  "/laporan/konsumsi-zona": "Laporan Konsumsi Blok",
   "/laporan-status-pembayaran": "Laporan Status Pembayaran",
   "/laporan/laba-rugi": "Laporan Laba & Rugi",
   "/laporan/hutang": "Laporan Hutang",

@@ -223,12 +223,19 @@ export default function HutangPembayaranPage() {
 
             {/* Filter & link riwayat */}
             <GlassCard className="p-6 mb-6">
-              <div className="flex flex-col md:flex-row items-start md:items-end gap-4">
+              {/* Grid agar tetap rapi di semua breakpoint */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Kolom 1: pilih pemberi + tombol load */}
                 <div className="flex-1">
                   <Label>Pemberi Hutang</Label>
-                  <div className="flex gap-2">
+                  <div className="mt-1 flex gap-2 flex-wrap sm:flex-nowrap items-stretch">
                     <Select value={giver} onValueChange={setGiver}>
-                      <SelectTrigger className="w-64">
+                      <SelectTrigger
+                        className="
+                          min-w-0 w-full sm:w-64 flex-1
+                        "
+                        aria-label="Pilih pemberi hutang"
+                      >
                         <SelectValue placeholder="Pilih pemberi…" />
                       </SelectTrigger>
                       <SelectContent>
@@ -239,21 +246,28 @@ export default function HutangPembayaranPage() {
                         ))}
                       </SelectContent>
                     </Select>
+
                     <Button
                       variant="outline"
                       onClick={() => giver && mutate()}
                       disabled={!giver}
+                      className="shrink-0 w-full sm:w-auto"
+                      title="Muat detail hutang dari pemberi ini"
                     >
                       Load detail
                     </Button>
                   </div>
                 </div>
 
-                <div className="hidden sm:block">
-                  <Label>&nbsp;</Label>
-                  <div>
+                {/* Kolom 2: tombol riwayat */}
+                <div className="flex flex-col sm:items-end">
+                  <Label className="sm:invisible sm:h-5">&nbsp;</Label>
+                  <div className="mt-1 w-full sm:w-auto">
                     <Link href="/hutang-pembayaran/riwayat">
-                      <Button variant="outline">
+                      <Button
+                        variant="outline"
+                        className="w-full sm:w-auto shrink-0"
+                      >
                         <History className="w-4 h-4 mr-2" />
                         Riwayat Pembayaran
                       </Button>
@@ -439,6 +453,7 @@ export default function HutangPembayaranPage() {
                             variant="outline"
                             onClick={genRef}
                             title="Generate otomatis"
+                            className="shrink-0"
                           >
                             <Wand2 className="w-4 h-4 mr-1" />
                             Generate

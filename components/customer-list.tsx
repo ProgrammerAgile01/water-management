@@ -288,7 +288,7 @@ export function CustomerList() {
 
     if ((from.zonaId ?? null) !== (to.zonaId ?? null) || !from.zonaId) {
       toast({
-        title: "Pindah antar-zona tidak diizinkan",
+        title: "Pindah antar-blok tidak diizinkan",
         description: "Reorder hanya berlaku di zona yang sama.",
         variant: "destructive",
       });
@@ -429,7 +429,7 @@ export function CustomerList() {
                           Alamat
                         </th>
                         <th className="text-center py-3 px-2 text-sm font-medium text-muted-foreground">
-                          Zona
+                          Blok
                         </th>
                         <th className="text-center py-3 px-2 text-sm font-medium text-muted-foreground">
                           No
@@ -549,7 +549,7 @@ export function CustomerList() {
                       {customer.alamat}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      <span className="font-medium">Zona:</span>{" "}
+                      <span className="font-medium">Blok:</span>{" "}
                       {customer.zonaNama ?? "-"}
                     </p>
                     <p className="text-sm text-muted-foreground">

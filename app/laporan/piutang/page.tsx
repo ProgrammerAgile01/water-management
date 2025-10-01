@@ -476,7 +476,7 @@ export default function PiutangPage() {
 
               {/* Zona */}
               <div className="w-full md:w-56">
-                <label className="text-xs text-muted-foreground">Zona</label>
+                <label className="text-xs text-muted-foreground">Blok</label>
                 <Select
                   value={zoneId}
                   onValueChange={(v) => {
@@ -485,10 +485,10 @@ export default function PiutangPage() {
                   }}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Semua zona" />
+                    <SelectValue placeholder="Semua blok" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ALL">Semua Zona</SelectItem>
+                    <SelectItem value="ALL">Semua Blok</SelectItem>
                     {(zones || []).map((z) => (
                       <SelectItem key={z.id} value={z.id}>
                         {z.nama}
@@ -611,7 +611,7 @@ export default function PiutangPage() {
                         {formatPeriodeLabel(r.periode)}
                       </div>
 
-                      <div className="text-muted-foreground">Zona</div>
+                      <div className="text-muted-foreground">Blok</div>
                       <div className="flex items-center gap-1">
                         <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
                         <span className="font-medium">{r.zonaNama || "-"}</span>
@@ -695,7 +695,7 @@ export default function PiutangPage() {
                     <TableHead className="w-12 text-center">No</TableHead>
                     <TableHead>Pelanggan</TableHead>
                     <TableHead className="w-28">Periode</TableHead>
-                    <TableHead className="min-w-[120px]">Zona</TableHead>
+                    <TableHead className="min-w-[120px]">Blok</TableHead>
                     <TableHead className="text-center w-28">
                       Tagihan Bulan Ini
                     </TableHead>

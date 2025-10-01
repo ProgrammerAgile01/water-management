@@ -47,7 +47,6 @@ const fetcher = (u: string) => fetch(u).then((r) => r.json());
 const toIDR = (n = 0) => "Rp " + Number(n || 0).toLocaleString("id-ID");
 const ALL_GIVER = "__ALL__";
 
-// helpers format angka input "10.000.000"
 const fmtPlainID = (n: number | string) =>
   Number(n || 0).toLocaleString("id-ID");
 const onlyDigits = (s: string) => (s.match(/\d/g) || []).join("");
@@ -106,10 +105,9 @@ export default function RiwayatPembayaranHutangPage() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [postingBusy, setPostingBusy] = useState(false);
   const [postTarget, setPostTarget] = useState<PaymentRow | null>(null);
-
   const [deleting, setDeleting] = useState<Record<string, boolean>>({});
 
-  // ===== Modal Edit state =====
+  // ===== Modal Edit =====
   const [editOpen, setEditOpen] = useState(false);
   const [editRow, setEditRow] = useState<PaymentRow | null>(null);
   const [efDate, setEfDate] = useState("");
@@ -140,11 +138,13 @@ export default function RiwayatPembayaranHutangPage() {
   const { data, isLoading, error, mutate } = useSWR<HistoryResp>(
     listKey,
     fetcher,
-    { revalidateOnFocus: false }
+    {
+      revalidateOnFocus: false,
+    }
   );
   const items = data?.items ?? [];
 
-  // export
+  // export CSV
   function exportCSV() {
     if (!items.length) return;
     const header = [
@@ -178,7 +178,7 @@ export default function RiwayatPembayaranHutangPage() {
     URL.revokeObjectURL(url);
   }
 
-  // ====== Posting (pakai Dialog konfirmasi, bukan confirm native) ======
+  // Posting
   async function confirmPosting() {
     if (!postTarget) return;
     setPostingBusy(true);
@@ -205,14 +205,16 @@ export default function RiwayatPembayaranHutangPage() {
     }
   }
 
-  // ====== Delete ======
+  // Delete
   async function doDelete(id: string) {
     if (!confirm("Hapus pembayaran ini?")) return;
     setDeleting((p) => ({ ...p, [id]: true }));
     try {
       const r = await fetch(
         `/api/hutang-pembayaran/riwayat?id=${encodeURIComponent(id)}`,
-        { method: "DELETE" }
+        {
+          method: "DELETE",
+        }
       );
       const j = await r.json();
       if (!r.ok || !j?.ok) throw new Error(j?.error || "Gagal menghapus");
@@ -230,15 +232,13 @@ export default function RiwayatPembayaranHutangPage() {
     }
   }
 
-  // ====== Edit (header + detail) ======
+  // Edit
   function openEdit(p: PaymentRow) {
     setEditRow(p);
-    // yyyy-mm-dd untuk input date
     const d = onlyDate(p.tanggalBayar);
     const ymd = /^\d{2}\/\d{2}\/\d{4}$/.test(d)
       ? d.split("/").reverse().join("-")
       : d;
-
     setEfDate(ymd);
     setEfGiver(p.pemberi || "");
     setEfNote(p.note || "");
@@ -251,7 +251,6 @@ export default function RiwayatPembayaranHutangPage() {
     });
     setEfNums(nums);
     setEfStrs(strs);
-
     setEditOpen(true);
   }
 
@@ -266,7 +265,7 @@ export default function RiwayatPembayaranHutangPage() {
     [efNums]
   );
 
-  async function saveEdit() {
+  const saveEdit = async () => {
     if (!editRow) return;
     setSavingEdit(true);
     try {
@@ -305,7 +304,7 @@ export default function RiwayatPembayaranHutangPage() {
     } finally {
       setSavingEdit(false);
     }
-  }
+  };
 
   const StatusBadge = ({ s, postedAt }: { s?: string; postedAt?: string }) =>
     (s || (postedAt ? "CLOSE" : "DRAFT")) === "CLOSE" ? (
@@ -322,20 +321,21 @@ export default function RiwayatPembayaranHutangPage() {
         <div className="max-w-6xl mx-auto space-y-6">
           <AppHeader title="Riwayat Pembayaran Hutang" />
 
-          {/* action bar */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <p className="text-muted-foreground">
+          {/* ACTION BAR — diperbaiki agar tidak “keluar jalur” di mobile */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <p className="text-muted-foreground md:flex-1">
               Daftar pembayaran hutang yang sudah dicatat.
             </p>
-            <div className="flex items-center gap-2">
-              <Button asChild variant="outline">
+            {/* ⬇️ stack di mobile, row mulai sm */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
+              <Button asChild variant="outline" className="w-full sm:w-auto">
                 <Link href="/hutang-pembayaran">
                   <History className="w-4 h-4 mr-2" />
                   Ke Pembayaran
                 </Link>
               </Button>
               <Button
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto"
                 onClick={exportCSV}
                 disabled={!items.length}
               >
@@ -360,7 +360,7 @@ export default function RiwayatPembayaranHutangPage() {
                   onChange={(e) => setQ(e.target.value)}
                 />
               </div>
-              <div className="w-[220px]">
+              <div className="w-full lg:w-[220px]">
                 <Label className="sr-only">Pemberi</Label>
                 <Select
                   value={giver || ALL_GIVER}
@@ -379,7 +379,7 @@ export default function RiwayatPembayaranHutangPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="relative w-[170px]">
+              <div className="relative w-full lg:w-[170px]">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   type="date"
@@ -388,7 +388,7 @@ export default function RiwayatPembayaranHutangPage() {
                   onChange={(e) => setDateFrom(e.target.value)}
                 />
               </div>
-              <div className="relative w-[170px]">
+              <div className="relative w-full lg:w-[170px]">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   type="date"
@@ -425,183 +425,313 @@ export default function RiwayatPembayaranHutangPage() {
               </div>
             )}
 
-            {/* Desktop table */}
             {!isLoading && items.length > 0 && (
-              <div className="hidden lg:block overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border/20">
-                      <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
-                        Ref
-                      </th>
-                      <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
-                        Tanggal Bayar
-                      </th>
-                      <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
-                        Pemberi
-                      </th>
-                      <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">
-                        Total Bayar
-                      </th>
-                      <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
-                        Catatan
-                      </th>
-                      <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
-                        Status
-                      </th>
-                      <th className="text-center py-3 px-2 text-sm font-medium text-muted-foreground">
-                        Detail
-                      </th>
-                      <th className="text-center py-3 px-2 text-sm font-medium text-muted-foreground">
-                        Aksi
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map((p) => {
-                      const isClose =
-                        (p.status || (p.postedAt ? "CLOSE" : "DRAFT")) ===
-                        "CLOSE";
-                      return (
-                        <Fragment key={p.id}>
-                          <tr className="border-b border-border/10 hover:bg-muted/20">
-                            <td className="py-3 px-2 text-sm font-semibold">
-                              {p.refNo || "-"}
-                            </td>
-                            <td className="py-3 px-2 text-sm">
-                              {onlyDate(p.tanggalBayar)}
-                            </td>
-                            <td className="py-3 px-2 text-sm">{p.pemberi}</td>
-                            <td className="py-3 px-2 text-sm text-right font-bold">
-                              {toIDR(p.total)}
-                            </td>
-                            <td className="py-3 px-2 text-sm">
-                              {p.note || (
-                                <span className="text-muted-foreground">—</span>
-                              )}
-                            </td>
-                            <td className="py-3 px-2 text-sm">
-                              <StatusBadge s={p.status} postedAt={p.postedAt} />
-                            </td>
-                            <td className="py-3 px-2 text-center">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8 px-2"
-                                onClick={() =>
-                                  setExpanded((s) => ({
-                                    ...s,
-                                    [p.id]: !s[p.id],
-                                  }))
-                                }
-                              >
-                                <ChevronDown
-                                  className={`w-4 h-4 transition-transform ${
-                                    expanded[p.id] ? "rotate-180" : ""
-                                  }`}
+              <>
+                {/* Desktop */}
+                <div className="hidden lg:block overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-border/20">
+                        <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
+                          Ref
+                        </th>
+                        <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
+                          Tanggal Bayar
+                        </th>
+                        <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
+                          Pemberi
+                        </th>
+                        <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">
+                          Total Bayar
+                        </th>
+                        <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
+                          Catatan
+                        </th>
+                        <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
+                          Status
+                        </th>
+                        <th className="text-center py-3 px-2 text-sm font-medium text-muted-foreground">
+                          Detail
+                        </th>
+                        <th className="text-center py-3 px-2 text-sm font-medium text-muted-foreground">
+                          Aksi
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((p) => {
+                        const isClose =
+                          (p.status || (p.postedAt ? "CLOSE" : "DRAFT")) ===
+                          "CLOSE";
+                        return (
+                          <Fragment key={p.id}>
+                            <tr className="border-b border-border/10 hover:bg-muted/20">
+                              <td className="py-3 px-2 text-sm font-semibold">
+                                {p.refNo || "-"}
+                              </td>
+                              <td className="py-3 px-2 text-sm">
+                                {onlyDate(p.tanggalBayar)}
+                              </td>
+                              <td className="py-3 px-2 text-sm">{p.pemberi}</td>
+                              <td className="py-3 px-2 text-sm text-right font-bold">
+                                {toIDR(p.total)}
+                              </td>
+                              <td className="py-3 px-2 text-sm break-words">
+                                {p.note || (
+                                  <span className="text-muted-foreground">
+                                    —
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-3 px-2 text-sm">
+                                <StatusBadge
+                                  s={p.status}
+                                  postedAt={p.postedAt}
                                 />
-                              </Button>
-                            </td>
-                            <td className="py-3 px-2 text-center">
-                              <div className="flex items-center justify-center gap-2">
+                              </td>
+                              <td className="py-3 px-2 text-center">
                                 <Button
                                   variant="outline"
                                   size="sm"
                                   className="h-8 px-2"
-                                  disabled={isClose}
-                                  onClick={() => openEdit(p)}
-                                  title="Edit"
+                                  onClick={() =>
+                                    setExpanded((s) => ({
+                                      ...s,
+                                      [p.id]: !s[p.id],
+                                    }))
+                                  }
                                 >
-                                  <Pencil className="w-4 h-4" />
+                                  <ChevronDown
+                                    className={`w-4 h-4 transition-transform ${
+                                      expanded[p.id] ? "rotate-180" : ""
+                                    }`}
+                                  />
                                 </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-8 px-2 text-red-600"
-                                  disabled={isClose || deleting[p.id]}
-                                  onClick={() => doDelete(p.id)}
-                                  title="Hapus"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  className="h-8 px-3"
-                                  disabled={isClose}
-                                  onClick={() => setPostTarget(p)}
-                                >
-                                  Posting
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-
-                          {expanded[p.id] && (
-                            <tr className="bg-primary/5">
-                              <td colSpan={8} className="p-4">
-                                <div className="overflow-x-auto">
-                                  <table className="w-full">
-                                    <thead>
-                                      <tr className="border-b border-border/20">
-                                        <th className="text-left py-2 px-2 text-sm">
-                                          No Bukti Hutang
-                                        </th>
-                                        <th className="text-left py-2 px-2 text-sm">
-                                          Tgl Hutang
-                                        </th>
-                                        <th className="text-left py-2 px-2 text-sm">
-                                          Keterangan Detail
-                                        </th>
-                                        <th className="text-right py-2 px-2 text-sm">
-                                          Nominal Bayar
-                                        </th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {(p.details ?? []).map((d) => (
-                                        <tr
-                                          key={d.id}
-                                          className="border-b border-border/10"
-                                        >
-                                          <td className="py-2 px-2 text-sm">
-                                            {d.hutangNoBukti || "-"}
-                                          </td>
-                                          <td className="py-2 px-2 text-sm">
-                                            {onlyDate(d.hutangTanggal)}
-                                          </td>
-                                          <td className="py-2 px-2 text-sm">
-                                            {d.keterangan || "-"}
-                                          </td>
-                                          <td className="py-2 px-2 text-sm text-right font-medium">
-                                            {toIDR(d.amount)}
-                                          </td>
-                                        </tr>
-                                      ))}
-                                      {(p.details ?? []).length === 0 && (
-                                        <tr>
-                                          <td
-                                            className="py-3 px-2 text-sm text-muted-foreground"
-                                            colSpan={4}
-                                          >
-                                            Tidak ada detail.
-                                          </td>
-                                        </tr>
-                                      )}
-                                    </tbody>
-                                  </table>
+                              </td>
+                              <td className="py-3 px-2 text-center">
+                                <div className="flex items-center justify-center gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 px-2"
+                                    disabled={isClose}
+                                    onClick={() => openEdit(p)}
+                                    title="Edit"
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 px-2 text-red-600"
+                                    disabled={isClose || deleting[p.id]}
+                                    onClick={() => doDelete(p.id)}
+                                    title="Hapus"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    className="h-8 px-3"
+                                    disabled={isClose}
+                                    onClick={() => setPostTarget(p)}
+                                  >
+                                    Posting
+                                  </Button>
                                 </div>
                               </td>
                             </tr>
-                          )}
-                        </Fragment>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
 
-            {/* (Optional) mobile cards bisa ditambahkan kembali bila diperlukan */}
+                            {expanded[p.id] && (
+                              <tr className="bg-primary/5">
+                                <td colSpan={8} className="p-4">
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                      <thead>
+                                        <tr className="border-b border-border/20">
+                                          <th className="text-left py-2 px-2 text-sm">
+                                            No Bukti Hutang
+                                          </th>
+                                          <th className="text-left py-2 px-2 text-sm">
+                                            Tgl Hutang
+                                          </th>
+                                          <th className="text-left py-2 px-2 text-sm">
+                                            Keterangan Detail
+                                          </th>
+                                          <th className="text-right py-2 px-2 text-sm">
+                                            Nominal Bayar
+                                          </th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {(p.details ?? []).map((d) => (
+                                          <tr
+                                            key={d.id}
+                                            className="border-b border-border/10"
+                                          >
+                                            <td className="py-2 px-2 text-sm">
+                                              {d.hutangNoBukti || "-"}
+                                            </td>
+                                            <td className="py-2 px-2 text-sm">
+                                              {onlyDate(d.hutangTanggal)}
+                                            </td>
+                                            <td className="py-2 px-2 text-sm">
+                                              {d.keterangan || "-"}
+                                            </td>
+                                            <td className="py-2 px-2 text-sm text-right font-medium">
+                                              {toIDR(d.amount)}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                        {(p.details ?? []).length === 0 && (
+                                          <tr>
+                                            <td
+                                              className="py-3 px-2 text-sm text-muted-foreground"
+                                              colSpan={4}
+                                            >
+                                              Tidak ada detail.
+                                            </td>
+                                          </tr>
+                                        )}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile cards */}
+                <div className="lg:hidden space-y-4">
+                  {items.map((p) => {
+                    const isClose =
+                      (p.status || (p.postedAt ? "CLOSE" : "DRAFT")) ===
+                      "CLOSE";
+                    const isOpen = !!expanded[p.id];
+                    return (
+                      <div
+                        key={p.id}
+                        className="p-4 bg-muted/20 rounded-lg space-y-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="font-semibold truncate">
+                                {p.refNo || "-"}
+                              </p>
+                              <StatusBadge s={p.status} postedAt={p.postedAt} />
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {onlyDate(p.tanggalBayar)} • {p.pemberi}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="text-xs text-muted-foreground">
+                              Total
+                            </p>
+                            <p className="font-bold">{toIDR(p.total)}</p>
+                          </div>
+                        </div>
+
+                        {p.note ? (
+                          <p className="text-xs text-muted-foreground break-words">
+                            {p.note}
+                          </p>
+                        ) : null}
+
+                        <div className="flex items-center justify-between">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              setExpanded((s) => ({ ...s, [p.id]: !s[p.id] }))
+                            }
+                            className="bg-transparent"
+                          >
+                            <ChevronDown
+                              className={`w-4 h-4 mr-2 transition-transform ${
+                                isOpen ? "rotate-180" : ""
+                              }`}
+                            />
+                            {isOpen ? "Sembunyikan Detail" : "Lihat Detail"}
+                          </Button>
+
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={isClose}
+                              onClick={() => openEdit(p)}
+                              className="rounded-lg"
+                              title="Edit"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-red-600 rounded-lg"
+                              disabled={isClose || deleting[p.id]}
+                              onClick={() => doDelete(p.id)}
+                              title="Hapus"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              disabled={isClose}
+                              onClick={() => setPostTarget(p)}
+                              className="rounded-lg"
+                            >
+                              Posting
+                            </Button>
+                          </div>
+                        </div>
+
+                        {isOpen && (
+                          <div className="bg-card/50 p-3 rounded-lg">
+                            {(p.details ?? []).length ? (
+                              <div className="space-y-2">
+                                {(p.details ?? []).map((d) => (
+                                  <div
+                                    key={d.id}
+                                    className="flex items-start justify-between gap-3 border-b border-border/20 last:border-0 pb-2 last:pb-0"
+                                  >
+                                    <div className="min-w-0">
+                                      <p className="text-sm font-medium break-words">
+                                        {d.keterangan || "-"}
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {d.hutangNoBukti || "-"} •{" "}
+                                        {onlyDate(d.hutangTanggal)}
+                                      </p>
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                      <p className="text-sm font-semibold">
+                                        {toIDR(d.amount)}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="text-sm text-muted-foreground">
+                                Tidak ada detail.
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
 
             {!isLoading && items.length === 0 && (
               <div className="p-4 text-sm text-muted-foreground">
@@ -611,7 +741,7 @@ export default function RiwayatPembayaranHutangPage() {
           </GlassCard>
         </div>
 
-        {/* Modal Edit — cards + input rupiah */}
+        {/* Modal Edit */}
         <Dialog open={editOpen} onOpenChange={setEditOpen}>
           <DialogContent className="sm:max-w-2xl">
             <DialogHeader>

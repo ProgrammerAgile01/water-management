@@ -344,7 +344,7 @@ export default function DistribusiPetaPage() {
 
             {/* Zona */}
             <div className="flex flex-col">
-              <div className="text-xs text-muted-foreground mb-1">Zona</div>
+              <div className="text-xs text-muted-foreground mb-1">Blok</div>
               <Select
                 value={zonaId}
                 onValueChange={(v) => {
@@ -353,10 +353,10 @@ export default function DistribusiPetaPage() {
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Semua Zona" />
+                  <SelectValue placeholder="Semua Blok" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL">Semua Zona</SelectItem>
+                  <SelectItem value="ALL">Semua Blok</SelectItem>
                   {(data?.zones || []).map((z) => (
                     <SelectItem key={z.id} value={z.id}>
                       {z.nama}
@@ -415,7 +415,7 @@ export default function DistribusiPetaPage() {
             {/* Cari */}
             <div className="md:col-span-1 col-span-2">
               <div className="text-xs text-muted-foreground mb-1">
-                Cari (nama/kode/zona)
+                Cari (nama/kode/blok)
               </div>
               <div className="flex items-center gap-2">
                 <Input
@@ -543,7 +543,7 @@ export default function DistribusiPetaPage() {
                   </TableHead>
                   <TableHead className="font-bold">Kode</TableHead>
                   <TableHead className="font-bold">Nama</TableHead>
-                  <TableHead className="font-bold">Zona</TableHead>
+                  <TableHead className="font-bold">Blok</TableHead>
                   <TableHead className="text-right font-bold">
                     Pemakaian (m³)
                   </TableHead>

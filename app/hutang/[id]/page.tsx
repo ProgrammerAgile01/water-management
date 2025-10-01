@@ -61,7 +61,6 @@ type DetailRow = {
   no: number;
   keterangan: string;
   nominal: number;
-  // kalau API-mu sudah kirim tanggal detail, aktifkan:
   tanggal?: string | null;
 };
 
@@ -342,21 +341,11 @@ export default function HutangDetailPage() {
                   <Label>Pemberi Hutang</Label>
                   <Input value={pemberi} disabled />
                 </div>
-
-                {/* <div className="space-y-2 md:col-span-3">
-                  <Label>Nominal</Label>
-                  <Input value={fmtRupiahInline(nominal)} disabled />
-                  {!!(header.details?.length ?? 0) && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Nominal mengikuti jumlah total detail (otomatis).
-                    </p>
-                  )}
-                </div> */}
               </div>
             </GlassCard>
 
-            {/* Detail + Posting button on the right */}
-            <GlassCard className="mb-6 p-4">
+            {/* ====== Detail: Tabel Desktop ====== */}
+            <GlassCard className="mb-6 p-4 hidden md:block">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-lg font-semibold">Detail Hutang</h3>
                 {header.status === "Draft" && (
@@ -444,14 +433,82 @@ export default function HutangDetailPage() {
               </div>
             </GlassCard>
 
-            {/* Mobile recap */}
-            <div className="md:hidden space-y-4">
+            {/* ====== Detail: Mobile Cards ====== */}
+            <div className="md:hidden space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-semibold">Detail Hutang</h3>
+                {header.status === "Draft" && (
+                  <Button
+                    onClick={doPosting}
+                    disabled={posting || isClose}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {posting ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4 mr-2" />
+                    )}
+                    {posting ? "Memposting…" : "Posting"}
+                  </Button>
+                )}
+              </div>
+
+              {(header.details || []).map((d) => (
+                <GlassCard key={d.id} className="p-4">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground">No</p>
+                      <p className="font-semibold">{d.no}</p>
+                    </div>
+                    <p className="text-sm font-bold tabular-nums">
+                      Rp {fmtIDR(d.nominal)}
+                    </p>
+                  </div>
+
+                  <div className="mt-2">
+                    <p className="text-xs text-muted-foreground">Keterangan</p>
+                    <p className="text-sm">{d.keterangan}</p>
+                  </div>
+
+                  {d.tanggal ? (
+                    <div className="mt-2">
+                      <p className="text-xs text-muted-foreground">Tanggal</p>
+                      <p className="text-sm">{d.tanggal?.slice(0, 10)}</p>
+                    </div>
+                  ) : null}
+
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openEditDetail(d)}
+                      disabled={isClose}
+                      className="flex-1"
+                    >
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => deleteDetail(d.id)}
+                      disabled={isClose}
+                      className="flex-1 text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Hapus
+                    </Button>
+                  </div>
+                </GlassCard>
+              ))}
+
+              {/* Recap total */}
               <GlassCard className="p-4 bg-teal-50/50">
-                <div className="text-center">
-                  <p className="text-sm text-muted-foreground">Total</p>
-                  <p className="text-xl font-bold text-teal-700">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Total</span>
+                  <span className="text-lg font-bold">
                     Rp {fmtIDR(header.nominal)}
-                  </p>
+                  </span>
                 </div>
               </GlassCard>
             </div>

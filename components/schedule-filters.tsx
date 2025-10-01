@@ -98,7 +98,7 @@ export function ScheduleFilters() {
         <div className="space-y-2">
           <label className="text-sm font-medium text-foreground flex items-center gap-2">
             <MapPin className="h-4 w-4" />
-            Zona
+            Blok
           </label>
           <Select
             value={filters.zonaId || "all"}
@@ -106,10 +106,10 @@ export function ScheduleFilters() {
             disabled={loadingOpts}
           >
             <SelectTrigger className="bg-white/50 border-white/20">
-              <SelectValue placeholder="Pilih zona" />
+              <SelectValue placeholder="Pilih blok" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Semua Zona</SelectItem>
+              <SelectItem value="all">Semua Blok</SelectItem>
               {zonaOptions.map((z) => (
                 <SelectItem key={z.id} value={z.id}>
                   {z.nama}
@@ -151,7 +151,7 @@ export function ScheduleFilters() {
             Pencarian
           </label>
           <Input
-            placeholder="Cari zona/alamat/petugas..."
+            placeholder="Cari blok/alamat/petugas..."
             value={filters.search}
             onChange={(e) => handleSearchChange(e.target.value)}
             className="bg-white/50 border-white/20"

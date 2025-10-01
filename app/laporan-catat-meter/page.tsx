@@ -260,17 +260,17 @@ export default function LaporanCatatMeterPage() {
 
                 {/* Zona */}
                 <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium">Zona</label>
+                  <label className="text-sm font-medium">Blok</label>
                   <Select value={zonaId} onValueChange={onChangeZona}>
                     <SelectTrigger className="w-56">
-                      <SelectValue placeholder="Semua zona" />
+                      <SelectValue placeholder="Semua blok" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={ALL_ZONA}>Semua zona</SelectItem>
+                      <SelectItem value={ALL_ZONA}>Semua blok</SelectItem>
 
                       {zonesAssigned.length > 0 && (
                         <SelectGroup>
-                          <SelectLabel>Zona Ditugaskan</SelectLabel>
+                          <SelectLabel>Blok Ditugaskan</SelectLabel>
                           {zonesAssigned.map((z) => (
                             <SelectItem key={z.id} value={z.id}>
                               {z.nama}
@@ -280,7 +280,7 @@ export default function LaporanCatatMeterPage() {
                       )}
 
                       <SelectGroup>
-                        <SelectLabel>Semua Zona</SelectLabel>
+                        <SelectLabel>Semua Blok</SelectLabel>
                         {zonesAll.map((z) => (
                           <SelectItem key={z.id} value={z.id}>
                             {z.nama}
@@ -339,9 +339,13 @@ export default function LaporanCatatMeterPage() {
                     <th className="text-center py-3 px-2">Meter Awal</th>
                     <th className="text-center py-3 px-2">Meter Akhir</th>
                     <th className="text-center py-3 px-2">Pemakaian (m³)</th>
-                    <th className="text-center py-3 px-2 w-36">Zona</th>
-                    <th className="text-center py-3 px-2 w-28">Status Simpan</th>
-                    <th className="text-center py-3 px-2 w-28">Status Finalisasi</th>
+                    <th className="text-center py-3 px-2 w-36">Blok</th>
+                    <th className="text-center py-3 px-2 w-28">
+                      Status Simpan
+                    </th>
+                    <th className="text-center py-3 px-2 w-28">
+                      Status Finalisasi
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -572,7 +576,9 @@ export default function LaporanCatatMeterPage() {
                       {r.isSaved ? "Disimpan" : "Belum Disimpan"}
                     </span>
 
-                    <span className="text-muted-foreground">Status Finalisasi</span>
+                    <span className="text-muted-foreground">
+                      Status Finalisasi
+                    </span>
                     <span className="text-right">
                       {r.isLocked ? "Terkunci" : "Belum Terkunci"}
                     </span>

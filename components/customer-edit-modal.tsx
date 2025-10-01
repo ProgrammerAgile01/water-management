@@ -642,7 +642,7 @@ export function CustomerEditModal({
               {/* Dropdown Zona */}
               <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="zonaId" className="text-primary font-medium">
-                  Zona
+                  Blok
                 </Label>
                 <select
                   id="zonaId"

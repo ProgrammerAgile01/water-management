@@ -198,7 +198,7 @@ export function ScheduleTable({ schedules, isLoading }: ScheduleTableProps) {
                 No
               </th>
               <th className="text-left p-4 font-semibold text-foreground">
-                Zona & Alamat
+                Blok & Alamat
               </th>
               <th className="text-left p-4 font-semibold text-foreground">
                 Petugas

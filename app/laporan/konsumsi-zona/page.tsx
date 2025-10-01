@@ -147,7 +147,7 @@ function SummaryBar({
           <MapPin className="w-5 h-5" />
         </div>
         <div>
-          <div className="text-xs text-muted-foreground">Jumlah Zona</div>
+          <div className="text-xs text-muted-foreground">Jumlah Blok</div>
           <div className="text-lg font-bold">{formatNum(pelangganCount)}</div>
         </div>
       </GlassCard>
@@ -230,9 +230,9 @@ export default function KonsumsiZonaPage() {
     <AuthGuard requiredRole="ADMIN,PETUGAS">
       <AppShell>
         <div className="max-w-6xl mx-auto space-y-6">
-          <AppHeader title="Konsumsi Zona" />
+          <AppHeader title="Konsumsi Blok" />
           <div className="text-muted-foreground -mt-3">
-            Total pemakaian air per zona (tanpa detail pelanggan)
+            Total pemakaian air per blok
           </div>
 
           {/* Filter */}
@@ -272,7 +272,7 @@ export default function KonsumsiZonaPage() {
 
                 {/* Zona */}
                 <div className="flex flex-col gap-1">
-                  <span className="text-xs text-muted-foreground">Zona</span>
+                  <span className="text-xs text-muted-foreground">Blok</span>
                   <Select
                     value={zone}
                     onValueChange={(v) => {
@@ -281,12 +281,12 @@ export default function KonsumsiZonaPage() {
                     }}
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Semua zona" />
+                      <SelectValue placeholder="Semua blok" />
                     </SelectTrigger>
                     <SelectContent>
                       {zones.map((z) => (
                         <SelectItem key={z} value={z}>
-                          {z === "ALL" ? "Semua Zona" : z}
+                          {z === "ALL" ? "Semua blok" : z}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -296,7 +296,7 @@ export default function KonsumsiZonaPage() {
                 {/* Cari Zona */}
                 <div className="flex flex-col gap-1 sm:col-span-2">
                   <span className="text-xs text-muted-foreground">
-                    Cari Zona
+                    Cari Blok
                   </span>
                   <div className="relative">
                     <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
@@ -306,7 +306,7 @@ export default function KonsumsiZonaPage() {
                         setPage(1);
                         setQ(e.target.value);
                       }}
-                      placeholder="Ketik nama zona…"
+                      placeholder="Ketik nama blok…"
                       className="pl-9"
                     />
                   </div>
@@ -380,7 +380,7 @@ export default function KonsumsiZonaPage() {
                         Kode
                       </th>
                       <th className="text-left  py-3 px-2 text-sm font-medium text-muted-foreground">
-                        Zona
+                        Blok
                       </th>
                       <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">
                         Total Pemakaian (m³)
@@ -435,7 +435,7 @@ export default function KonsumsiZonaPage() {
                             </td>
                             <td className="py-3 px-2">
                               <div className="flex items-center gap-2">
-                                <Badge variant="outline">Zona</Badge>
+                                <Badge variant="outline">Blok</Badge>
                                 <span className="text-sm font-medium text-foreground">
                                   {r.zona}
                                 </span>
@@ -502,7 +502,7 @@ export default function KonsumsiZonaPage() {
                     data.pagination.page * data.pagination.size,
                     data.pagination.total
                   )}{" "}
-                  dari {data.pagination.total} zona
+                  dari {data.pagination.total} blok
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
@@ -569,7 +569,7 @@ export default function KonsumsiZonaPage() {
                 >
                   <div className="flex items-center justify-between">
                     <div className="font-medium">{z.zona}</div>
-                    <Badge variant="outline">Zona</Badge>
+                    <Badge variant="outline">Blok</Badge>
                   </div>
                   <div className="mt-2 text-sm text-muted-foreground">
                     Total Pemakaian

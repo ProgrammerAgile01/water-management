@@ -131,7 +131,7 @@ export default function ResetMeteranPage() {
         }));
         setZones(list);
       } catch (err) {
-        console.error("Gagal load zona:", err);
+        console.error("Gagal load blok:", err);
         setZones([]);
       }
     })();
@@ -365,7 +365,7 @@ export default function ResetMeteranPage() {
 
                         {/* Dropdown relasi Zona */}
                         <div>
-                          <Label>Zona *</Label>
+                          <Label>Blok *</Label>
                           <Select
                             value={selectedZoneId || "PILIH"}
                             onValueChange={(v) => {
@@ -381,11 +381,11 @@ export default function ResetMeteranPage() {
                             }}
                           >
                             <SelectTrigger>
-                              <SelectValue placeholder="Pilih zona" />
+                              <SelectValue placeholder="Pilih blok" />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="PILIH" disabled>
-                                Pilih zona
+                                Pilih blok
                               </SelectItem>
                               {zones.map((z) => (
                                 <SelectItem key={z.id} value={z.id}>
@@ -574,7 +574,7 @@ export default function ResetMeteranPage() {
 
                     {/* Zona - Mobile */}
                     <div>
-                      <Label>Zona *</Label>
+                      <Label>Blok *</Label>
                       <Select
                         value={selectedZoneId || "PILIH"}
                         onValueChange={(v) => {
@@ -590,11 +590,11 @@ export default function ResetMeteranPage() {
                         }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Pilih zona" />
+                          <SelectValue placeholder="Pilih blok" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="PILIH" disabled>
-                            Pilih zona
+                            Pilih blok
                           </SelectItem>
                           {zones.map((z) => (
                             <SelectItem key={z.id} value={z.id}>
@@ -721,7 +721,7 @@ export default function ResetMeteranPage() {
                 </Select>
               </div>
               <div>
-                <Label>Zona/Blok</Label>
+                <Label>Blok</Label>
                 <Select
                   value={filters.zona || "ALL"}
                   onValueChange={(value) =>
@@ -729,10 +729,10 @@ export default function ResetMeteranPage() {
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Pilih zona/blok" />
+                    <SelectValue placeholder="Pilih blok" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ALL">Semua Zona</SelectItem>
+                    <SelectItem value="ALL">Semua Blok</SelectItem>
                     <SelectItem value="A">Blok A</SelectItem>
                     <SelectItem value="B">Blok B</SelectItem>
                     <SelectItem value="C">Blok C</SelectItem>
@@ -871,7 +871,7 @@ export default function ResetMeteranPage() {
 
                     <div className="space-y-2 text-sm">
                       <div className="border-b border-gray-100 pb-2">
-                        <span className="text-gray-600">Zona/Blok:</span>{" "}
+                        <span className="text-gray-600">Blok:</span>{" "}
                         <span className="font-medium">
                           {prettyZone(reset.pelanggan?.blok)}
                         </span>

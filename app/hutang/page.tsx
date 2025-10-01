@@ -455,7 +455,7 @@ export default function HutangListPage() {
               </div>
             </GlassCard>
 
-            {/* Tabel Desktop */}
+            {/* ====== Tabel Desktop ====== */}
             <GlassCard className="hidden md:block p-6">
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -599,7 +599,105 @@ export default function HutangListPage() {
               </div>
             </GlassCard>
 
-            {/* Mobile cards tetap… (dipersingkat) */}
+            {/* ====== Mobile Cards ====== */}
+            <div className="md:hidden space-y-3">
+              {isLoading ? (
+                <GlassCard className="p-4">
+                  <p className="text-sm text-muted-foreground">Memuat data…</p>
+                </GlassCard>
+              ) : items.length === 0 ? (
+                <GlassCard className="p-4">
+                  <p className="text-sm text-muted-foreground">
+                    Tidak ada data
+                  </p>
+                </GlassCard>
+              ) : (
+                items.map((it) => (
+                  <GlassCard key={it.id} className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm text-muted-foreground">
+                          No Bukti
+                        </p>
+                        <p className="font-semibold">{it.noBukti}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Tgl Hutang:{" "}
+                          <span className="font-medium">
+                            {it.tanggalHutang}
+                          </span>
+                        </p>
+                      </div>
+                      <StatusBadge v={it.status} />
+                    </div>
+
+                    <div className="mt-3 space-y-1">
+                      <p className="text-sm">
+                        <span className="text-muted-foreground">Pemberi:</span>{" "}
+                        <span className="font-medium">{it.pemberi}</span>
+                      </p>
+                      <p className="text-sm">
+                        <span className="text-muted-foreground">
+                          Keterangan:
+                        </span>{" "}
+                        {it.details?.length ? (
+                          <span>
+                            {it.details
+                              .map((d) => `${d.no}. ${d.keterangan}`)
+                              .join(" · ")}
+                          </span>
+                        ) : (
+                          it.keterangan
+                        )}
+                      </p>
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">
+                        Total
+                      </span>
+                      <span className="font-bold tabular-nums">
+                        {toIDR(it.nominal)}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => router.push(`/hutang/${it.id}`)}
+                        title="Lihat"
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
+                        Lihat
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 text-red-600 hover:text-red-700"
+                        onClick={() => setConfirmDeleteId(it.id)}
+                        title="Hapus"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Hapus
+                      </Button>
+                    </div>
+                  </GlassCard>
+                ))
+              )}
+
+              {/* Ringkasan total di bawah list (mobile) */}
+              {!isLoading && items.length > 0 && (
+                <GlassCard className="p-4 bg-teal-50/50">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Total</span>
+                    <span className="font-bold tabular-nums">
+                      {toIDR(total)}
+                    </span>
+                  </div>
+                </GlassCard>
+              )}
+            </div>
 
             {/* Dialog konfirmasi hapus */}
             <Dialog

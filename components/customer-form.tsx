@@ -678,7 +678,7 @@ export function CustomerForm() {
         {/* Zona */}
         <div className="space-y-2 md:col-span-2">
           <Label htmlFor="zona" className="text-base font-medium">
-            Zona
+            Blok
           </Label>
           <select
             id="zona"
@@ -688,7 +688,7 @@ export function CustomerForm() {
             disabled={loadingZona}
           >
             <option value="">
-              {loadingZona ? "Memuat zona…" : "— Pilih zona (opsional) —"}
+              {loadingZona ? "Memuat blok…" : "— Pilih blok (opsional) —"}
             </option>
             {zonaList.map((z) => (
               <option key={z.id} value={z.id}>
@@ -698,7 +698,7 @@ export function CustomerForm() {
           </select>
           {zonaError ? (
             <p className="text-xs text-destructive mt-1">
-              Gagal memuat daftar zona.
+              Gagal memuat daftar blok.
             </p>
           ) : null}
         </div>

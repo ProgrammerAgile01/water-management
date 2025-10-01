@@ -1161,7 +1161,7 @@ export function MeterReadingForm() {
       {/* Filter Zona */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="space-y-2">
-          <Label className="text-base font-medium">Filter Zona</Label>
+          <Label className="text-base font-medium">Filter Blok</Label>
           <Select
             value={selectZonaValue}
             onValueChange={(val) =>
@@ -1171,11 +1171,11 @@ export function MeterReadingForm() {
           >
             <SelectTrigger className="h-10 bg-card/50">
               <SelectValue
-                placeholder={zonesLoading ? "Memuat zona..." : "Semua Zona"}
+                placeholder={zonesLoading ? "Memuat blok..." : "Semua blok"}
               />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ZONA_ALL}>Semua Zona</SelectItem>
+              <SelectItem value={ZONA_ALL}>Semua Blok</SelectItem>
               {zones.map((z) => (
                 <SelectItem key={z.id ?? z.nama} value={z.nama}>
                   {z.nama}
@@ -1184,7 +1184,7 @@ export function MeterReadingForm() {
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            Menyaring pelanggan pada periode ini berdasarkan zona.
+            Menyaring pelanggan pada periode ini berdasarkan blok.
           </p>
         </div>
       </div>

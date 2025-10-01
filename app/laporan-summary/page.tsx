@@ -732,7 +732,7 @@ export default function DashboardLaporanPage() {
                         Nama Warga
                       </th>
                       <th className="text-left py-3 px-4 font-semibold text-sm text-gray-700">
-                        Blok/Zona
+                        Blok
                       </th>
                       <th className="text-left py-3 px-4 font-semibold text-sm text-gray-700">
                         Periode

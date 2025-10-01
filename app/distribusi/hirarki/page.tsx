@@ -555,7 +555,7 @@ function CardsTreeView({
 
         <div className="space-y-4">
           <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Blok / Zona
+            Blok
           </div>
           <LazyMotion features={domAnimation}>
             <AnimatePresence initial={false}>
@@ -592,7 +592,7 @@ function CardsTreeView({
             <AnimatePresence initial={false}>
               {!activeZona ? (
                 <div className="p-3 text-sm text-muted-foreground">
-                  Pilih zona.
+                  Pilih blok.
                 </div>
               ) : activeZona.pelanggan.length ? (
                 activeZona.pelanggan.map((p) => (
@@ -623,7 +623,7 @@ function CardsTreeView({
             {step === 0
               ? "Pilih Tandon"
               : step === 1
-              ? "Pilih Zona"
+              ? "Pilih blok"
               : "Daftar Pelanggan"}
           </div>
           <div className="flex gap-2">
@@ -694,7 +694,7 @@ function CardsTreeView({
           <div className="grid gap-3">
             {!activeZona ? (
               <div className="p-3 text-sm text-muted-foreground">
-                Pilih zona dahulu.
+                Pilih blok dahulu.
               </div>
             ) : activeZona.pelanggan.length ? (
               activeZona.pelanggan.map((p) => <PelCard key={p.id} p={p} />)
@@ -756,7 +756,7 @@ function OrgChartView({ data }: { data: TandonNode[] }) {
             </div>
             <div className="rounded-lg border p-3 bg-card/60">
               <div className="text-xs font-medium text-muted-foreground mb-2">
-                Blok/Zona & Pelanggan
+                Blok & Pelanggan
               </div>
               <div className="space-y-6">
                 {zonas.map((z) => (
@@ -881,19 +881,20 @@ export default function HirarkiDistribusiTabsPage() {
   return (
     <AuthGuard requiredRole="ADMIN">
       <AppShell>
-        {/* pb-28 supaya tidak ketutup bottom navbar di mobile */}
         <div className="max-w-7xl mx-auto space-y-6 pb-28">
           <AppHeader title="Hirarki Distribusi" />
 
-          {/* Header KPIs, Search, Tabs (satu baris) */}
+          {/* Header KPIs, Search, Tabs */}
           <GlassCard className="p-6">
             <div className="flex flex-col gap-4">
+              {/* KPIs + Search */}
               <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                {/* ...bagian KPI + search persis seperti sebelumnya... */}
                 <div>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Network className="w-4 h-4" />
                     <span className="text-sm">
-                      Visual: <b>Sumur/Tandon → Blok/Zona → Rumah/Pelanggan</b>
+                      Visual: <b>Tandon → Blok → Rumah/Pelanggan</b>
                     </span>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -920,7 +921,7 @@ export default function HirarkiDistribusiTabsPage() {
                     <Input
                       value={q}
                       onChange={(e) => setQ(e.target.value)}
-                      placeholder="Cari tandon/zona/pelanggan/alamat…"
+                      placeholder="Cari tandon/blok/pelanggan/alamat…"
                       className="pl-10 w-full bg-card/50"
                     />
                   </div>
@@ -929,9 +930,9 @@ export default function HirarkiDistribusiTabsPage() {
                       <SelectValue placeholder="Limit rumah" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="20">20 / zona</SelectItem>
-                      <SelectItem value="50">50 / zona</SelectItem>
-                      <SelectItem value="100">100 / zona</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
                       <SelectItem value="all">Semua</SelectItem>
                     </SelectContent>
                   </Select>
@@ -950,30 +951,32 @@ export default function HirarkiDistribusiTabsPage() {
                 </div>
               </div>
 
-              {/* Segmented tab – satu baris penuh */}
+              {/* Segmented tab — FIX: stack di mobile, 3 kolom mulai sm */}
               <div className="w-full">
-                <div className="flex w-full rounded-lg border bg-card/50 p-1 gap-1 overflow-hidden">
-                  <Button
-                    className="h-10 flex-1"
-                    variant={tab === "list" ? "default" : "ghost"}
-                    onClick={() => setTab("list")}
-                  >
-                    1. List Tree
-                  </Button>
-                  <Button
-                    className="h-10 flex-1"
-                    variant={tab === "cards" ? "default" : "ghost"}
-                    onClick={() => setTab("cards")}
-                  >
-                    2. Motion Cards
-                  </Button>
-                  <Button
-                    className="h-10 flex-1"
-                    variant={tab === "org" ? "default" : "ghost"}
-                    onClick={() => setTab("org")}
-                  >
-                    3. Org Chart
-                  </Button>
+                <div className="rounded-lg border bg-card/50 overflow-hidden">
+                  <div className="grid grid-cols-1 sm:grid-cols-3">
+                    <Button
+                      className="h-10 w-full rounded-none text-[13px] sm:text-sm whitespace-nowrap"
+                      variant={tab === "list" ? "default" : "ghost"}
+                      onClick={() => setTab("list")}
+                    >
+                      <span className="truncate">1. List Tree</span>
+                    </Button>
+                    <Button
+                      className="h-10 w-full rounded-none text-[13px] sm:text-sm whitespace-nowrap sm:border-l sm:border-border/40"
+                      variant={tab === "cards" ? "default" : "ghost"}
+                      onClick={() => setTab("cards")}
+                    >
+                      <span className="truncate">2. Motion Cards</span>
+                    </Button>
+                    <Button
+                      className="h-10 w-full rounded-none text-[13px] sm:text-sm whitespace-nowrap sm:border-l sm:border-border/40"
+                      variant={tab === "org" ? "default" : "ghost"}
+                      onClick={() => setTab("org")}
+                    >
+                      <span className="truncate">3. Org Chart</span>
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1008,7 +1011,8 @@ export default function HirarkiDistribusiTabsPage() {
                   }}
                 />
               )}
-              {tab === "org" && <OrgChartView data={items} maxPelPerZona={6} />}
+              {/* kalau komponen OrgChartView-mu tidak menerima prop 'maxPelPerZona', hapus saja argumen itu */}
+              {tab === "org" && <OrgChartView data={items} />}
             </>
           )}
         </div>
