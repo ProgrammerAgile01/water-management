@@ -284,7 +284,7 @@ export default function RekonsiliasiPage() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
               <div>
                 <div className="text-xs text-muted-foreground mb-1">
-                  Periode
+                  Periode catat meter
                 </div>
                 <Select value={periode} onValueChange={setPeriode}>
                   <SelectTrigger className="w-full">

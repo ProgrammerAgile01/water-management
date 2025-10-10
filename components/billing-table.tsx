@@ -865,7 +865,7 @@ export function BillingTable() {
                     Nama Warga: {b.namaWarga}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Zona/Blok: {b.zona}
+                    Blok: {b.zona}
                   </p>
                   {(() => {
                     if (pelunasan !== "lunas") return null;
@@ -1143,7 +1143,7 @@ export function BillingTable() {
                           Nama Warga: {b.namaWarga}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          Zona/Blok: {b.zona}
+                          Blok: {b.zona}
                         </p>
                         <div className="mt-2 flex gap-2 items-center">
                           <StatusBadge s={pelunasan} />
