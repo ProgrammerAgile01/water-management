@@ -67,6 +67,7 @@ model Pelanggan {
   kode         String   @unique
   nama         String
   wa           String?  @db.VarChar(20)
+  wa2          String?  @db.VarChar(20)
   alamat       String
   meterAwal    Int      @default(0)
   isResetMeter Boolean  @default(false)
@@ -806,4 +807,54 @@ model BlokReading {
   @@index([periodeId])
   @@index([status])
   @@index([isLocked, lockedAt])
+}
+
+model SupportThread {
+  id              String           @id @default(cuid())
+  // identitas tenant/produk (opsional jika sudah diisolasi per-DB)
+  companyId       String?
+  productCode     String?          // "TIRTABENING" dsb
+
+  topic           String?          @db.VarChar(200)
+  status          ThreadStatus     @default(OPEN) // OPEN, PENDING, RESOLVED, CLOSED
+
+  createdById     String?          // User.id pembuat
+  createdByName   String?          @db.VarChar(120)
+  createdByPhone  String?          @db.VarChar(30)
+
+  messages        SupportMessage[]
+
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([status, createdAt])
+}
+
+model SupportMessage {
+  id            String        @id @default(cuid())
+  threadId      String
+  thread        SupportThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  authorType    AuthorType    // "ME" (user/tenant) | "CS" (admin)
+  authorId      String?
+  authorName    String?       @db.VarChar(120)
+
+  body          String        @db.Text
+  attachmentUrl String?
+
+  createdAt     DateTime      @default(now())
+
+  @@index([threadId, createdAt])
+}
+
+enum ThreadStatus {
+  OPEN
+  PENDING
+  RESOLVED
+  CLOSED
+}
+
+enum AuthorType {
+  ME
+  CS
 }

@@ -450,6 +450,7 @@ import {
   Droplets,
   HandCoins,
   Network,
+  LifeBuoy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter, usePathname } from "next/navigation";
@@ -721,6 +722,25 @@ const MENU_ITEMS: MenuItem[] = [
     group: "Admin",
     section: "Pengaturan",
   },
+
+  // ✅ PERBAIKAN: perluas roles supaya terlihat oleh OPERATOR & PETUGAS juga
+  {
+    href: "/support",
+    label: "Pusat Bantuan",
+    icon: LifeBuoy,
+    roles: ["ADMIN", "OPERATOR", "PETUGAS", "WARGA"],
+    group: "Admin",
+    section: "Support",
+  },
+  {
+  href: "/admin/support",
+  label: "CS Center",
+  icon: LifeBuoy,
+  roles: ["ADMIN"],
+  group: "Admin",
+  section: "Support",
+},
+
   {
     href: "/tools/import-export",
     label: "Import/Export",
@@ -776,6 +796,7 @@ const SECTION_ORDER = [
   "Laporan",
   "Distribusi",
   "Pengaturan",
+  "Support",
   "Petugas",
 ];
 const getSectionOrder = (s: string) => {
@@ -783,10 +804,11 @@ const getSectionOrder = (s: string) => {
   return i === -1 ? 1000 : i;
 };
 
+// ✅ PERBAIKAN: selaraskan path Meteran → "/catat-blok"
 const SECTION_ITEM_ORDER: Record<string, string[]> = {
   Operasional: ["/jadwal-pencatatan", "/catat-meter", "/reset-meteran"],
   Master: ["/pelanggan", "/zona", "/inventaris"],
-  Meteran: ["/catat-tandon", "/catat-blok", "/catat-meter-blok"],
+  Meteran: ["/catat-tandon", "/catat-blok"],
   Keuangan: ["/tagihan-pembayaran", "/biaya", "/pengeluaran", "/hutang"],
   Laporan: [
     "/laporan-catat-meter",
@@ -804,6 +826,7 @@ const SECTION_ITEM_ORDER: Record<string, string[]> = {
     "/distribusi/peta",
   ],
   Pengaturan: ["/pengaturan", "/whatsapp-setting", "/tools/import-export"],
+  Support: ["/support", "/admin/support"],
 };
 const getItemOrder = (section: string, href: string) => {
   const arr = SECTION_ITEM_ORDER[section];
@@ -840,6 +863,8 @@ const PATH_LABELS: Record<string, string> = {
   "/distribusi/rekonsiliasi": "Rekonsiliasi",
   "/distribusi/peta": "Peta Pemakaian Air",
   "/pengaturan": "Pengaturan",
+  "/support": "Pusat Bantuan",
+  "/admin/support": "CS Center",
   "/tools/import-export": "Import/Export",
   "/warga-dashboard": "Dashboard Warga",
   "/login": "Login",
@@ -1113,39 +1138,51 @@ export function AppHeader({
 
             {/* PETUGAS */}
             {role === "PETUGAS" &&
-              petugasItems.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <DropdownMenuItem
-                    key={item.href}
-                    asChild
-                    className="cursor-pointer rounded-md"
-                  >
-                    <Link href={item.href} className="flex items-center gap-2">
-                      <Icon className="h-4 w-4" />
-                      <span>{item.label}</span>
-                    </Link>
-                  </DropdownMenuItem>
-                );
-              })}
+              visibleMenu
+                .filter((m) => m.group === "Petugas")
+                .sort((a, b) => a.label.localeCompare(b.label))
+                .map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <DropdownMenuItem
+                      key={item.href}
+                      asChild
+                      className="cursor-pointer rounded-md"
+                    >
+                      <Link
+                        href={item.href}
+                        className="flex items-center gap-2"
+                      >
+                        <Icon className="h-4 w-4" />
+                        <span>{item.label}</span>
+                      </Link>
+                    </DropdownMenuItem>
+                  );
+                })}
 
             {/* WARGA */}
             {role === "WARGA" &&
-              wargaItems.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <DropdownMenuItem
-                    key={item.href}
-                    asChild
-                    className="cursor-pointer rounded-md"
-                  >
-                    <Link href={item.href} className="flex items-center gap-2">
-                      <Icon className="h-4 w-4" />
-                      <span>{item.label}</span>
-                    </Link>
-                  </DropdownMenuItem>
-                );
-              })}
+              visibleMenu
+                .filter((m) => m.group === "Warga")
+                .sort((a, b) => a.label.localeCompare(b.label))
+                .map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <DropdownMenuItem
+                      key={item.href}
+                      asChild
+                      className="cursor-pointer rounded-md"
+                    >
+                      <Link
+                        href={item.href}
+                        className="flex items-center gap-2"
+                      >
+                        <Icon className="h-4 w-4" />
+                        <span>{item.label}</span>
+                      </Link>
+                    </DropdownMenuItem>
+                  );
+                })}
 
             <div className="h-1" />
 
