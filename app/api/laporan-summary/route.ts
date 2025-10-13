@@ -1,7 +1,235 @@
 // app/api/laporan-summary/route.ts
+// import { NextResponse } from "next/server";
+// import { prisma } from "@/lib/prisma";
+
+// const MONTHS = [
+//   "Jan",
+//   "Feb",
+//   "Mar",
+//   "Apr",
+//   "May",
+//   "Jun",
+//   "Jul",
+//   "Aug",
+//   "Sep",
+//   "Oct",
+//   "Nov",
+//   "Dec",
+// ];
+
+// function emptyWater() {
+//   return MONTHS.map((m) => ({
+//     month: m,
+//     total: 0,
+//     blokA: 0,
+//     blokB: 0,
+//     blokC: 0,
+//     blokD: 0,
+//     blokE: 0,
+//     blokF: 0,
+//   }));
+// }
+// function emptyRevenue() {
+//   return MONTHS.map((m) => ({ month: m, amount: 0 }));
+// }
+// function emptyExpenses() {
+//   return MONTHS.map((m) => ({ month: m, operasional: 0, lainnya: 0 }));
+// }
+
+// function toMonthIdx(d: Date) {
+//   const dt = new Date(d);
+//   return dt.getMonth(); // 0..11
+// }
+// function isOperasional(name?: string) {
+//   if (!name) return false;
+//   const n = name.toLowerCase();
+//   return [
+//     "operasional",
+//     "gaji",
+//     "utilitas",
+//     "listrik",
+//     "transport",
+//     "administrasi",
+//     "maintenance",
+//     "material",
+//   ].some((k) => n.includes(k));
+// }
+
+// export async function GET(req: Request) {
+//   try {
+//     const { searchParams } = new URL(req.url);
+//     const year = Number(searchParams.get("year") ?? new Date().getFullYear());
+
+//     // ===== WATER USAGE dari CatatMeter (join CatatPeriode untuk filter tahun) =====
+//     // 1) Tambah join pelanggan.zona.nama
+//     const cm = await prisma.catatMeter.findMany({
+//       where: {
+//         deletedAt: null,
+//         periode: { tahun: year },
+//       },
+//       select: {
+//         pemakaianM3: true,
+//         zonaNamaSnapshot: true,
+//         periode: { select: { bulan: true } }, // 1..12
+//         // >>> tambahkan ini:
+//         pelanggan: { select: { zona: { select: { nama: true } } } },
+//       },
+//     });
+
+//     // 2) Saat bikin zonaOrder & akumulasi total, pakai fallback ke pelanggan.zona.nama
+//     const water = emptyWater();
+//     const zonaOrder: string[] = [];
+
+//     for (const row of cm) {
+//       const monthIdx = (row.periode.bulan ?? 1) - 1;
+//       const val = row.pemakaianM3 ?? 0;
+//       water[monthIdx].total += val;
+
+//       const z =
+//         row.zonaNamaSnapshot?.trim() || row.pelanggan?.zona?.nama?.trim() || "";
+//       if (z && !zonaOrder.includes(z) && zonaOrder.length < 6) {
+//         zonaOrder.push(z);
+//       }
+//     }
+
+//     // 3) Mapping ke blok A..F juga pakai fallback yang sama
+//     for (const row of cm) {
+//       const monthIdx = (row.periode.bulan ?? 1) - 1;
+//       const val = row.pemakaianM3 ?? 0;
+
+//       const z =
+//         row.zonaNamaSnapshot?.trim() ||
+//         row.pelanggan?.zona?.nama?.trim() ||
+//         zonaOrder[5]; // terakhir fallback
+
+//       let idx = zonaOrder.indexOf(z);
+//       if (idx < 0) idx = 5;
+
+//       switch (idx) {
+//         case 0:
+//           water[monthIdx].blokA += val;
+//           break;
+//         case 1:
+//           water[monthIdx].blokB += val;
+//           break;
+//         case 2:
+//           water[monthIdx].blokC += val;
+//           break;
+//         case 3:
+//           water[monthIdx].blokD += val;
+//           break;
+//         case 4:
+//           water[monthIdx].blokE += val;
+//           break;
+//         default:
+//           water[monthIdx].blokF += val;
+//           break;
+//       }
+//     }
+
+//     // ===== REVENUE dari Pembayaran LUNAS =====
+//     const pays = await prisma.pembayaran.findMany({
+//       where: {
+//         deletedAt: null,
+//         tanggalBayar: {
+//           gte: new Date(Date.UTC(year, 0, 1)),
+//           lt: new Date(Date.UTC(year + 1, 0, 1)),
+//         },
+//         tagihan: { statusBayar: "PAID", deletedAt: null },
+//       },
+//       select: { tanggalBayar: true, jumlahBayar: true },
+//     });
+
+//     const revenue = emptyRevenue();
+//     for (const p of pays) {
+//       const idx = toMonthIdx(p.tanggalBayar);
+//       revenue[idx].amount += p.jumlahBayar ?? 0;
+//     }
+
+//     // ===== EXPENSES dari Pengeluaran & Detail =====
+//     const details = await prisma.pengeluaranDetail.findMany({
+//       where: {
+//         pengeluaran: {
+//           tanggalPengeluaran: {
+//             gte: new Date(Date.UTC(year, 0, 1)),
+//             lt: new Date(Date.UTC(year + 1, 0, 1)),
+//           },
+//         },
+//       },
+//       select: {
+//         nominal: true,
+//         pengeluaran: { select: { tanggalPengeluaran: true } },
+//         masterBiaya: { select: { nama: true } },
+//       },
+//     });
+
+//     const expenses = emptyExpenses();
+//     for (const d of details) {
+//       const idx = toMonthIdx(d.pengeluaran.tanggalPengeluaran);
+//       const amt = d.nominal ?? 0;
+//       if (isOperasional(d.masterBiaya?.nama)) expenses[idx].operasional += amt;
+//       else expenses[idx].lainnya += amt;
+//     }
+
+//     // ===== PROFIT/LOSS =====
+//     const profitLoss = MONTHS.map((m, i) => ({
+//       month: m,
+//       profit:
+//         revenue[i].amount - (expenses[i].operasional + expenses[i].lainnya),
+//     }));
+
+//     // ===== UNPAID BILLS =====
+//     const unpaid = await prisma.tagihan.findMany({
+//       where: { deletedAt: null, statusBayar: { not: "PAID" } },
+//       take: 50,
+//       orderBy: { createdAt: "desc" },
+//       select: {
+//         id: true,
+//         periode: true,
+//         totalTagihan: true,
+//         pelanggan: {
+//           select: {
+//             nama: true,
+//             zona: { select: { nama: true } },
+//           },
+//         },
+//       },
+//     });
+
+//     const unpaidBills = unpaid.map((t) => ({
+//       id: t.id,
+//       nama: t.pelanggan?.nama ?? "-",
+//       blok: t.pelanggan?.zona?.nama ?? "-",
+//       periode: t.periode,
+//       nominal: t.totalTagihan,
+//       status: "unpaid" as const,
+//     }));
+
+//     // Kirim juga label zona (maks 6) agar legend di frontend sesuai nama asli
+//     const zoneNames = zonaOrder;
+
+//     return NextResponse.json({
+//       waterUsageData: water,
+//       revenueData: revenue,
+//       expenseData: expenses,
+//       profitLossData: profitLoss,
+//       unpaidBills,
+//       zoneNames,
+//     });
+//   } catch (e: any) {
+//     console.error(e);
+//     return NextResponse.json(
+//       { error: e?.message ?? "Server error" },
+//       { status: 500 }
+//     );
+//   }
+// }
+// app/api/laporan-summary/route.ts
+// app/api/laporan-summary/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+// ── Helpers (tetap)
 const MONTHS = [
   "Jan",
   "Feb",
@@ -16,9 +244,19 @@ const MONTHS = [
   "Nov",
   "Dec",
 ];
+const idOperasionalKeys = [
+  "operasional",
+  "gaji",
+  "utilitas",
+  "listrik",
+  "transport",
+  "administrasi",
+  "maintenance",
+  "material",
+];
 
-function emptyWater() {
-  return MONTHS.map((m) => ({
+const emptyWater = () =>
+  MONTHS.map((m) => ({
     month: m,
     total: 0,
     blokA: 0,
@@ -28,58 +266,66 @@ function emptyWater() {
     blokE: 0,
     blokF: 0,
   }));
-}
-function emptyRevenue() {
-  return MONTHS.map((m) => ({ month: m, amount: 0 }));
-}
-function emptyExpenses() {
-  return MONTHS.map((m) => ({ month: m, operasional: 0, lainnya: 0 }));
-}
+const emptyRevenue = () => MONTHS.map((m) => ({ month: m, amount: 0 }));
+const emptyExpenses = () =>
+  MONTHS.map((m) => ({ month: m, operasional: 0, lainnya: 0 }));
 
 function toMonthIdx(d: Date) {
-  const dt = new Date(d);
-  return dt.getMonth(); // 0..11
+  return new Date(d).getMonth();
+} // 0..11
+function monthIdxFromPeriode(periode?: string | null) {
+  if (!periode) return null;
+  const m = /^(\d{4})-(\d{2})$/.exec(periode);
+  if (!m) return null;
+  const mm = Number(m[2]);
+  if (mm < 1 || mm > 12) return null;
+  return mm - 1;
 }
 function isOperasional(name?: string) {
   if (!name) return false;
   const n = name.toLowerCase();
-  return [
-    "operasional",
-    "gaji",
-    "utilitas",
-    "listrik",
-    "transport",
-    "administrasi",
-    "maintenance",
-    "material",
-  ].some((k) => n.includes(k));
+  return idOperasionalKeys.some((k) => n.includes(k));
 }
+const toNum = (v: any): number | null => {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "object" && typeof (v as any)?.toNumber === "function") {
+    try {
+      return (v as any).toNumber();
+    } catch {
+      return Number(v as any);
+    }
+  }
+  return Number(v);
+};
+const hasPaidMarker = (info?: string | null) =>
+  !!(
+    info &&
+    (/\[CLOSED_BY:\d{4}-\d{2}\]/.test(info) || /\[PAID_BY:/.test(info))
+  );
+const isLunasByRules = (sisaKurang: number | null, info?: string | null) => {
+  if (hasPaidMarker(info)) return true;
+  if (sisaKurang === null) return false;
+  return sisaKurang <= 0;
+};
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const year = Number(searchParams.get("year") ?? new Date().getFullYear());
 
-    // ===== WATER USAGE dari CatatMeter (join CatatPeriode untuk filter tahun) =====
-    // 1) Tambah join pelanggan.zona.nama
+    // ============== 1) WATER USAGE (CatatMeter) ==============
     const cm = await prisma.catatMeter.findMany({
-      where: {
-        deletedAt: null,
-        periode: { tahun: year },
-      },
+      where: { deletedAt: null, periode: { tahun: year } },
       select: {
         pemakaianM3: true,
         zonaNamaSnapshot: true,
-        periode: { select: { bulan: true } }, // 1..12
-        // >>> tambahkan ini:
+        periode: { select: { bulan: true } },
         pelanggan: { select: { zona: { select: { nama: true } } } },
       },
     });
 
-    // 2) Saat bikin zonaOrder & akumulasi total, pakai fallback ke pelanggan.zona.nama
     const water = emptyWater();
     const zonaOrder: string[] = [];
-
     for (const row of cm) {
       const monthIdx = (row.periode.bulan ?? 1) - 1;
       const val = row.pemakaianM3 ?? 0;
@@ -87,47 +333,27 @@ export async function GET(req: Request) {
 
       const z =
         row.zonaNamaSnapshot?.trim() || row.pelanggan?.zona?.nama?.trim() || "";
-      if (z && !zonaOrder.includes(z) && zonaOrder.length < 6) {
+      if (z && !zonaOrder.includes(z) && zonaOrder.length < 6)
         zonaOrder.push(z);
-      }
     }
-
-    // 3) Mapping ke blok A..F juga pakai fallback yang sama
     for (const row of cm) {
       const monthIdx = (row.periode.bulan ?? 1) - 1;
       const val = row.pemakaianM3 ?? 0;
-
       const z =
         row.zonaNamaSnapshot?.trim() ||
         row.pelanggan?.zona?.nama?.trim() ||
-        zonaOrder[5]; // terakhir fallback
-
+        zonaOrder[5];
       let idx = zonaOrder.indexOf(z);
       if (idx < 0) idx = 5;
-
-      switch (idx) {
-        case 0:
-          water[monthIdx].blokA += val;
-          break;
-        case 1:
-          water[monthIdx].blokB += val;
-          break;
-        case 2:
-          water[monthIdx].blokC += val;
-          break;
-        case 3:
-          water[monthIdx].blokD += val;
-          break;
-        case 4:
-          water[monthIdx].blokE += val;
-          break;
-        default:
-          water[monthIdx].blokF += val;
-          break;
-      }
+      if (idx === 0) water[monthIdx].blokA += val;
+      else if (idx === 1) water[monthIdx].blokB += val;
+      else if (idx === 2) water[monthIdx].blokC += val;
+      else if (idx === 3) water[monthIdx].blokD += val;
+      else if (idx === 4) water[monthIdx].blokE += val;
+      else water[monthIdx].blokF += val;
     }
 
-    // ===== REVENUE dari Pembayaran LUNAS =====
+    // ============== 2) REVENUE (Pembayaran yang LUNAS) ==============
     const pays = await prisma.pembayaran.findMany({
       where: {
         deletedAt: null,
@@ -146,7 +372,7 @@ export async function GET(req: Request) {
       revenue[idx].amount += p.jumlahBayar ?? 0;
     }
 
-    // ===== EXPENSES dari Pengeluaran & Detail =====
+    // ============== 3) EXPENSES ==============
     const details = await prisma.pengeluaranDetail.findMany({
       where: {
         pengeluaran: {
@@ -171,41 +397,122 @@ export async function GET(req: Request) {
       else expenses[idx].lainnya += amt;
     }
 
-    // ===== PROFIT/LOSS =====
+    // ============== 4) PROFIT/LOSS ==============
     const profitLoss = MONTHS.map((m, i) => ({
       month: m,
       profit:
         revenue[i].amount - (expenses[i].operasional + expenses[i].lainnya),
     }));
 
-    // ===== UNPAID BILLS =====
-    const unpaid = await prisma.tagihan.findMany({
-      where: { deletedAt: null, statusBayar: { not: "PAID" } },
-      take: 50,
-      orderBy: { createdAt: "desc" },
+    // ============== 5) OUTSTANDING & UNPAID LIST (logika = /api/tagihan) ==============
+    // === OUTSTANDING & UNPAID LIST ===
+    const tagihans = await prisma.tagihan.findMany({
+      where: {
+        deletedAt: null,
+        OR: [
+          { periode: { startsWith: `${year}-` } },
+          { periode: { endsWith: ` ${year}` } },
+        ],
+      },
+      orderBy: { createdAt: "desc" }, // terbaru duluan
       select: {
         id: true,
         periode: true,
         totalTagihan: true,
-        pelanggan: {
-          select: {
-            nama: true,
-            zona: { select: { nama: true } },
-          },
-        },
+        tagihanLalu: true,
+        sisaKurang: true,
+        info: true,
+        createdAt: true,
+        pelangganId: true,
+        pelanggan: { select: { nama: true, zona: { select: { nama: true } } } },
       },
     });
 
-    const unpaidBills = unpaid.map((t) => ({
-      id: t.id,
-      nama: t.pelanggan?.nama ?? "-",
-      blok: t.pelanggan?.zona?.nama ?? "-",
-      periode: t.periode,
-      nominal: t.totalTagihan,
-      status: "unpaid" as const,
-    }));
+    // helper: parse daftar periode yang di-clearkan pada tagihan ini
+    const parsePrevCleared = (info?: string | null): string[] => {
+      if (!info) return [];
+      const m = info.match(/\[PREV_CLEARED:([0-9,\-\s]+)\]/);
+      if (!m) return [];
+      return m[1]
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+    };
 
-    // Kirim juga label zona (maks 6) agar legend di frontend sesuai nama asli
+    // set periode yang dianggap CLEARED untuk (pelangganId, periode)
+    const clearedSet = new Set<string>();
+    for (const t of tagihans) {
+      const clears = parsePrevCleared(t.info);
+      if (clears.length && t.pelangganId) {
+        for (const p of clears) {
+          clearedSet.add(`${t.pelangganId}|${p}`);
+        }
+      }
+    }
+
+    const outstandingData = MONTHS.map((m) => ({ month: m, amount: 0 }));
+    const unpaidBills: {
+      id: string;
+      nama: string;
+      blok: string;
+      periode: string | null;
+      nominal: number; // totalDue
+      sisaKurang: number; // sisa/kurang aktual
+      status: "unpaid";
+    }[] = [];
+
+    // pastikan hanya satu (terbaru) per pelanggan
+    const firstUnpaidByCustomer = new Set<string>();
+
+    for (const t of tagihans) {
+      const bulanIni = toNum(t.totalTagihan) ?? 0;
+      const tagihanLalu = toNum(t.tagihanLalu) ?? 0;
+      const totalDue = bulanIni + tagihanLalu;
+
+      const sisaKurangNum = toNum(t.sisaKurang);
+      const lunas = isLunasByRules(sisaKurangNum, t.info);
+
+      // jika tagihan periode ini sudah dinyatakan CLEARED oleh bulan berikutnya → skip
+      if (
+        t.pelangganId &&
+        t.periode &&
+        clearedSet.has(`${t.pelangganId}|${t.periode}`)
+      ) {
+        continue;
+      }
+
+      // outstanding yang dihitung
+      const outstandingAmount = lunas ? 0 : sisaKurangNum ?? totalDue;
+      const mIdx = monthIdxFromPeriode(t.periode);
+      if (mIdx !== null && outstandingAmount > 0) {
+        outstandingData[mIdx].amount += outstandingAmount;
+      }
+
+      // kumpulkan unpaid (hanya 1 paling baru per pelanggan)
+      if (
+        !lunas &&
+        outstandingAmount > 0 &&
+        t.pelangganId &&
+        !firstUnpaidByCustomer.has(t.pelangganId)
+      ) {
+        firstUnpaidByCustomer.add(t.pelangganId);
+        if (unpaidBills.length < 50) {
+          unpaidBills.push({
+            id: t.id,
+            nama: t.pelanggan?.nama ?? "-",
+            blok: t.pelanggan?.zona?.nama ?? "-",
+            periode: t.periode ?? "-",
+            nominal: totalDue,
+            sisaKurang: outstandingAmount,
+            status: "unpaid",
+          });
+        }
+      }
+    }
+
+    const outstandingTotal = outstandingData.reduce((a, b) => a + b.amount, 0);
+
+    // Kirim juga label zona (maks 6) agar legend FE sesuai
     const zoneNames = zonaOrder;
 
     return NextResponse.json({
@@ -213,8 +520,10 @@ export async function GET(req: Request) {
       revenueData: revenue,
       expenseData: expenses,
       profitLossData: profitLoss,
-      unpaidBills,
       zoneNames,
+      unpaidBills, // sudah membawa sisaKurang
+      outstandingData, // [{month, amount}]
+      outstandingTotal, // total setahun
     });
   } catch (e: any) {
     console.error(e);

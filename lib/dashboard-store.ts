@@ -30,19 +30,26 @@ export interface UnpaidBill {
   blok: string;
   periode: string;
   nominal: number;
+  sisaKurang: number;
   status: "unpaid";
+}
+export interface OutstandingPoint {
+  month: string;
+  amount: number;
 }
 
 interface DashboardStore {
   selectedYear: number;
-  zoneNames: string[]; // maks 6 label zona untuk legend
+  zoneNames: string[];
   waterUsageData: WaterUsageData[];
   revenueData: RevenueData[];
   expenseData: ExpenseData[];
   profitLossData: ProfitLossData[];
   unpaidBills: UnpaidBill[];
-  setSelectedYear: (year: number) => void;
-  getDataByYear: (year?: number) => Promise<void>;
+  outstandingData: OutstandingPoint[]; // ← baru
+  outstandingTotal: number; // ← baru
+  setSelectedYear: (y: number) => void;
+  getDataByYear: (y?: number) => Promise<void>;
   _loading?: boolean;
   _error?: string | null;
 }
@@ -93,6 +100,8 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
   expenseData: emptyExpenses(),
   profitLossData: MONTHS.map((m) => ({ month: m, profit: 0 })),
   unpaidBills: [],
+  outstandingData: MONTHS.map((m) => ({ month: m, amount: 0 })),
+  outstandingTotal: 0,
   _loading: false,
   _error: null,
 
@@ -129,6 +138,10 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
                 (data.expenseData?.[i]?.lainnya ?? 0)),
           })),
         unpaidBills: data.unpaidBills ?? [],
+        outstandingData:
+          data.outstandingData ??
+          MONTHS.map((m: string) => ({ month: m, amount: 0 })),
+        outstandingTotal: data.outstandingTotal ?? 0,
         _loading: false,
       });
     } catch (err: any) {
@@ -137,15 +150,14 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
         _loading: false,
         _error:
           typeof err?.message === "string" ? err.message : "Gagal memuat data",
-      });
-      // fallback kosong supaya UI tetap jalan
-      set({
         zoneNames: defaultZoneNames,
         waterUsageData: emptyWater(),
         revenueData: emptyRevenue(),
         expenseData: emptyExpenses(),
         profitLossData: MONTHS.map((m) => ({ month: m, profit: 0 })),
         unpaidBills: [],
+        outstandingData: MONTHS.map((m) => ({ month: m, amount: 0 })),
+        outstandingTotal: 0,
       });
     }
   },

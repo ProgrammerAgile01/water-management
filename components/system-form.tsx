@@ -12,9 +12,8 @@ type SystemFormState = {
   alamat: string;
   telepon: string;
   email: string;
-  logoUrl: string;
+  logoUrl: string; // URL publik (http/https atau /uploads/xxx)
 
-  // baru:
   namaBankPembayaran: string;
   norekPembayaran: string;
   anNorekPembayaran: string;
@@ -32,7 +31,6 @@ export function SystemForm() {
     telepon: "",
     email: "",
     logoUrl: "",
-
     namaBankPembayaran: "",
     norekPembayaran: "",
     anNorekPembayaran: "",
@@ -40,13 +38,18 @@ export function SystemForm() {
     whatsappCs: "",
   });
 
+  // hanya untuk preview (boleh blob:)
+  const [previewLogoUrl, setPreviewLogoUrl] = useState<string>("");
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/setting-form", { cache: "no-store" });
+        const res = await fetch("/api/setting-form", {
+          cache: "no-store",
+        });
         if (!res.ok) throw new Error(await res.text());
         const data = (await res.json()) as Partial<SystemFormState>;
         setFormData((prev) => ({
@@ -56,13 +59,14 @@ export function SystemForm() {
           telepon: data.telepon ?? "",
           email: data.email ?? "",
           logoUrl: data.logoUrl ?? "",
-
           namaBankPembayaran: data.namaBankPembayaran ?? "",
           norekPembayaran: data.norekPembayaran ?? "",
           anNorekPembayaran: data.anNorekPembayaran ?? "",
           namaBendahara: data.namaBendahara ?? "",
           whatsappCs: data.whatsappCs ?? "",
         }));
+        // pakai url publik dari server untuk preview awal
+        setPreviewLogoUrl(data.logoUrl ?? "");
       } catch (e) {
         console.error(e);
         toast({ title: "Gagal memuat profil", variant: "destructive" });
@@ -79,10 +83,18 @@ export function SystemForm() {
       const res = await fetch("/api/setting-form", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(formData), // logoUrl sudah publik
       });
       if (!res.ok) throw new Error(await res.text());
-      toast({ title: "Berhasil", description: "Pengaturan sistem tersimpan" });
+      const saved = (await res.json()) as Partial<SystemFormState>;
+
+      // sinkron ulang
+      setFormData((p) => ({ ...p, logoUrl: saved.logoUrl ?? "" }));
+      setPreviewLogoUrl(saved.logoUrl ?? ""); // setelah save, preview pakai URL publik
+      toast({
+        title: "Berhasil",
+        description: "Pengaturan sistem tersimpan",
+      });
     } catch (e) {
       console.error(e);
       toast({ title: "Gagal menyimpan", variant: "destructive" });
@@ -91,10 +103,47 @@ export function SystemForm() {
     }
   };
 
+  const uploadFile = async (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/api/upload", { method: "POST", body: fd });
+    const json = await res.json();
+    if (!res.ok || !json?.ok || !json?.url) {
+      throw new Error(json?.message || "Upload gagal");
+    }
+    return String(json.url) as string; // contoh: /uploads/xxxx.png
+  };
+
   const onLogoChange = async (file?: File) => {
     if (!file) return;
-    const url = URL.createObjectURL(file);
-    setFormData((p) => ({ ...p, logoUrl: url }));
+
+    // Tampilkan preview instan dari file lokal
+    const blobUrl = URL.createObjectURL(file);
+    setPreviewLogoUrl(blobUrl);
+
+    try {
+      // Upload ke server → dapat URL publik → set ke formData.logoUrl
+      const publicUrl = await uploadFile(file);
+      setFormData((p) => ({ ...p, logoUrl: publicUrl }));
+      // ganti preview ke URL publik supaya persist setelah reload
+      setPreviewLogoUrl(publicUrl);
+      toast({
+        title: "Logo diunggah",
+        description: "Jangan lupa klik Simpan.",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Upload gagal",
+        description: e?.message || "Tidak bisa mengunggah logo",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const clearLogo = () => {
+    setPreviewLogoUrl("");
+    setFormData((p) => ({ ...p, logoUrl: "" }));
+    if (fileRef.current) fileRef.current.value = "";
   };
 
   if (loading) {
@@ -119,10 +168,10 @@ export function SystemForm() {
         <Label>Logo Perusahaan</Label>
         <div className="flex items-center gap-3">
           <div className="w-14 h-14 rounded bg-muted/40 flex items-center justify-center overflow-hidden">
-            {formData.logoUrl ? (
+            {previewLogoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={formData.logoUrl}
+                src={previewLogoUrl}
                 alt="logo"
                 className="w-full h-full object-cover"
               />
@@ -145,12 +194,8 @@ export function SystemForm() {
             >
               Pilih Logo
             </Button>
-            {formData.logoUrl && (
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setFormData((p) => ({ ...p, logoUrl: "" }))}
-              >
+            {(previewLogoUrl || formData.logoUrl) && (
+              <Button type="button" variant="ghost" onClick={clearLogo}>
                 Hapus
               </Button>
             )}
@@ -165,7 +210,10 @@ export function SystemForm() {
           id="nama-perusahaan"
           value={formData.namaPerusahaan}
           onChange={(e) =>
-            setFormData((p) => ({ ...p, namaPerusahaan: e.target.value }))
+            setFormData((p) => ({
+              ...p,
+              namaPerusahaan: e.target.value,
+            }))
           }
           placeholder="Tirta Bening"
         />
@@ -237,7 +285,10 @@ export function SystemForm() {
               id="norek-pembayaran"
               value={formData.norekPembayaran}
               onChange={(e) =>
-                setFormData((p) => ({ ...p, norekPembayaran: e.target.value }))
+                setFormData((p) => ({
+                  ...p,
+                  norekPembayaran: e.target.value,
+                }))
               }
               placeholder="1234567890"
             />
@@ -266,7 +317,10 @@ export function SystemForm() {
               id="nama-bendahara"
               value={formData.namaBendahara}
               onChange={(e) =>
-                setFormData((p) => ({ ...p, namaBendahara: e.target.value }))
+                setFormData((p) => ({
+                  ...p,
+                  namaBendahara: e.target.value,
+                }))
               }
               placeholder="Nama Bendahara"
             />
@@ -278,7 +332,10 @@ export function SystemForm() {
               id="whatsapp-cs"
               value={formData.whatsappCs}
               onChange={(e) =>
-                setFormData((p) => ({ ...p, whatsappCs: e.target.value }))
+                setFormData((p) => ({
+                  ...p,
+                  whatsappCs: e.target.value,
+                }))
               }
               placeholder="08xxxxxxxxxx"
             />
