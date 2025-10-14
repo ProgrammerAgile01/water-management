@@ -60,10 +60,34 @@ type Summary = {
 function formatPeriode(kode: string) {
   const [tahun, bulan] = kode.split("-");
   const bulanNama = [
-    "Januari","Februari","Maret","April","Mei","Juni",
-    "Juli","Agustus","September","Oktober","November","Desember",
+    "Januari",
+    "Februari",
+    "Maret",
+    "April",
+    "Mei",
+    "Juni",
+    "Juli",
+    "Agustus",
+    "September",
+    "Oktober",
+    "November",
+    "Desember",
   ][parseInt(bulan, 10) - 1];
   return `${bulanNama} ${tahun}`;
+}
+
+function parsePrevCleared(info?: string | null): string[] {
+  if (!info) return [];
+  const m = info.match(
+    /\[PREV_CLEARED:([0-9]{4}-[0-9]{2}(?:\s*,\s*[0-9]{4}-[0-9]{2})*)\]/
+  );
+  if (!m) return [];
+  return m[1].split(",").map((s) => s.trim());
+}
+function parseClosedBy(info?: string | null): string | null {
+  if (!info) return null;
+  const m = info.match(/\[CLOSED_BY:([0-9]{4}-[0-9]{2})\]/);
+  return m ? m[1] : null;
 }
 function parsePaidAt(info?: string | null): Date | null {
   if (!info) return null;
@@ -73,7 +97,11 @@ function parsePaidAt(info?: string | null): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 function formatTanggalID(d: Date) {
-  return d.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" });
+  return d.toLocaleDateString("id-ID", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
 }
 function todayLabel() {
   return new Date().toLocaleDateString("id-ID", {
@@ -163,7 +191,9 @@ export default function LaporanStatusPembayaranPage() {
     if (!per) return;
     setLoading(true);
     try {
-      const r = await fetch(`/api/laporan/status?periode=${encodeURIComponent(per)}`);
+      const r = await fetch(
+        `/api/laporan/status?periode=${encodeURIComponent(per)}`
+      );
       const j = await r.json();
       if (j?.ok) {
         setRows(j.rows);
@@ -199,7 +229,10 @@ export default function LaporanStatusPembayaranPage() {
   }, [rows, q]);
 
   // Summary untuk tampilan (kalau ada filter → pakai summary yang difilter)
-  const filteredSummary = useMemo(() => calcSummary(filteredRows), [filteredRows]);
+  const filteredSummary = useMemo(
+    () => calcSummary(filteredRows),
+    [filteredRows]
+  );
   const viewSummary: Summary = q ? filteredSummary : summary;
 
   const footerTotals = useMemo(
@@ -221,9 +254,9 @@ export default function LaporanStatusPembayaranPage() {
     const aoa: (string | number)[][] = [
       ["LAPORAN STATUS PEMBAYARAN"],
       [
-        `Periode: ${formatPeriode(selectedPeriod)}   —   Dicetak: ${todayLabel()}${
-          q ? `   —   Filter: ${q}` : ""
-        }`,
+        `Periode: ${formatPeriode(
+          selectedPeriod
+        )}   —   Dicetak: ${todayLabel()}${q ? `   —   Filter: ${q}` : ""}`,
       ],
       [],
       [
@@ -242,10 +275,14 @@ export default function LaporanStatusPembayaranPage() {
         r.pemakaianM3,
         r.tagihanAwal,
         // tampilkan label +/−
-        r.sisaKurang >= 0 ? `Kurang Rp ${fmtRp(r.tagihanLalu)}` : `Sisa Rp ${fmtRp(-r.tagihanLalu)}`,
+        r.sisaKurang >= 0
+          ? `Kurang Rp ${fmtRp(r.tagihanLalu)}`
+          : `Sisa Rp ${fmtRp(-r.tagihanLalu)}`,
         r.totalTagihan,
         r.sudahBayar,
-        r.sisaKurang >= 0 ? `Kurang Rp ${fmtRp(r.sisaKurang)}` : `Sisa Rp ${fmtRp(-r.sisaKurang)}`,
+        r.sisaKurang >= 0
+          ? `Kurang Rp ${fmtRp(r.sisaKurang)}`
+          : `Sisa Rp ${fmtRp(-r.sisaKurang)}`,
       ]),
       [
         "Total",
@@ -279,7 +316,12 @@ export default function LaporanStatusPembayaranPage() {
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, formatPeriode(selectedPeriod));
-    XLSX.writeFile(wb, `Laporan-Status-Pembayaran-${selectedPeriod}${q ? `-filter-${q}` : ""}.xlsx`);
+    XLSX.writeFile(
+      wb,
+      `Laporan-Status-Pembayaran-${selectedPeriod}${
+        q ? `-filter-${q}` : ""
+      }.xlsx`
+    );
   }
 
   async function openDetail(row: Row) {
@@ -372,7 +414,8 @@ export default function LaporanStatusPembayaranPage() {
 
             {/* Info jumlah hasil filter */}
             <div className="mt-2 text-xs text-muted-foreground">
-              Menampilkan <b>{filteredRows.length}</b> dari <b>{rows.length}</b> data
+              Menampilkan <b>{filteredRows.length}</b> dari <b>{rows.length}</b>{" "}
+              data
               {q ? <> (filter: “{q}”)</> : null}
             </div>
           </GlassCard>
@@ -406,33 +449,52 @@ export default function LaporanStatusPembayaranPage() {
                       <td className="py-3 px-2">{r.no}</td>
                       <td className="py-3 px-2 font-medium">{r.nama}</td>
                       <td className="py-3 px-2 text-center">{r.pemakaianM3}</td>
-                      <td className="py-3 px-2 text-center">Rp {fmtRp(r.tagihanAwal)}</td>
+                      <td className="py-3 px-2 text-center">
+                        Rp {fmtRp(r.tagihanAwal)}
+                      </td>
                       <td className="text-center">
                         {renderSisaKurang(r.tagihanLalu)}
                         {(() => {
                           if (r.tagihanLalu <= 0) return null;
-                          const paidAt = parsePaidAt(r.info) || (r.tglBayar ? new Date(r.tglBayar) : null);
-                          if (!paidAt) return null;
-                          return (
-                            <div className="mt-1 text-[11px] text-green-600">
-                              Dibayar tanggal {formatTanggalID(paidAt)}
-                            </div>
-                          );
+
+                          const prevCleared = parsePrevCleared(r.info);
+                          if (!prevCleared.length) return null; // tanpa PREV_CLEARED, jangan tampilkan label
+
+                          const paidAt = parsePaidAt(r.info);
+
+                          // hanya tampilkan tanggal jika PAID_AT jatuh pada salah satu periode PREV_CLEARED
+                          if (paidAt && prevCleared) {
+                            return (
+                              <div className="mt-1 text-[11px] text-green-600">
+                                Dibayar tanggal {formatTanggalID(paidAt)}
+                              </div>
+                            );
+                          }
                         })()}
                       </td>
-                      <td className="py-3 px-2 font-semibold text-center">Rp {fmtRp(r.totalTagihan)}</td>
-                      <td className="py-3 px-2 text-center">Rp {fmtRp(r.sudahBayar)}</td>
+                      <td className="py-3 px-2 font-semibold text-center">
+                        Rp {fmtRp(r.totalTagihan)}
+                      </td>
+                      <td className="py-3 px-2 text-center">
+                        Rp {fmtRp(r.sudahBayar)}
+                      </td>
                       <td className="text-center">
                         {renderSisaKurang(r.sisaKurang)}
                         {(() => {
                           if (r.sisaKurang <= 0) return null;
-                          const paidAt = parsePaidAt(r.info) || (r.tglBayar ? new Date(r.tglBayar) : null);
-                          if (!paidAt) return null;
-                          return (
-                            <div className="mt-1 text-[11px] text-green-600">
-                              Dibayar tanggal {formatTanggalID(paidAt)}
-                            </div>
-                          );
+                          const paidAt =
+                            parsePaidAt(r.info) ||
+                            (r.tglBayar ? new Date(r.tglBayar) : null);
+                          const closedBy = parseClosedBy(r.info);
+
+                          if (paidAt && closedBy) {
+                            return (
+                              <div className="mt-1 text-[11px] text-green-600">
+                                Dibayar tanggal {formatTanggalID(paidAt)}
+                              </div>
+                            );
+                          }
+                          return null;
                         })()}
                       </td>
                       <td className="py-3 px-2">
@@ -452,11 +514,19 @@ export default function LaporanStatusPembayaranPage() {
                     <tr className="border-t-2 border-primary/20 bg-muted/10 font-semibold text-sm">
                       <td className="py-3 px-2">Total</td>
                       <td colSpan={2} />
-                      <td className="py-3 px-2 text-center">Rp {fmtRp(viewSummary.tagihanAwal)}</td>
+                      <td className="py-3 px-2 text-center">
+                        Rp {fmtRp(viewSummary.tagihanAwal)}
+                      </td>
                       <td></td>
-                      <td className="py-3 px-2 text-center">Rp {fmtRp(viewSummary.totalTagihan)}</td>
-                      <td className="py-3 px-2 text-center">Rp {fmtRp(viewSummary.sudahBayar)}</td>
-                      <td className="py-3 px-2 text-center">{renderTotalSisaKurang(viewSummary.sisaKurang)}</td>
+                      <td className="py-3 px-2 text-center">
+                        Rp {fmtRp(viewSummary.totalTagihan)}
+                      </td>
+                      <td className="py-3 px-2 text-center">
+                        Rp {fmtRp(viewSummary.sudahBayar)}
+                      </td>
+                      <td className="py-3 px-2 text-center">
+                        {renderTotalSisaKurang(viewSummary.sisaKurang)}
+                      </td>
                     </tr>
                   )}
                 </tbody>
@@ -471,7 +541,9 @@ export default function LaporanStatusPembayaranPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <h4 className="font-medium">{r.nama}</h4>
-                    <p className="text-xs text-muted-foreground">{formatPeriode(selectedPeriod)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatPeriode(selectedPeriod)}
+                    </p>
                   </div>
                   <Button
                     size="sm"
@@ -487,7 +559,9 @@ export default function LaporanStatusPembayaranPage() {
                   <span className="text-muted-foreground">Pemakaian (m³)</span>
                   <span>{r.pemakaianM3}</span>
 
-                  <span className="text-muted-foreground">Tagihan Bulan Ini</span>
+                  <span className="text-muted-foreground">
+                    Tagihan Bulan Ini
+                  </span>
                   <span>Rp {fmtRp(r.tagihanAwal)}</span>
 
                   <span className="text-muted-foreground">Tagihan Lalu</span>
@@ -495,18 +569,27 @@ export default function LaporanStatusPembayaranPage() {
                     {renderSisaKurang(r.tagihanLalu)}
                     {(() => {
                       if (r.tagihanLalu <= 0) return null;
-                      const paidAt = parsePaidAt(r.info) || (r.tglBayar ? new Date(r.tglBayar) : null);
-                      if (!paidAt) return null;
-                      return (
-                        <div className="mt-1 text-[11px] text-green-500">
-                          Dibayar tanggal {formatTanggalID(paidAt)}
-                        </div>
-                      );
+
+                      const prevCleared = parsePrevCleared(r.info);
+                      if (!prevCleared.length) return null; // tanpa PREV_CLEARED, jangan tampilkan label
+
+                      const paidAt = parsePaidAt(r.info);
+
+                      // hanya tampilkan tanggal jika PAID_AT jatuh pada salah satu periode PREV_CLEARED
+                      if (paidAt && prevCleared) {
+                        return (
+                          <div className="mt-1 text-[11px] text-green-600">
+                            Dibayar tanggal {formatTanggalID(paidAt)}
+                          </div>
+                        );
+                      }
                     })()}
                   </span>
 
                   <span className="text-muted-foreground">Total Tagihan</span>
-                  <span className="font-semibold">Rp {fmtRp(r.totalTagihan)}</span>
+                  <span className="font-semibold">
+                    Rp {fmtRp(r.totalTagihan)}
+                  </span>
 
                   <span className="text-muted-foreground">Dibayar</span>
                   <span>Rp {fmtRp(r.sudahBayar)}</span>
@@ -514,19 +597,29 @@ export default function LaporanStatusPembayaranPage() {
                   <span className="text-muted-foreground">Sisa/Kurang</span>
                   <span
                     className={
-                      r.sisaKurang < 0 ? "text-green-600" : r.sisaKurang > 0 ? "text-red-600" : ""
+                      r.sisaKurang < 0
+                        ? "text-green-600"
+                        : r.sisaKurang > 0
+                        ? "text-red-600"
+                        : ""
                     }
                   >
                     {renderSisaKurang(r.sisaKurang)}
                     {(() => {
                       if (r.sisaKurang <= 0) return null;
-                      const paidAt = parsePaidAt(r.info) || (r.tglBayar ? new Date(r.tglBayar) : null);
-                      if (!paidAt) return null;
-                      return (
-                        <div className="mt-1 text-[11px] text-green-500">
-                          Dibayar tanggal {formatTanggalID(paidAt)}
-                        </div>
-                      );
+                      const paidAt =
+                        parsePaidAt(r.info) ||
+                        (r.tglBayar ? new Date(r.tglBayar) : null);
+                      const closedBy = parseClosedBy(r.info);
+
+                      if (paidAt && closedBy) {
+                        return (
+                          <div className="mt-1 text-[11px] text-green-600">
+                            Dibayar tanggal {formatTanggalID(paidAt)}
+                          </div>
+                        );
+                      }
+                      return null;
                     })()}
                   </span>
                 </div>
@@ -558,7 +651,9 @@ export default function LaporanStatusPembayaranPage() {
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogContent className="sm:max-w-2xl overflow-y-auto backdrop-blur-xl bg-background/70">
             <DialogHeader>
-              <DialogTitle className="text-emerald-700">Detail Tagihan</DialogTitle>
+              <DialogTitle className="text-emerald-700">
+                Detail Tagihan
+              </DialogTitle>
               <DialogDescription>
                 {formatPeriode(selectedPeriod)} • Jatuh tempo:{" "}
                 {detail?.tglJatuhTempo
@@ -568,17 +663,23 @@ export default function LaporanStatusPembayaranPage() {
             </DialogHeader>
 
             {!detail || loadingDetail ? (
-              <div className="py-8 text-center text-sm text-muted-foreground">Memuat rincian…</div>
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                Memuat rincian…
+              </div>
             ) : (
               <div className="space-y-4">
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="text-base font-semibold">{detail.nama}</div>
                     {detail.alamat && (
-                      <div className="text-xs text-muted-foreground">{detail.alamat}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {detail.alamat}
+                      </div>
                     )}
                     {(() => {
-                      const paidAt = parsePaidAt(detail?.info) || (detail?.tglBayar ? new Date(detail.tglBayar) : null);
+                      const paidAt =
+                        parsePaidAt(detail?.info) ||
+                        (detail?.tglBayar ? new Date(detail.tglBayar) : null);
                       if (!paidAt) return null;
                       return (
                         <div className="mt-1 text-[11px] text-green-500 bg-green-100 py-0.5 px-1 rounded-full">
@@ -589,7 +690,9 @@ export default function LaporanStatusPembayaranPage() {
                   </div>
                   <div className="text-right text-sm">
                     <div>Total Ditagih</div>
-                    <div className="text-lg font-semibold">Rp {fmtRp(detail.totalTagihanDue)}</div>
+                    <div className="text-lg font-semibold">
+                      Rp {fmtRp(detail.totalTagihanDue)}
+                    </div>
                   </div>
                 </div>
 
@@ -610,32 +713,48 @@ export default function LaporanStatusPembayaranPage() {
                   </div>
                   <div className="p-3 rounded-lg bg-muted/40">
                     <div className="text-muted-foreground">Tarif/m³</div>
-                    <div className="font-medium">Rp {fmtRp(detail.tarifPerM3)}</div>
+                    <div className="font-medium">
+                      Rp {fmtRp(detail.tarifPerM3)}
+                    </div>
                   </div>
                   <div className="p-3 rounded-lg bg-muted/40">
                     <div className="text-muted-foreground">Abonemen</div>
-                    <div className="font-medium">Rp {fmtRp(detail.abonemen)}</div>
+                    <div className="font-medium">
+                      Rp {fmtRp(detail.abonemen)}
+                    </div>
                   </div>
                   {/* <div className="p-3 rounded-lg bg-muted/40">
                     <div className="text-muted-foreground">Denda</div>
                     <div className="font-medium">Rp {fmtRp(detail.denda)}</div>
                   </div> */}
                   <div className="p-3 rounded-lg bg-muted/40">
-                    <div className="text-muted-foreground">Tagihan Lalu (+/−)</div>
-                    <div className="font-medium">{renderSisaKurang(detail.tagihanLalu)}</div>
+                    <div className="text-muted-foreground">
+                      Tagihan Lalu (+/−)
+                    </div>
+                    <div className="font-medium">
+                      {renderSisaKurang(detail.tagihanLalu)}
+                    </div>
                   </div>
                   <div className="p-3 rounded-lg bg-muted/40">
-                    <div className="text-muted-foreground">Tagihan Bulan Ini</div>
-                    <div className="font-medium">Rp {fmtRp(detail.totalBulanIni)}</div>
+                    <div className="text-muted-foreground">
+                      Tagihan Bulan Ini
+                    </div>
+                    <div className="font-medium">
+                      Rp {fmtRp(detail.totalBulanIni)}
+                    </div>
                   </div>
                   <div className="p-3 rounded-lg bg-muted/40">
-                    <div className="text-muted-foreground">Sisa/Kurang (+/−)</div>
+                    <div className="text-muted-foreground">
+                      Sisa/Kurang (+/−)
+                    </div>
                     <div>{renderSisaKurang(detail.sisaKurang)}</div>
                   </div>
                 </div>
 
                 <div className="rounded-lg border">
-                  <div className="px-4 py-2 text-sm font-medium bg-muted/40">Pembayaran</div>
+                  <div className="px-4 py-2 text-sm font-medium bg-muted/40">
+                    Pembayaran
+                  </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
@@ -648,7 +767,10 @@ export default function LaporanStatusPembayaranPage() {
                       <tbody>
                         {detail.pembayaran.length === 0 ? (
                           <tr>
-                            <td colSpan={4} className="py-3 px-3 text-center text-muted-foreground">
+                            <td
+                              colSpan={4}
+                              className="py-3 px-3 text-center text-muted-foreground"
+                            >
                               Belum ada pembayaran
                             </td>
                           </tr>
@@ -657,17 +779,25 @@ export default function LaporanStatusPembayaranPage() {
                             <tr key={p.id} className="border-b">
                               <td className="py-2 px-3">
                                 {p.tanggalBayar
-                                  ? new Date(p.tanggalBayar).toLocaleDateString("id-ID")
+                                  ? new Date(p.tanggalBayar).toLocaleDateString(
+                                      "id-ID"
+                                    )
                                   : "-"}
                               </td>
                               <td className="py-2 px-3">{p.metode}</td>
-                              <td className="py-2 px-3 text-right">Rp {fmtRp(p.jumlahBayar)}</td>
+                              <td className="py-2 px-3 text-right">
+                                Rp {fmtRp(p.jumlahBayar)}
+                              </td>
                             </tr>
                           ))
                         )}
                         <tr className="font-semibold">
-                          <td className="py-2 px-3" colSpan={2}>Total Dibayar</td>
-                          <td className="py-2 px-3 text-right">Rp {fmtRp(detail.dibayar)}</td>
+                          <td className="py-2 px-3" colSpan={2}>
+                            Total Dibayar
+                          </td>
+                          <td className="py-2 px-3 text-right">
+                            Rp {fmtRp(detail.dibayar)}
+                          </td>
                         </tr>
                       </tbody>
                     </table>

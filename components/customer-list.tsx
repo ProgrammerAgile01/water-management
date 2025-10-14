@@ -1137,10 +1137,10 @@ export function CustomerList() {
                           <td className="py-3 px-2 text-sm text-foreground">
                             {/* WA utama + WA2 di bawahnya kecil (jika ada) */}
                             <div className="leading-tight">
-                              <div>{customer.noWA}</div>
+                              <div><span className="font-medium">WA1</span> {customer.noWA}</div>
                               {customer.noWA2 ? (
-                                <div className="text-xs text-muted-foreground">
-                                  {customer.noWA2}
+                                <div className="text-muted-foreground">
+                                  <span className="font-medium">WA2</span> {customer.noWA2}
                                 </div>
                               ) : null}
                             </div>
