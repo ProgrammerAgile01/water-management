@@ -8,3 +8,7 @@ Saya menambahkan:
 5. menambahkan API auth magic
 6. menyesuaikan halaman pelunasan untuk admin dan warga/pelanggan
 7. penyesuaian middleware untuk akses warga dan magic link
+
+neww
+tambah package
+npm i @radix-ui/react-tooltip --legacy-peer-deps

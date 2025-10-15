@@ -17,6 +17,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  TooltipProvider,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  InfoDot,
+} from "@/components/ui/radix-tooltip";
 
 type UsageItem = { month: string; usage: number };
 type BillingItem = { month: string; amount: number };
@@ -233,20 +240,48 @@ export default function DashboardPage() {
           </div>
 
           {/* Data Table */}
-          <DataTable title="Ringkasan Periode" data={tableData} />
+          <DataTable title="Ringkasan Periode Tagihan" data={tableData} />
 
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <GlassCard className="p-6">
               <h3 className="text-lg font-semibold text-foreground mb-4">
-                Pemakaian Air (m³)
+                Pemakaian Air (m³){" "}
+                <TooltipProvider delayDuration={150}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <InfoDot label="Info Ringkasan Periode" />
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="top"
+                      align="start"
+                      className="max-w-xs"
+                    >
+                      Data ini diambil dari <b>periode catat meter</b>.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </h3>
               <UsageLineChart data={usageData} />
             </GlassCard>
 
             <GlassCard className="p-6">
               <h3 className="text-lg font-semibold text-foreground mb-4">
-                Total Tagihan per Bulan
+                Total Tagihan per Bulan{" "}
+                <TooltipProvider delayDuration={150}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <InfoDot label="Info Ringkasan Periode" />
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="top"
+                      align="start"
+                      className="max-w-xs"
+                    >
+                      Data ini diambil dari <b>periode tagihan</b>.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </h3>
               <BillingBarChart data={billingData} />
             </GlassCard>
@@ -295,7 +330,7 @@ export default function DashboardPage() {
             <GlassCard className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-foreground">
-                  Daftar Belum Bayar
+                  Daftar Belum Bayar (5 Tertinggi)
                 </h3>
               </div>
               <div className="space-y-3">
@@ -308,9 +343,24 @@ export default function DashboardPage() {
                       <p className="font-medium text-foreground text-sm">
                         {item.name}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        {item.period}
-                      </p>
+                      <div className="mt-0.5 flex items-center gap-2">
+                        <p className="text-xs text-muted-foreground">
+                          {item.period}
+                        </p>
+
+                        {/* BADGE: Belum Lunas jika carry < 0 (sesuai kebijakanmu) */}
+                        {typeof (item as any).carry === "number" &&
+                        (item as any).carry < 0 ? (
+                          <span
+                            title={`Sisa tagihan lalu: Rp ${Math.abs(
+                              (item as any).carry
+                            ).toLocaleString("id-ID")}`}
+                            className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-medium"
+                          >
+                            Belum Lunas
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
                     <div className="text-right">
                       <p className="font-bold text-red-600 text-sm">
@@ -319,6 +369,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 ))}
+
                 {!loading && unpaidList.length === 0 && (
                   <p className="text-sm text-muted-foreground">
                     Tidak ada tagihan tertunda.
@@ -375,7 +426,7 @@ export default function DashboardPage() {
         <Dialog open={openUnpaidModal} onOpenChange={setOpenUnpaidModal}>
           <DialogContent className="max-w-xl">
             <DialogHeader>
-              <DialogTitle>Daftar Belum Bayar</DialogTitle>
+              <DialogTitle>Daftar Belum Bayar (5 Tertinggi)</DialogTitle>
             </DialogHeader>
             <div className="space-y-3 max-h-[60vh] overflow-y-auto">
               {unpaidList.length === 0 ? (
@@ -392,9 +443,24 @@ export default function DashboardPage() {
                       <p className="font-medium text-foreground text-sm">
                         {item.name}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        {item.period}
-                      </p>
+                      <div className="mt-0.5 flex items-center gap-2">
+                        <p className="text-xs text-muted-foreground">
+                          {item.period}
+                        </p>
+
+                        {/* BADGE: Belum Lunas jika carry < 0 */}
+                        {typeof (item as any).carry === "number" &&
+                        (item as any).carry < 0 ? (
+                          <span
+                            title={`Sisa tagihan lalu: Rp ${Math.abs(
+                              (item as any).carry
+                            ).toLocaleString("id-ID")}`}
+                            className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-medium"
+                          >
+                            Belum Lunas
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
                     <p className="font-bold text-red-600 text-sm">
                       {rupiah(item.amount)}

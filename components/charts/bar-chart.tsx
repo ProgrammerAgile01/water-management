@@ -29,7 +29,7 @@ export function BillingBarChart({ data, className }: BarChartProps) {
               borderRadius: "8px",
               backdropFilter: "blur(10px)",
             }}
-            formatter={(value) => [`Rp ${Number(value).toLocaleString("id-ID")}`, "Total Tagihan"]}
+            formatter={(value) => [`Rp ${Number(value).toLocaleString("id-ID")}`, "Total Tagihan (Incl. Bln Lalu)"]}
           />
           <Bar dataKey="amount" fill="#009688" radius={[4, 4, 0, 0]} />
         </BarChart>
