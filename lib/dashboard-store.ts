@@ -24,6 +24,7 @@ export interface ProfitLossData {
   month: string;
   profit: number;
 }
+
 export interface UnpaidBill {
   id: string;
   nama: string;
@@ -31,7 +32,7 @@ export interface UnpaidBill {
   periode: string;
   nominal: number;
   sisaKurang: number;
-  status: "unpaid";
+  status: "BELUM_LUNAS" | "BELUM_BAYAR"; // ← diperbarui
 }
 export interface OutstandingPoint {
   month: string;
@@ -46,8 +47,8 @@ interface DashboardStore {
   expenseData: ExpenseData[];
   profitLossData: ProfitLossData[];
   unpaidBills: UnpaidBill[];
-  outstandingData: OutstandingPoint[]; // ← baru
-  outstandingTotal: number; // ← baru
+  outstandingData: OutstandingPoint[];
+  outstandingTotal: number;
   setSelectedYear: (y: number) => void;
   getDataByYear: (y?: number) => Promise<void>;
   _loading?: boolean;

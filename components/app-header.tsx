@@ -723,7 +723,7 @@ const MENU_ITEMS: MenuItem[] = [
     section: "Pengaturan",
   },
 
-  // ✅ PERBAIKAN: perluas roles supaya terlihat oleh OPERATOR & PETUGAS juga
+  // Support
   {
     href: "/support",
     label: "Pusat Bantuan",
@@ -733,14 +733,15 @@ const MENU_ITEMS: MenuItem[] = [
     section: "Support",
   },
   {
-  href: "/admin/support",
-  label: "CS Center",
-  icon: LifeBuoy,
-  roles: ["ADMIN"],
-  group: "Admin",
-  section: "Support",
-},
+    href: "/admin/support",
+    label: "CS Center",
+    icon: LifeBuoy,
+    roles: ["ADMIN"],
+    group: "Admin",
+    section: "Support",
+  },
 
+  // Tools
   {
     href: "/tools/import-export",
     label: "Import/Export",
@@ -804,7 +805,6 @@ const getSectionOrder = (s: string) => {
   return i === -1 ? 1000 : i;
 };
 
-// ✅ PERBAIKAN: selaraskan path Meteran → "/catat-blok"
 const SECTION_ITEM_ORDER: Record<string, string[]> = {
   Operasional: ["/jadwal-pencatatan", "/catat-meter", "/reset-meteran"],
   Master: ["/pelanggan", "/zona", "/inventaris"],
@@ -870,16 +870,23 @@ const PATH_LABELS: Record<string, string> = {
   "/login": "Login",
 };
 
+/* ============== Props ============== */
 interface AppHeaderProps {
   title: string;
   showBackButton?: boolean;
   showBreadcrumb?: boolean;
+  /** Konten kecil tepat di sebelah judul (ikon, badge, tooltip, dsb) */
+  titleExtra?: React.ReactNode;
+  /** Konten di sisi kanan header (sebelum tombol menu) */
+  extra?: React.ReactNode;
 }
 
 export function AppHeader({
   title,
   showBackButton = true,
   showBreadcrumb = true,
+  titleExtra,
+  extra,
 }: AppHeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -997,6 +1004,7 @@ export function AppHeader({
   return (
     <GlassCard className="mb-6 p-4">
       <div className="flex items-center justify-between">
+        {/* Kiri: back + title + breadcrumb */}
         <div className="flex items-center gap-4">
           {showBackButton && (
             <Button
@@ -1010,7 +1018,14 @@ export function AppHeader({
           )}
 
           <div className="flex-1">
-            <h1 className="text-2xl font-bold text-foreground">{title}</h1>
+            {/* Judul + ikon info nempel di kanan teks title */}
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-foreground">{title}</h1>
+              {titleExtra ? (
+                <span className="inline-flex items-center">{titleExtra}</span>
+              ) : null}
+            </div>
+
             {showBreadcrumb && pathname !== "/dashboard" && (
               <Breadcrumb className="mt-1">
                 <BreadcrumbList>
@@ -1041,160 +1056,158 @@ export function AppHeader({
           </div>
         </div>
 
-        {/* Dropdown */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="hover:bg-white/20">
-              <Menu className="h-5 w-5" />
-            </Button>
-          </DropdownMenuTrigger>
+        {/* Kanan: extra (opsional) + tombol menu */}
+        <div className="flex items-center gap-2">
+          {extra ? (
+            <div className="inline-flex items-center">{extra}</div>
+          ) : null}
 
-          {/* HILANGKAN GARIS: border-0 & tanpa Separator */}
-          <DropdownMenuContent
-            align="end"
-            className="w-72 bg-white/95 backdrop-blur-md border-0 shadow-lg rounded-lg p-1"
-          >
-            {/* user header */}
-            <div className="px-3 py-2 text-xs text-muted-foreground">
-              {user ? (
-                <>
-                  Masuk sebagai <b className="text-foreground">{user.name}</b> (
-                  {user.role})
-                </>
-              ) : (
-                "Belum login"
-              )}
-            </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="hover:bg-white/20">
+                <Menu className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
 
-            {/* ADMIN/OPERATOR */}
-            {(role === "ADMIN" || role === "OPERATOR") && (
-              <>
-                {standaloneAdmin.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <DropdownMenuItem
-                      key={item.href}
-                      asChild
-                      className="cursor-pointer rounded-md"
-                    >
-                      <Link
-                        href={item.href}
-                        className="flex items-center gap-2"
-                      >
-                        <Icon className="h-4 w-4" />
-                        <span>{item.label}</span>
-                      </Link>
-                    </DropdownMenuItem>
-                  );
-                })}
-
-                {standaloneAdmin.length > 0 && adminSections.length > 0 && (
-                  <div className="h-1" />
-                )}
-
-                {adminSections.map(({ section, items }, idx) => (
-                  <div key={section}>
-                    <DropdownMenuItem
-                      className="justify-between font-medium rounded-md"
-                      onSelect={(e) => e.preventDefault()}
-                      onClick={() => toggleSection(section)}
-                    >
-                      <span>{section}</span>
-                      <ChevronRight
-                        className={`h-4 w-4 transition-transform ${
-                          openSections.has(section) ? "rotate-90" : ""
-                        }`}
-                      />
-                    </DropdownMenuItem>
-
-                    {openSections.has(section) && (
-                      <div className="py-1">
-                        {items.map((item) => {
-                          const Icon = item.icon;
-                          return (
-                            <DropdownMenuItem
-                              key={item.href}
-                              asChild
-                              className="pl-6 pr-2 py-2 rounded-md"
-                            >
-                              <Link
-                                href={item.href}
-                                className="flex items-center gap-2 cursor-pointer"
-                              >
-                                <Icon className="h-4 w-4" />
-                                <span>{item.label}</span>
-                              </Link>
-                            </DropdownMenuItem>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {idx < adminSections.length - 1 && <div className="h-1" />}
-                  </div>
-                ))}
-              </>
-            )}
-
-            {/* PETUGAS */}
-            {role === "PETUGAS" &&
-              visibleMenu
-                .filter((m) => m.group === "Petugas")
-                .sort((a, b) => a.label.localeCompare(b.label))
-                .map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <DropdownMenuItem
-                      key={item.href}
-                      asChild
-                      className="cursor-pointer rounded-md"
-                    >
-                      <Link
-                        href={item.href}
-                        className="flex items-center gap-2"
-                      >
-                        <Icon className="h-4 w-4" />
-                        <span>{item.label}</span>
-                      </Link>
-                    </DropdownMenuItem>
-                  );
-                })}
-
-            {/* WARGA */}
-            {role === "WARGA" &&
-              visibleMenu
-                .filter((m) => m.group === "Warga")
-                .sort((a, b) => a.label.localeCompare(b.label))
-                .map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <DropdownMenuItem
-                      key={item.href}
-                      asChild
-                      className="cursor-pointer rounded-md"
-                    >
-                      <Link
-                        href={item.href}
-                        className="flex items-center gap-2"
-                      >
-                        <Icon className="h-4 w-4" />
-                        <span>{item.label}</span>
-                      </Link>
-                    </DropdownMenuItem>
-                  );
-                })}
-
-            <div className="h-1" />
-
-            <DropdownMenuItem
-              onClick={handleLogout}
-              className="flex items-center gap-2 cursor-pointer text-red-600 rounded-md"
+            <DropdownMenuContent
+              align="end"
+              className="w-72 bg-white/95 backdrop-blur-md border-0 shadow-lg rounded-lg p-1"
             >
-              <LogOut className="h-4 w-4" />
-              <span>Logout</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              {/* user header */}
+              <div className="px-3 py-2 text-xs text-muted-foreground">
+                {user ? (
+                  <>
+                    Masuk sebagai <b className="text-foreground">{user.name}</b>{" "}
+                    ({user.role})
+                  </>
+                ) : (
+                  "Belum login"
+                )}
+              </div>
+
+              {(role === "ADMIN" || role === "OPERATOR") && (
+                <>
+                  {standaloneAdmin.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <DropdownMenuItem
+                        key={item.href}
+                        asChild
+                        className="cursor-pointer rounded-md"
+                      >
+                        <Link
+                          href={item.href}
+                          className="flex items-center gap-2"
+                        >
+                          <Icon className="h-4 w-4" />
+                          <span>{item.label}</span>
+                        </Link>
+                      </DropdownMenuItem>
+                    );
+                  })}
+
+                  {standaloneAdmin.length > 0 && adminSections.length > 0 && (
+                    <div className="h-1" />
+                  )}
+
+                  {adminSections.map(({ section, items }, idx) => (
+                    <div key={section}>
+                      <DropdownMenuItem
+                        className="justify-between font-medium rounded-md"
+                        onSelect={(e) => e.preventDefault()}
+                        onClick={() => toggleSection(section)}
+                      >
+                        <span>{section}</span>
+                        <ChevronRight
+                          className={`h-4 w-4 transition-transform ${
+                            openSections.has(section) ? "rotate-90" : ""
+                          }`}
+                        />
+                      </DropdownMenuItem>
+
+                      {openSections.has(section) && (
+                        <div className="py-1">
+                          {items.map((item) => {
+                            const Icon = item.icon;
+                            return (
+                              <DropdownMenuItem
+                                key={item.href}
+                                asChild
+                                className="pl-6 pr-2 py-2 rounded-md"
+                              >
+                                <Link
+                                  href={item.href}
+                                  className="flex items-center gap-2 cursor-pointer"
+                                >
+                                  <Icon className="h-4 w-4" />
+                                  <span>{item.label}</span>
+                                </Link>
+                              </DropdownMenuItem>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {idx < adminSections.length - 1 && (
+                        <div className="h-1" />
+                      )}
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {role === "PETUGAS" &&
+                petugasItems.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <DropdownMenuItem
+                      key={item.href}
+                      asChild
+                      className="cursor-pointer rounded-md"
+                    >
+                      <Link
+                        href={item.href}
+                        className="flex items-center gap-2"
+                      >
+                        <Icon className="h-4 w-4" />
+                        <span>{item.label}</span>
+                      </Link>
+                    </DropdownMenuItem>
+                  );
+                })}
+
+              {role === "WARGA" &&
+                wargaItems.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <DropdownMenuItem
+                      key={item.href}
+                      asChild
+                      className="cursor-pointer rounded-md"
+                    >
+                      <Link
+                        href={item.href}
+                        className="flex items-center gap-2"
+                      >
+                        <Icon className="h-4 w-4" />
+                        <span>{item.label}</span>
+                      </Link>
+                    </DropdownMenuItem>
+                  );
+                })}
+
+              <div className="h-1" />
+
+              <DropdownMenuItem
+                onClick={handleLogout}
+                className="flex items-center gap-2 cursor-pointer text-red-600 rounded-md"
+              >
+                <LogOut className="h-4 w-4" />
+                <span>Logout</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     </GlassCard>
   );

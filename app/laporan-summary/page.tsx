@@ -47,7 +47,7 @@
 
 //   const formatCurrency = (value: number) =>
 //     `Rp ${(value / 1_000_000).toFixed(1)}M`;
-//   const formatUsage = (value: number) => `${value} m³`;
+//   const formatUsage = (value: number) => `${value} mÂ³`;
 
 //   return (
 //     <div className="min-h-screen bg-gradient-to-br from-teal-50 via-white to-blue-50 pb-24">
@@ -84,7 +84,7 @@
 //               {/* Water Usage Chart (6 zona) */}
 //               <GlassCard className="p-6">
 //                 <h3 className="text-lg font-semibold text-foreground mb-4">
-//                   📈 Grafik Pemakaian Air
+//                   ðŸ“ˆ Grafik Pemakaian Air
 //                 </h3>
 //                 <ResponsiveContainer width="100%" height={300}>
 //                   <LineChart data={waterUsageData}>
@@ -174,7 +174,7 @@
 //               {/* Revenue */}
 //               <GlassCard className="p-6">
 //                 <h3 className="text-lg font-semibold text-foreground mb-4">
-//                   💰 Grafik Pendapatan
+//                   ðŸ’° Grafik Pendapatan
 //                 </h3>
 //                 <ResponsiveContainer width="100%" height={300}>
 //                   <BarChart data={revenueData}>
@@ -218,7 +218,7 @@
 
 //             <GlassCard className="p-6">
 //               <h3 className="text-lg font-semibold text-foreground mb-4">
-//                 📊 Grafik Pengeluaran Per Bulan
+//                 ðŸ“Š Grafik Pengeluaran Per Bulan
 //               </h3>
 //               <ResponsiveContainer width="100%" height={300}>
 //                 <LineChart data={expenseData}>
@@ -271,7 +271,7 @@
 
 //             <GlassCard className="p-6">
 //               <h3 className="text-lg font-semibold text-foreground mb-4">
-//                 📊 Grafik Laba Rugi
+//                 ðŸ“Š Grafik Laba Rugi
 //               </h3>
 //               <ResponsiveContainer width="100%" height={300}>
 //                 <BarChart data={profitLossData}>
@@ -424,19 +424,16 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+// ✅ Ikon SVG (tidak bermasalah di server)
+import { TrendingUp, Wallet, Receipt, BarChart3 } from "lucide-react";
 
 /* =========================
    HELPERS
 ========================= */
 const formatCurrencyM = (value: number) =>
   `Rp ${(value / 1_000_000).toFixed(1)}M`;
-const formatCurrencyFull = (value: number) =>
-  `Rp ${Number(value).toLocaleString("id-ID")}`;
 const formatUsage = (value: number) => `${value} m³`;
 
-/** Nominal sisa yang harus dibayar untuk 1 baris unpaid.
- *  Prioritas: sisaKurang (>=0), fallback ke nominal (totalDue).
- *  Nilai negatif dianggap 0 (sudah lebih/kelebihan tidak ditagih di tabel “Belum Lunas”). */
 function getUnpaidNominal(bill: any): number {
   const sisa = Number(bill?.sisaKurang);
   if (!Number.isNaN(sisa)) return Math.max(0, sisa);
@@ -474,13 +471,10 @@ export default function DashboardLaporanPage() {
     profitLossData,
     unpaidBills,
     setSelectedYear,
-    outstandingData,
-    outstandingTotal,
     getDataByYear,
   } = useDashboardStore();
 
   useEffect(() => {
-    // auto-load tahun aktif saat pertama render
     if (typeof useDashboardStore.getState().getDataByYear === "function") {
       useDashboardStore.getState().getDataByYear();
     } else if (typeof getDataByYear === "function") {
@@ -503,10 +497,7 @@ export default function DashboardLaporanPage() {
                 </label>
                 <Select
                   value={String(selectedYear ?? new Date().getFullYear())}
-                  onValueChange={(value) => {
-                    const y = Number.parseInt(value);
-                    setSelectedYear(y);
-                  }}
+                  onValueChange={(value) => setSelectedYear(parseInt(value))}
                 >
                   <SelectTrigger className="w-32">
                     <SelectValue />
@@ -520,69 +511,12 @@ export default function DashboardLaporanPage() {
               </div>
             </GlassCard>
 
-            {/* Outstanding */}
-            {Array.isArray(outstandingData) && outstandingData.length > 0 && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <GlassCard className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-foreground">
-                      📉 Grafik Tagihan Belum Lunas (Outstanding)
-                    </h3>
-                    <div className="text-sm text-muted-foreground">
-                      Total Tahun {selectedYear}:{" "}
-                      <span className="font-semibold text-foreground">
-                        {formatCurrencyFull(outstandingTotal ?? 0)}
-                      </span>
-                    </div>
-                  </div>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={outstandingData}>
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke="rgba(0, 150, 136, 0.1)"
-                      />
-                      <XAxis
-                        dataKey="month"
-                        stroke="rgba(0, 77, 64, 0.7)"
-                        fontSize={12}
-                      />
-                      <YAxis
-                        stroke="rgba(0, 77, 64, 0.7)"
-                        fontSize={12}
-                        tickFormatter={formatCurrencyM}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: "rgba(255, 255, 255, 0.9)",
-                          border: "1px solid rgba(0, 150, 136, 0.2)",
-                          borderRadius: "8px",
-                          backdropFilter: "blur(10px)",
-                        }}
-                        formatter={(value) => [
-                          `Rp ${Number(value).toLocaleString("id-ID")}`,
-                          "Belum Lunas",
-                        ]}
-                      />
-                      <Legend />
-                      <Bar
-                        dataKey="amount"
-                        fill="#F44336"
-                        radius={[4, 4, 0, 0]}
-                        name="Outstanding"
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </GlassCard>
-
-                <div className="hidden lg:block"></div>
-              </div>
-            )}
-
             {/* Usage + Revenue */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <GlassCard className="p-6">
-                <h3 className="text-lg font-semibold text-foreground mb-4">
-                  📈 Grafik Pemakaian Air
+                <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5" aria-hidden />
+                  Grafik Pemakaian Air
                 </h3>
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={waterUsageData}>
@@ -670,8 +604,9 @@ export default function DashboardLaporanPage() {
               </GlassCard>
 
               <GlassCard className="p-6">
-                <h3 className="text-lg font-semibold text-foreground mb-4">
-                  💰 Grafik Pendapatan
+                <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                  <Wallet className="h-5 w-5" aria-hidden />
+                  Grafik Pendapatan
                 </h3>
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={revenueData}>
@@ -715,8 +650,9 @@ export default function DashboardLaporanPage() {
 
             {/* Expenses */}
             <GlassCard className="p-6">
-              <h3 className="text-lg font-semibold text-foreground mb-4">
-                📊 Grafik Pengeluaran Per Bulan
+              <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                <Receipt className="h-5 w-5" aria-hidden />
+                Grafik Pengeluaran Per Bulan
               </h3>
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={expenseData}>
@@ -769,8 +705,9 @@ export default function DashboardLaporanPage() {
 
             {/* Profit/Loss */}
             <GlassCard className="p-6">
-              <h3 className="text-lg font-semibold text-foreground mb-4">
-                📊 Grafik Laba Rugi
+              <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                <BarChart3 className="h-5 w-5" aria-hidden />
+                Grafik Laba Rugi
               </h3>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={profitLossData}>
@@ -812,10 +749,10 @@ export default function DashboardLaporanPage() {
               </ResponsiveContainer>
             </GlassCard>
 
-            {/* ====== Tabel Unpaid ====== */}
+            {/* ====== Tabel Ringkasan Tagihan ====== */}
             <GlassCard className="p-6">
               <h3 className="text-lg font-semibold text-foreground mb-4">
-                Tabel Tagihan Belum Lunas
+                Tabel Ringkasan Piutang Tagihan
               </h3>
 
               {/* Desktop Table */}
@@ -846,6 +783,7 @@ export default function DashboardLaporanPage() {
                   <tbody>
                     {unpaidBills.map((bill: any, index: number) => {
                       const nominalShow = getUnpaidNominal(bill);
+                      const isBelumLunas = bill?.status === "BELUM_LUNAS";
                       return (
                         <tr
                           key={bill.id}
@@ -867,9 +805,15 @@ export default function DashboardLaporanPage() {
                             Rp {nominalShow.toLocaleString("id-ID")}
                           </td>
                           <td className="py-3 px-4 text-sm font-semibold">
-                            <span className="bg-red-100 text-red-600 px-2 py-1 rounded-md text-xs">
-                              Belum Lunas
-                            </span>
+                            {isBelumLunas ? (
+                              <span className="bg-red-100 text-red-600 px-2 py-1 rounded-md text-xs">
+                                Belum Lunas
+                              </span>
+                            ) : (
+                              <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-md text-xs">
+                                Belum Bayar
+                              </span>
+                            )}
                           </td>
                         </tr>
                       );
@@ -882,6 +826,7 @@ export default function DashboardLaporanPage() {
               <div className="md:hidden space-y-3">
                 {unpaidBills.map((bill: any) => {
                   const nominalShow = getUnpaidNominal(bill);
+                  const isBelumLunas = bill?.status === "BELUM_LUNAS";
                   return (
                     <div
                       key={bill.id}
@@ -892,8 +837,14 @@ export default function DashboardLaporanPage() {
                           <p className="font-medium text-sm">{bill.nama}</p>
                           <p className="text-xs text-gray-600">{bill.blok}</p>
                         </div>
-                        <span className="text-red-500 text-xs font-semibold">
-                          Belum Lunas
+                        <span
+                          className={
+                            isBelumLunas
+                              ? "text-red-600 text-xs font-semibold"
+                              : "text-amber-700 text-xs font-semibold"
+                          }
+                        >
+                          {isBelumLunas ? "Belum Lunas" : "Belum Bayar"}
                         </span>
                       </div>
                       <div className="flex justify-between items-center text-xs text-gray-600">
@@ -902,7 +853,6 @@ export default function DashboardLaporanPage() {
                           Rp {nominalShow.toLocaleString("id-ID")}
                         </span>
                       </div>
-                      {/* info sisa/kurang detil bila mau ditampilkan */}
                       {typeof bill.sisaKurang === "number" && (
                         <div className="mt-1 text-xs">
                           {renderSisaKurang(bill.sisaKurang)}
