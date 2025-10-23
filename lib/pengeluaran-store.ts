@@ -132,6 +132,13 @@ export const usePengeluaranStore = create<ExpenseStore>((set, get) => ({
   },
 
   deleteExpense: async (id) => {
+    // Cek di state lokal dulu
+    const item = get().expenses.find((e) => e.id === id);
+    if (!item) throw new Error("Pengeluaran tidak ditemukan");
+    if (item.status === "Close")
+      throw new Error("Pengeluaran dengan status Close tidak bisa dihapus");
+
+    // Panggil API, backend juga akan memeriksa
     await fetchJSON(`/api/pengeluaran/${id}`, { method: "DELETE" });
     set((state) => ({
       expenses: state.expenses.filter((e) => e.id !== id),

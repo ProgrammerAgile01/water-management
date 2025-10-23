@@ -24,6 +24,7 @@
 //   DialogTitle,
 //   DialogTrigger,
 //   DialogFooter,
+//   DialogDescription,
 // } from "@/components/ui/dialog";
 // import {
 //   Table,
@@ -59,6 +60,11 @@
 //     nominal: "",
 //   });
 
+//   // new states for delete confirmation
+//   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+//   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+//   const [isDeleting, setIsDeleting] = useState(false);
+
 //   useEffect(() => {
 //     init();
 //     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -93,7 +99,6 @@
 //     }
 
 //     try {
-//       // Buat header untuk bulan terpilih
 //       const tanggalPengeluaran = `${selectedMonth}-15`;
 //       const noBulan = `PG-${selectedMonth}`;
 
@@ -107,7 +112,6 @@
 //         status: "Draft",
 //       });
 
-//       // Tambahkan detail pertama dari form
 //       await usePengeluaranStore.getState().addExpenseDetail(created.id, {
 //         keterangan: formData.keterangan,
 //         biaya: formData.biaya,
@@ -121,8 +125,6 @@
 
 //       setFormData({ keterangan: "", biaya: "", nominal: "" });
 //       setIsModalOpen(false);
-
-//       // Arahkan ke halaman detail
 //       router.push(`/pengeluaran/${created.id}`);
 //     } catch (err: any) {
 //       console.error(err);
@@ -137,31 +139,57 @@
 //     }
 //   };
 
-//   const handleDelete = async (id: string) => {
-//     await deleteExpense(id);
-//     toast({
-//       title: "Berhasil",
-//       description: "Pengeluaran berhasil dihapus",
-//     });
+//   // open delete dialog for specific id
+//   const openDeleteDialog = (id: string) => {
+//     setDeleteTargetId(id);
+//     setIsDeleteOpen(true);
 //   };
 
-//   const formatCurrency = (amount: number) => {
-//     return new Intl.NumberFormat("id-ID", {
+//   // confirm delete action
+//   const confirmDelete = async () => {
+//     if (!deleteTargetId) return;
+//     try {
+//       setIsDeleting(true);
+//       await deleteExpense(deleteTargetId);
+//       setIsDeleteOpen(false);
+//       setDeleteTargetId(null);
+//       toast({ title: "Berhasil", description: "Pengeluaran berhasil dihapus" });
+//     } catch (err: any) {
+//       console.error(err);
+//       toast({
+//         title: "Gagal",
+//         description:
+//           typeof err?.message === "string"
+//             ? err.message
+//             : "Gagal menghapus pengeluaran",
+//         variant: "destructive",
+//       });
+//     } finally {
+//       setIsDeleting(false);
+//     }
+//   };
+
+//   const formatCurrency = (amount: number) =>
+//     new Intl.NumberFormat("id-ID", {
 //       style: "currency",
 //       currency: "IDR",
 //       minimumFractionDigits: 0,
 //     }).format(amount);
-//   };
+
+//   // find selected expense to show details inside dialog
+//   const deleteTarget = deleteTargetId
+//     ? expenses.find((e) => e.id === deleteTargetId) || null
+//     : null;
 
 //   return (
-//     <div className="min-h-screen bg-gradient-to-br from-teal-50 via-blue-50 to-indigo-100">
-//       <div className="container mx-auto p-4 space-y-6">
-//         <AuthGuard>
-//           <AppShell>
+//     <AuthGuard>
+//       <AppShell>
+//         <div className="min-h-screen">
+//           <div className="container mx-auto p-4 space-y-6">
 //             <AppHeader title="Data Pengeluaran" />
 
 //             {/* Header Controls */}
-//             <GlassCard className="p-6">
+//             <GlassCard className="p-6 mb-6">
 //               <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
 //                 <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
 //                   <div className="space-y-2">
@@ -272,91 +300,126 @@
 //               </div>
 //             </GlassCard>
 
-//             {/* Desktop Table */}
-//             <GlassCard className="hidden md:block">
-//               <Table>
-//                 <TableHeader>
-//                   <TableRow>
-//                     <TableHead className="w-16">No</TableHead>
-//                     <TableHead>Tanggal</TableHead>
-//                     <TableHead>Keterangan</TableHead>
-//                     <TableHead>Nominal per Biaya</TableHead>
-//                     <TableHead>Total</TableHead>
-//                     <TableHead>Status</TableHead>
-//                     <TableHead className="w-32">Aksi</TableHead>
-//                   </TableRow>
-//                 </TableHeader>
-//                 <TableBody>
-//                   {filteredExpenses.map((expense, index) => (
-//                     <TableRow key={expense.id}>
-//                       <TableCell>{index + 1}</TableCell>
-//                       <TableCell>
-//                         {new Date(
-//                           expense.tanggalPengeluaran
-//                         ).toLocaleDateString("id-ID")}
-//                       </TableCell>
-//                       <TableCell>
-//                         <div className="space-y-1">
-//                           {expense.details.map((detail) => (
-//                             <div key={detail.id} className="text-sm">
-//                               {detail.keterangan}
-//                             </div>
-//                           ))}
-//                         </div>
-//                       </TableCell>
-//                       <TableCell>
-//                         <div className="space-y-1">
-//                           {expense.details.map((detail) => (
-//                             <div key={detail.id} className="text-sm">
-//                               {formatCurrency(detail.nominal)}
-//                             </div>
-//                           ))}
-//                         </div>
-//                       </TableCell>
-//                       <TableCell className="font-semibold">
-//                         {formatCurrency(expense.total)}
-//                       </TableCell>
-//                       <TableCell>
-//                         <Badge
-//                           variant={
-//                             expense.status === "Close" ? "default" : "secondary"
-//                           }
-//                         >
-//                           {expense.status}
-//                         </Badge>
-//                       </TableCell>
-//                       <TableCell>
-//                         <div className="flex gap-2">
-//                           <Button asChild size="sm" variant="outline">
-//                             <Link href={`/pengeluaran/${expense.id}`}>
-//                               <Eye className="h-4 w-4" />
-//                             </Link>
-//                           </Button>
-//                           <Button
-//                             size="sm"
-//                             variant="outline"
-//                             onClick={() => handleDelete(expense.id)}
-//                             className="text-red-600 hover:text-red-700"
-//                           >
-//                             <Trash2 className="h-4 w-4" />
-//                           </Button>
-//                         </div>
-//                       </TableCell>
+//             {/* Desktop Table — gaya laporan (garis horizontal, rapat, tanpa bg) */}
+//             <GlassCard className="hidden md:block mb-6 p-4">
+//               <div className="overflow-x-auto">
+//                 <Table className="w-full border-collapse">
+//                   <TableHeader>
+//                     <TableRow className="border-b border-gray-300">
+//                       <TableHead className="w-12 text-[13px] font-semibold py-2">
+//                         No
+//                       </TableHead>
+//                       <TableHead className="text-[13px] font-semibold py-2">
+//                         Tanggal
+//                       </TableHead>
+//                       <TableHead className="text-[13px] font-semibold py-2">
+//                         Keterangan
+//                       </TableHead>
+//                       <TableHead className="text-[13px] font-semibold py-2 text-right">
+//                         Nominal per Biaya
+//                       </TableHead>
+//                       <TableHead className="text-[13px] font-semibold py-2 text-right">
+//                         Total
+//                       </TableHead>
+//                       <TableHead className="text-[13px] font-semibold py-2">
+//                         Status
+//                       </TableHead>
+//                       <TableHead className="w-32 text-[13px] font-semibold py-2 text-right">
+//                         Aksi
+//                       </TableHead>
 //                     </TableRow>
-//                   ))}
-//                 </TableBody>
-//                 <TableFooter>
-//                   <TableRow>
-//                     <TableCell colSpan={4} className="text-right font-semibold">
-//                       Total Pengeluaran:
-//                     </TableCell>
-//                     <TableCell className="font-bold text-lg">
-//                       {formatCurrency(totalPengeluaran)}
-//                     </TableCell>
-//                     <TableCell colSpan={2}></TableCell>
-//                   </TableRow>
-//                 </TableFooter>
-//               </Table>
+//                   </TableHeader>
+
+//                   <TableBody>
+//                     {filteredExpenses.map((expense, index) => (
+//                       <TableRow
+//                         key={expense.id}
+//                         className="border-b border-gray-300"
+//                       >
+//                         <TableCell className="py-2">{index + 1}</TableCell>
+
+//                         <TableCell className="py-2 whitespace-nowrap">
+//                           {new Date(
+//                             expense.tanggalPengeluaran
+//                           ).toLocaleDateString("id-ID")}
+//                         </TableCell>
+
+//                         <TableCell className="py-2">
+//                           <div className="space-y-0.5">
+//                             {expense.details.map((detail) => (
+//                               <div key={detail.id} className="text-[13px]">
+//                                 {detail.keterangan}
+//                               </div>
+//                             ))}
+//                           </div>
+//                         </TableCell>
+
+//                         <TableCell className="py-2 text-right tabular-nums">
+//                           <div className="space-y-0.5">
+//                             {expense.details.map((detail) => (
+//                               <div key={detail.id} className="text-[13px]">
+//                                 {formatCurrency(detail.nominal)}
+//                               </div>
+//                             ))}
+//                           </div>
+//                         </TableCell>
+
+//                         <TableCell className="py-2 text-right font-semibold tabular-nums">
+//                           {formatCurrency(expense.total)}
+//                         </TableCell>
+
+//                         <TableCell className="py-2">
+//                           <Badge
+//                             variant={
+//                               expense.status === "Close"
+//                                 ? "default"
+//                                 : "secondary"
+//                             }
+//                           >
+//                             {expense.status}
+//                           </Badge>
+//                         </TableCell>
+
+//                         <TableCell className="py-2">
+//                           <div className="flex justify-end gap-2">
+//                             <Button asChild size="sm" variant="outline">
+//                               <Link href={`/pengeluaran/${expense.id}`}>
+//                                 <Eye className="h-4 w-4" />
+//                               </Link>
+//                             </Button>
+//                             <Button
+//                               size="sm"
+//                               variant="outline"
+//                               onClick={() => openDeleteDialog(expense.id)}
+//                               className="text-red-600 hover:text-red-700"
+//                             >
+//                               <Trash2 className="h-4 w-4" />
+//                             </Button>
+//                           </div>
+//                         </TableCell>
+//                       </TableRow>
+//                     ))}
+//                   </TableBody>
+
+//                   <TableFooter>
+//                     <TableRow className="border-t border-gray-200 bg-transparent">
+//                       <TableCell
+//                         colSpan={4}
+//                         className="py-2 text-right font-semibold bg-transparent"
+//                       >
+//                         Total Pengeluaran:
+//                       </TableCell>
+//                       <TableCell className="py-2 font-bold text-right bg-transparent">
+//                         {formatCurrency(totalPengeluaran)}
+//                       </TableCell>
+//                       <TableCell
+//                         colSpan={2}
+//                         className="bg-transparent"
+//                       ></TableCell>
+//                     </TableRow>
+//                   </TableFooter>
+//                 </Table>
+//               </div>
 //             </GlassCard>
 
 //             {/* Mobile Cards */}
@@ -412,7 +475,7 @@
 //                         <Button
 //                           size="sm"
 //                           variant="outline"
-//                           onClick={() => handleDelete(expense.id)}
+//                           onClick={() => openDeleteDialog(expense.id)}
 //                           className="text-red-600 hover:text-red-700"
 //                         >
 //                           <Trash2 className="h-4 w-4 mr-1" />
@@ -435,14 +498,89 @@
 //                 </div>
 //               </GlassCard>
 //             </div>
-//           </AppShell>
-//         </AuthGuard>
-//       </div>
-//     </div>
+
+//             {/* Delete Confirmation Dialog */}
+//             <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+//               <DialogContent className="sm:max-w-lg">
+//                 <DialogHeader>
+//                   <DialogTitle>Konfirmasi Hapus Pengeluaran</DialogTitle>
+//                   <DialogDescription>
+//                     Tindakan ini akan menghapus data pengeluaran secara
+//                     permanen. Pastikan data yang akan dihapus sudah benar.
+//                   </DialogDescription>
+//                 </DialogHeader>
+
+//                 <div className="space-y-4 mt-2">
+//                   {deleteTarget ? (
+//                     <>
+//                       <div className="text-sm text-muted-foreground">
+//                         Berikut ringkasan pengeluaran:
+//                       </div>
+
+//                       <div className="grid grid-cols-2 gap-2 text-sm">
+//                         <div className="text-muted-foreground">Tanggal</div>
+//                         <div className="font-medium">
+//                           {new Date(
+//                             deleteTarget.tanggalPengeluaran
+//                           ).toLocaleDateString("id-ID")}
+//                         </div>
+
+//                         <div className="text-muted-foreground">No. Bulan</div>
+//                         <div className="font-medium">
+//                           {deleteTarget.noBulan}
+//                         </div>
+
+//                         <div className="text-muted-foreground">Keterangan</div>
+//                         <div className="font-medium">
+//                           {deleteTarget.details
+//                             .map((d) => d.keterangan)
+//                             .join(", ")}
+//                         </div>
+
+//                         <div className="text-muted-foreground">Total</div>
+//                         <div className="font-medium">
+//                           {formatCurrency(deleteTarget.total)}
+//                         </div>
+//                       </div>
+
+//                       <div className="pt-3 text-sm text-rose-600">
+//                         <strong>Perhatian:</strong> Data yang dihapus tidak bisa
+//                         dikembalikan.
+//                       </div>
+//                     </>
+//                   ) : (
+//                     <div>Memuat data...</div>
+//                   )}
+//                 </div>
+
+//                 <DialogFooter className="gap-2 mt-4">
+//                   <Button
+//                     variant="outline"
+//                     onClick={() => {
+//                       setIsDeleteOpen(false);
+//                       setDeleteTargetId(null);
+//                     }}
+//                     disabled={isDeleting}
+//                   >
+//                     Batal
+//                   </Button>
+//                   <Button
+//                     className="bg-rose-600 hover:bg-rose-700"
+//                     onClick={confirmDelete}
+//                     disabled={isDeleting}
+//                   >
+//                     {isDeleting ? "Menghapus..." : "Hapus Sekarang"}
+//                   </Button>
+//                 </DialogFooter>
+//               </DialogContent>
+//             </Dialog>
+//           </div>
+//         </div>
+//       </AppShell>
+//     </AuthGuard>
 //   );
 // }
 
-// app/pengeluaran/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -469,6 +607,7 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Table,
@@ -503,6 +642,11 @@ export default function PengeluaranPage() {
     biaya: "",
     nominal: "",
   });
+
+  // new states for delete confirmation
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     init();
@@ -578,9 +722,47 @@ export default function PengeluaranPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    await deleteExpense(id);
-    toast({ title: "Berhasil", description: "Pengeluaran berhasil dihapus" });
+  // open delete dialog for specific id — now checks status first and shows toast jika Close
+  const openDeleteDialog = (id: string) => {
+    const target = expenses.find((e) => e.id === id);
+    if (!target) {
+      toast({ title: "Gagal", description: "Data tidak ditemukan", variant: "destructive" });
+      return;
+    }
+    if (target.status === "Close") {
+      toast({
+        title: "Tidak dapat dihapus",
+        description: "Pengeluaran yang sudah berstatus Close tidak boleh dihapus.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setDeleteTargetId(id);
+    setIsDeleteOpen(true);
+  };
+
+  // confirm delete action
+  const confirmDelete = async () => {
+    if (!deleteTargetId) return;
+    try {
+      setIsDeleting(true);
+      await deleteExpense(deleteTargetId);
+      setIsDeleteOpen(false);
+      setDeleteTargetId(null);
+      toast({ title: "Berhasil", description: "Pengeluaran berhasil dihapus" });
+    } catch (err: any) {
+      console.error(err);
+      toast({
+        title: "Gagal",
+        description:
+          typeof err?.message === "string"
+            ? err.message
+            : "Gagal menghapus pengeluaran",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const formatCurrency = (amount: number) =>
@@ -589,6 +771,11 @@ export default function PengeluaranPage() {
       currency: "IDR",
       minimumFractionDigits: 0,
     }).format(amount);
+
+  // find selected expense to show details inside dialog
+  const deleteTarget = deleteTargetId
+    ? expenses.find((e) => e.id === deleteTargetId) || null
+    : null;
 
   return (
     <AuthGuard>
@@ -599,7 +786,6 @@ export default function PengeluaranPage() {
 
             {/* Header Controls */}
             <GlassCard className="p-6 mb-6">
-              {/* âŸµ tambah mb-6 */}
               <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
                 <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
                   <div className="space-y-2">
@@ -710,11 +896,10 @@ export default function PengeluaranPage() {
               </div>
             </GlassCard>
 
-            {/* Desktop Table â€” gaya laporan (garis horizontal, rapat, tanpa bg) */}
+            {/* Desktop Table — gaya laporan (garis horizontal, rapat, tanpa bg) */}
             <GlassCard className="hidden md:block mb-6 p-4">
               <div className="overflow-x-auto">
                 <Table className="w-full border-collapse">
-                  {/* Header: garis bawah tipis */}
                   <TableHeader>
                     <TableRow className="border-b border-gray-300">
                       <TableHead className="w-12 text-[13px] font-semibold py-2">
@@ -741,7 +926,6 @@ export default function PengeluaranPage() {
                     </TableRow>
                   </TableHeader>
 
-                  {/* Body: setiap baris ada garis bawah tipis; tanpa hover bg */}
                   <TableBody>
                     {filteredExpenses.map((expense, index) => (
                       <TableRow
@@ -783,9 +967,7 @@ export default function PengeluaranPage() {
                         <TableCell className="py-2">
                           <Badge
                             variant={
-                              expense.status === "Close"
-                                ? "default"
-                                : "secondary"
+                              expense.status === "Close" ? "default" : "secondary"
                             }
                           >
                             {expense.status}
@@ -799,11 +981,16 @@ export default function PengeluaranPage() {
                                 <Eye className="h-4 w-4" />
                               </Link>
                             </Button>
+
+                            {/* Hapus: disabled jika status Close */}
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => handleDelete(expense.id)}
-                              className="text-red-600 hover:text-red-700"
+                              onClick={() => openDeleteDialog(expense.id)}
+                              className={`text-red-600 hover:text-red-700 ${expense.status === "Close" ? "opacity-50 cursor-not-allowed" : ""}`}
+                              disabled={expense.status === "Close"}
+                              aria-disabled={expense.status === "Close"}
+                              title={expense.status === "Close" ? "Tidak bisa dihapus: status Close" : "Hapus"}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -813,7 +1000,6 @@ export default function PengeluaranPage() {
                     ))}
                   </TableBody>
 
-                  {/* Footer: garis atas tipis, tanpa background */}
                   <TableFooter>
                     <TableRow className="border-t border-gray-200 bg-transparent">
                       <TableCell
@@ -825,10 +1011,7 @@ export default function PengeluaranPage() {
                       <TableCell className="py-2 font-bold text-right bg-transparent">
                         {formatCurrency(totalPengeluaran)}
                       </TableCell>
-                      <TableCell
-                        colSpan={2}
-                        className="bg-transparent"
-                      ></TableCell>
+                      <TableCell colSpan={2} className="bg-transparent"></TableCell>
                     </TableRow>
                   </TableFooter>
                 </Table>
@@ -888,8 +1071,11 @@ export default function PengeluaranPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleDelete(expense.id)}
-                          className="text-red-600 hover:text-red-700"
+                          onClick={() => openDeleteDialog(expense.id)}
+                          className={`text-red-600 hover:text-red-700 ${expense.status === "Close" ? "opacity-50 cursor-not-allowed" : ""}`}
+                          disabled={expense.status === "Close"}
+                          aria-disabled={expense.status === "Close"}
+                          title={expense.status === "Close" ? "Tidak bisa dihapus: status Close" : "Hapus"}
                         >
                           <Trash2 className="h-4 w-4 mr-1" />
                           Hapus
@@ -911,6 +1097,78 @@ export default function PengeluaranPage() {
                 </div>
               </GlassCard>
             </div>
+
+            {/* Delete Confirmation Dialog */}
+            <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+              <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Konfirmasi Hapus Pengeluaran</DialogTitle>
+                  <DialogDescription>
+                    Tindakan ini akan menghapus data pengeluaran secara permanen.
+                    Pastikan data yang akan dihapus sudah benar.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 mt-2">
+                  {deleteTarget ? (
+                    <>
+                      <div className="text-sm text-muted-foreground">
+                        Berikut ringkasan pengeluaran:
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="text-muted-foreground">Tanggal</div>
+                        <div className="font-medium">
+                          {new Date(
+                            deleteTarget.tanggalPengeluaran
+                          ).toLocaleDateString("id-ID")}
+                        </div>
+
+                        <div className="text-muted-foreground">No. Bulan</div>
+                        <div className="font-medium">{deleteTarget.noBulan}</div>
+
+                        <div className="text-muted-foreground">Keterangan</div>
+                        <div className="font-medium">
+                          {deleteTarget.details.map((d) => d.keterangan).join(", ")}
+                        </div>
+
+                        <div className="text-muted-foreground">Total</div>
+                        <div className="font-medium">
+                          {formatCurrency(deleteTarget.total)}
+                        </div>
+                      </div>
+
+                      <div className="pt-3 text-sm text-rose-600">
+                        <strong>Perhatian:</strong> Data yang dihapus tidak bisa
+                        dikembalikan.
+                      </div>
+                    </>
+                  ) : (
+                    <div>Memuat data...</div>
+                  )}
+                </div>
+
+                <DialogFooter className="gap-2 mt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsDeleteOpen(false);
+                      setDeleteTargetId(null);
+                    }}
+                    disabled={isDeleting}
+                  >
+                    Batal
+                  </Button>
+                  <Button
+                    className="bg-rose-600 hover:bg-rose-700"
+                    onClick={confirmDelete}
+                    disabled={isDeleting || (deleteTarget?.status === "Close")}
+                  >
+                    {isDeleting ? "Menghapus..." : "Hapus Sekarang"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
       </AppShell>

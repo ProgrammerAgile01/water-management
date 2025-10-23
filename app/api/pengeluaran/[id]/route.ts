@@ -87,6 +87,16 @@ export async function DELETE(
   _: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const p = await prisma.pengeluaran.findUnique({ where: { id: params.id } });
+  if (!p) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  if (p.status === "CLOSE") {
+    return NextResponse.json(
+      { error: "Pengeluaran dalam status CLOSE tidak dapat dihapus" },
+      { status: 400 }
+    );
+  }
+
   await prisma.pengeluaran.delete({ where: { id: params.id } });
   return NextResponse.json({ ok: true });
 }
