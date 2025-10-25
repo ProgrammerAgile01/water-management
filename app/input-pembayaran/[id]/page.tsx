@@ -546,7 +546,7 @@ export default function InputPembayaranPage() {
         pelangganNama: t.pelangganNama,
         pelangganKode: t.pelangganKode,
         periode: t.periode,
-        nominal: Number(nominalBayar || 0),
+        nominal: parseNominalToInt(nominalBayar),
         metodeBayar: metode as Metode,
         tanggalBayar,
         fileName: paymentProof?.name ?? null,

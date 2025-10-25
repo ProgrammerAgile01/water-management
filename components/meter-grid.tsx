@@ -1100,7 +1100,7 @@ export function MeterGrid() {
                       </Button>
                     )}
 
-                    {r.status === "completed" && (
+                    {/* {r.status === "completed" && (
                       <Button
                         size="sm"
                         variant="outline"
@@ -1118,7 +1118,7 @@ export function MeterGrid() {
                           </>
                         )}
                       </Button>
-                    )}
+                    )} */}
                     <Button
                       size="sm"
                       variant="outline"

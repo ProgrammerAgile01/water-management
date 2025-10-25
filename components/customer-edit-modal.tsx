@@ -1159,7 +1159,8 @@ export function CustomerEditModal({
                 variant="outline"
                 onClick={handleUseMyLocation}
               >
-                <Crosshair className="w-4 h-4 mr-2" /> Ambil Lokasi Saya
+                <Crosshair className="w-4 h-4 mr-2" />
+                Lokasi Saya
               </Button>
               <Button
                 type="button"
@@ -1171,9 +1172,6 @@ export function CustomerEditModal({
               >
                 <MapPin className="w-4 h-4 mr-2" /> Hapus Koordinat
               </Button>
-              <div className="text-xs text-muted-foreground">
-                Tip: klik di peta untuk memilih titik. Marker bisa digeser.
-              </div>
             </div>
 
             <div className="rounded-md overflow-hidden border border-primary/20">
@@ -1215,6 +1213,10 @@ export function CustomerEditModal({
                   </MapContainer>
                 )}
               </div>
+            </div>
+
+            <div className="text-xs text-muted-foreground">
+              Tip: klik di peta untuk memilih titik. Marker bisa digeser.
             </div>
 
             <div className="flex justify-end gap-3 pt-2">
