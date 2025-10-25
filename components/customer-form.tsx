@@ -477,7 +477,7 @@ export function CustomerForm() {
       </div>
 
       <div className="text-xs text-muted-foreground">
-          Tip: klik peta untuk memilih titik, marker bisa digeser.
+          Tip: klik lokasi saya lalu marker bisa digeser.
         </div>
 
       {/* Submit */}
