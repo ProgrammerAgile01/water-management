@@ -26,9 +26,12 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // panggil API utama
+  // panggil API utama — gunakan query dari request, termasuk scope=all jika ada
   const url = new URL(req.url);
   url.pathname = "/api/laporan/laba-rugi";
+  // tetap kirim seluruh searchParams yang ada, sehingga scope=all bekerja
+  url.search = req.nextUrl.searchParams.toString();
+
   const data = await fetchJSON(url.toString(), req.headers);
 
   // --- Sheet Ledger (utama) ---

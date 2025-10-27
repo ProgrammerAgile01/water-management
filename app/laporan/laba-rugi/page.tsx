@@ -55,7 +55,7 @@ export default function LabaRugiPage() {
     "0"
   )}`;
 
-  const [scope, setScope] = useState<"month" | "year">("month");
+  const [scope, setScope] = useState<"month" | "year" | "all">("month");
   const [month, setMonth] = useState(ymNow);
   const [year, setYear] = useState(String(now.getFullYear()));
 
@@ -71,7 +71,11 @@ export default function LabaRugiPage() {
   const query = useMemo(() => {
     const qs = new URLSearchParams();
     qs.set("scope", scope);
-    scope === "month" ? qs.set("month", month) : qs.set("year", year);
+    if (scope === "month") {
+      qs.set("month", month);
+    } else if (scope === "year") {
+      qs.set("year", year);
+    }
     qs.set("page", String(page));
     qs.set("size", String(size));
     return `/api/laporan/laba-rugi?${qs.toString()}`;
@@ -80,7 +84,11 @@ export default function LabaRugiPage() {
   const exportUrl = useMemo(() => {
     const qs = new URLSearchParams();
     qs.set("scope", scope);
-    scope === "month" ? qs.set("month", month) : qs.set("year", year);
+    if (scope === "month") {
+      qs.set("month", month);
+    } else if (scope === "year") {
+      qs.set("year", year);
+    }
     // export tidak dipaginasi agar full
     return `/api/laporan/laba-rugi/export?${qs.toString()}`;
   }, [scope, month, year]);
@@ -114,9 +122,11 @@ export default function LabaRugiPage() {
               <SelectContent>
                 <SelectItem value="month">Bulanan</SelectItem>
                 <SelectItem value="year">Tahunan</SelectItem>
+                <SelectItem value="all">Semua Periode</SelectItem>
               </SelectContent>
             </Select>
 
+            {/* Tampilkan picker Bulan/Tahun hanya jika relevan */}
             {scope === "month" ? (
               <Select value={month} onValueChange={setMonth}>
                 <SelectTrigger className="h-9 bg-card/50">
@@ -143,7 +153,7 @@ export default function LabaRugiPage() {
                   })}
                 </SelectContent>
               </Select>
-            ) : (
+            ) : scope === "year" ? (
               <Select value={year} onValueChange={setYear}>
                 <SelectTrigger className="h-9 bg-card/50">
                   <SelectValue placeholder="Pilih Tahun" />
@@ -159,6 +169,9 @@ export default function LabaRugiPage() {
                   })}
                 </SelectContent>
               </Select>
+            ) : (
+              // scope === "all" -> kosong (tidak menampilkan picker)
+              <div />
             )}
 
             <div className="flex items-center justify-between md:justify-end">
@@ -194,15 +207,7 @@ export default function LabaRugiPage() {
               {toIDR(data?.ringkasan.pendapatanTotal || 0)}
             </p>
             <div className="flex flex-wrap gap-2 mt-3">
-              {/* {data?.pendapatan?.byMetode &&
-                Object.entries(data.pendapatan.byMetode).map(([k, v]) => (
-                  <Badge
-                    key={k}
-                    className="bg-green-100 text-green-700 hover:bg-green-100"
-                  >
-                    {k}: {toIDR(v as number)}
-                  </Badge>
-                ))} */}
+              {/* optional badges */}
             </div>
           </GlassCard>
 
@@ -211,17 +216,7 @@ export default function LabaRugiPage() {
             <p className="text-2xl font-bold text-red-600">
               {toIDR(data?.ringkasan.bebanTotal || 0)}
             </p>
-            <div className="flex flex-wrap gap-2 mt-3">
-              {/* {data?.beban?.byKategori?.map((k) => (
-                <Badge
-                  key={k.nama}
-                  variant="secondary"
-                  className="bg-red-100 text-red-700 hover:bg-red-100"
-                >
-                  {k.nama}: {toIDR(k.total)}
-                </Badge>
-              ))} */}
-            </div>
+            <div className="flex flex-wrap gap-2 mt-3"></div>
           </GlassCard>
 
           <GlassCard className="p-4">
