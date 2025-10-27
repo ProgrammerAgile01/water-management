@@ -144,6 +144,8 @@ model CatatPeriode {
   entries          CatatMeter[]
   catatMeterBlok   CatatMeterBlok[]  @relation("PeriodeToCatatMeterBlok")
 
+  pajaks Pajak[] @relation("PeriodeToPajak")
+
   // Back-relation untuk tandon/blok reading
   tandonReadings   TandonReading[] @relation("PeriodeToTandonReading")
   blokReadings     BlokReading[]   @relation("PeriodeToBlokReading")
@@ -857,4 +859,26 @@ enum ThreadStatus {
 enum AuthorType {
   ME
   CS
+}
+
+model Pajak {
+  id                String        @id @default(cuid())
+  periodeId         String
+  periode           CatatPeriode  @relation("PeriodeToPajak", fields: [periodeId], references: [id])
+
+  // keterangan otomatis: "Pembayaran pajak untuk Bulan xx Tahun yyyy"
+  keterangan        String
+
+  // snapshot jumlah pemakaian (m3) untuk periode
+  pemakaianM3       Int           @default(0)
+
+  // tarif pajak per m³ (input manual)
+  tarifPajakPerM3   Int
+
+  // nominal total yang harus dibayar (snapshot)
+  nominalBayarPajak Int
+
+  // constraint / index
+  @@unique([periodeId]) // pastikan hanya 1 entri Pajak per periode
+  @@index([periodeId])
 }

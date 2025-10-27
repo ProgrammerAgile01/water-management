@@ -92,6 +92,8 @@ export default function DashboardPage() {
   const [cards, setCards] = useState<{
     totalTagihanBulanIni: number;
     totalTagihanCount: number;
+    totalTagihanBulanLalu: number;
+    totalTagihanBulanLaluCount: number;
     totalBelumBayarAmount: number;
     totalBelumBayarCount: number;
     totalPelanggan: number;
@@ -336,6 +338,38 @@ export default function DashboardPage() {
           {/* Statistics Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
+              title="Total Tagihan Bulan Lalu"
+              value={
+                cards
+                  ? rupiah(cards.totalTagihanBulanLalu ?? 0)
+                  : loading
+                  ? "…"
+                  : "Rp 0"
+              }
+              subtitle={`${cards?.totalTagihanBulanLaluCount ?? 0} pelanggan`}
+              trend={
+                // bandingkan dengan trend.totalTagihan (kamu sudah punya trends.totalTagihan yang bandingkan sekarang vs lalu)
+                // namun di UI ini kita bisa menampilkan kebalikan: apakah sekarang naik dari lalu ?
+                cards?.trends?.totalTagihan ?? { value: 0, isPositive: true }
+              }
+              icon={
+                <svg
+                  className="w-6 h-6 text-primary"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M3 6h18M3 12h18M3 18h18"
+                  />
+                </svg>
+              }
+            />
+
+            <StatCard
               title="Total Tagihan Bulan Ini"
               value={
                 cards
@@ -367,7 +401,7 @@ export default function DashboardPage() {
 
             <div className="relative">
               <StatCard
-                title="Total Belum Bayar"
+                title="Total Belum Terbayar Bulan Ini"
                 value={
                   cards
                     ? rupiah(cards.totalBelumBayarAmount)
@@ -430,7 +464,7 @@ export default function DashboardPage() {
               }
             />
 
-            <StatCard
+            {/* <StatCard
               title="Tingkat Pembayaran"
               value={
                 cards
@@ -458,7 +492,7 @@ export default function DashboardPage() {
                   />
                 </svg>
               }
-            />
+            /> */}
           </div>
 
           {/* Data Table Tagihan */}
