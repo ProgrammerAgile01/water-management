@@ -683,7 +683,7 @@ export default function DetailPengeluaranPage() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="biaya">Biaya</Label>
+                        <Label htmlFor="biaya">Kategori Biaya</Label>
                         <Select
                           value={formData.biaya}
                           onValueChange={(value) =>
@@ -692,7 +692,7 @@ export default function DetailPengeluaranPage() {
                           disabled={expense.status === "Close"}
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="Pilih jenis biaya" />
+                            <SelectValue placeholder="Pilih Kategori biaya" />
                           </SelectTrigger>
                           <SelectContent>
                             {biayaOptions.map((option) => (
@@ -788,7 +788,7 @@ export default function DetailPengeluaranPage() {
                         Keterangan
                       </TableHead>
                       <TableHead className="text-[13px] font-semibold py-2">
-                        Biaya
+                        Kategori Biaya
                       </TableHead>
                       <TableHead className="text-[13px] font-semibold py-2 text-right">
                         Nominal

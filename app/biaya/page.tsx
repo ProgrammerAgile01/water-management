@@ -126,9 +126,9 @@ export default function MasterBiayaPage() {
   const validateForm = (): boolean => {
     const errors: Partial<BiayaFormData> = {};
     if (!formData.nama.trim()) {
-      errors.nama = "Nama biaya wajib diisi";
+      errors.nama = "Kategori biaya wajib diisi";
     } else if (formData.nama.trim().length < 3) {
-      errors.nama = "Nama biaya minimal 3 karakter";
+      errors.nama = "Kategori biaya minimal 3 karakter";
     }
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -209,17 +209,26 @@ export default function MasterBiayaPage() {
     };
     if (editingBiaya) {
       await updateBiaya(editingBiaya.id, biayaData);
-      toast({ title: "Berhasil", description: "Biaya berhasil diperbarui." });
+      toast({
+        title: "Berhasil",
+        description: "Kategori Biaya berhasil diperbarui.",
+      });
     } else {
       await addBiaya(biayaData as any);
-      toast({ title: "Berhasil", description: "Biaya berhasil disimpan." });
+      toast({
+        title: "Berhasil",
+        description: "Kategori Biaya berhasil disimpan.",
+      });
     }
     handleCloseForm();
   };
 
   const handleToggleStatus = async (biaya: MasterBiaya) => {
     await toggleStatus(biaya.id);
-    toast({ title: "Berhasil", description: "Status biaya diperbarui." });
+    toast({
+      title: "Berhasil",
+      description: "Status Kategori biaya diperbarui.",
+    });
   };
 
   const handleDeleteClick = (biaya: MasterBiaya) => {
@@ -230,7 +239,7 @@ export default function MasterBiayaPage() {
   const handleDeleteConfirm = async () => {
     if (deletingBiaya) {
       await deleteBiaya(deletingBiaya.id);
-      toast({ title: "Berhasil", description: "Biaya dihapus." });
+      toast({ title: "Berhasil", description: "Kategori Biaya dihapus." });
       setIsDeleteDialogOpen(false);
       setDeletingBiaya(null);
     }
@@ -247,7 +256,7 @@ export default function MasterBiayaPage() {
                 No
               </TableHead>
               <TableHead className="text-[13px] font-semibold py-2">
-                Nama/Jenis Biaya
+                Kategori Biaya
               </TableHead>
               <TableHead className="text-[13px] font-semibold py-2">
                 Kode
@@ -342,7 +351,7 @@ export default function MasterBiayaPage() {
           <div className="p-8 text-center text-muted-foreground">
             {isLoading
               ? "Memuat data..."
-              : "Tidak ada data biaya yang ditemukan"}
+              : "Tidak ada data kategori biaya yang ditemukan"}
           </div>
         )}
       </div>
@@ -353,7 +362,7 @@ export default function MasterBiayaPage() {
     <div className="space-y-4">
       <Button onClick={() => handleOpenForm()} className="w-full" size="lg">
         <Plus className="h-4 w-4 mr-2" />
-        Tambah Biaya
+        Tambah Kategori Biaya
       </Button>
 
       {filteredBiaya.map((biaya) => (
@@ -430,7 +439,9 @@ export default function MasterBiayaPage() {
 
       {filteredBiaya.length === 0 && (
         <GlassCard className="p-8 text-center text-muted-foreground">
-          {isLoading ? "Memuat data..." : "Tidak ada data biaya yang ditemukan"}
+          {isLoading
+            ? "Memuat data..."
+            : "Tidak ada data Kategori biaya yang ditemukan"}
         </GlassCard>
       )}
     </div>
@@ -440,7 +451,7 @@ export default function MasterBiayaPage() {
     <AuthGuard>
       <AppShell>
         <div className="min-h-screen pb-20">
-          <AppHeader title="Data Biaya" />
+          <AppHeader title="Kategori Biaya" />
 
           <div className="container mx-auto px-4 space-y-6">
             {/* Add Button for Desktop */}
@@ -448,7 +459,7 @@ export default function MasterBiayaPage() {
               <div className="flex justify-end">
                 <Button onClick={() => handleOpenForm()} size="lg">
                   <Plus className="h-4 w-4 mr-2" />
-                  Tambah Biaya
+                  Tambah Kategori Biaya
                 </Button>
               </div>
             )}
@@ -460,10 +471,10 @@ export default function MasterBiayaPage() {
                 </div>
                 <div className="flex-1">
                   <h2 className="text-2xl font-bold text-foreground mb-2">
-                    Data Biaya
+                    Kategori Biaya
                   </h2>
                   <p className="text-muted-foreground">
-                    Kelola entri master biaya menggunakan menu ini.
+                    Kelola entri kategori biaya menggunakan menu ini.
                   </p>
                 </div>
               </div>
@@ -503,18 +514,20 @@ export default function MasterBiayaPage() {
               <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                   <DialogTitle>
-                    {editingBiaya ? "Edit Biaya" : "Tambah Biaya"}
+                    {editingBiaya
+                      ? "Edit KAtegori Biaya"
+                      : "Tambah Kategori Biaya"}
                   </DialogTitle>
                   <DialogDescription>
                     {editingBiaya
-                      ? "Perbarui informasi biaya yang dipilih."
-                      : "Tambahkan biaya baru ke dalam sistem."}
+                      ? "Perbarui informasi Kategori biaya yang dipilih."
+                      : "Tambahkan Kategori biaya baru ke dalam sistem."}
                   </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="nama">Nama/Jenis Biaya *</Label>
+                    <Label htmlFor="nama">Kategori Biaya *</Label>
                     <Input
                       id="nama"
                       value={formData.nama}
@@ -537,7 +550,7 @@ export default function MasterBiayaPage() {
                       className="bg-muted"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Kode dibuat otomatis berdasarkan nama biaya
+                      Kode dibuat otomatis berdasarkan Kategori biaya
                     </p>
                   </div>
 
@@ -549,7 +562,7 @@ export default function MasterBiayaPage() {
                       onChange={(e) =>
                         setFormData({ ...formData, deskripsi: e.target.value })
                       }
-                      placeholder="Masukkan deskripsi biaya"
+                      placeholder="Masukkan deskripsi kategori biaya"
                       rows={3}
                     />
                   </div>
@@ -585,9 +598,9 @@ export default function MasterBiayaPage() {
             >
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Hapus Biaya</AlertDialogTitle>
+                  <AlertDialogTitle>Hapus Kategori Biaya</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Apakah Anda yakin ingin menghapus biaya "
+                    Apakah Anda yakin ingin menghapus Kategori biaya "
                     {deletingBiaya?.nama}
                     "? Tindakan ini tidak dapat dibatalkan.
                   </AlertDialogDescription>

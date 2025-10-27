@@ -582,7 +582,7 @@ const MENU_ITEMS: MenuItem[] = [
   },
   {
     href: "/biaya",
-    label: "Biaya",
+    label: "Kategori Biaya",
     icon: FolderOpen,
     roles: ["ADMIN", "OPERATOR"],
     group: "Admin",
@@ -590,7 +590,7 @@ const MENU_ITEMS: MenuItem[] = [
   },
   {
     href: "/pengeluaran",
-    label: "Pengeluaran",
+    label: "Input Pengeluaran",
     icon: CreditCard,
     roles: ["ADMIN", "OPERATOR"],
     group: "Admin",
@@ -848,8 +848,8 @@ const PATH_LABELS: Record<string, string> = {
   "/petugas/riwayat": "Riwayat Petugas",
   "/petugas/profil": "Profil Petugas",
   "/reset-meteran": "Reset Meteran",
-  "/biaya": "Biaya",
-  "/pengeluaran": "Pengeluaran",
+  "/biaya": "Kategori Biaya",
+  "/pengeluaran": "Input Pengeluaran",
   "/hutang": "Hutang",
   "/laporan-summary": "Laporan Summary",
   "/laporan/konsumsi-zona": "Laporan Konsumsi Blok",

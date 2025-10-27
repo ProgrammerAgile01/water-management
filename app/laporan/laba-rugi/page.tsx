@@ -207,7 +207,7 @@ export default function LabaRugiPage() {
           </GlassCard>
 
           <GlassCard className="p-4">
-            <p className="text-xs text-muted-foreground">Beban</p>
+            <p className="text-xs text-muted-foreground">Biaya</p>
             <p className="text-2xl font-bold text-red-600">
               {toIDR(data?.ringkasan.bebanTotal || 0)}
             </p>
@@ -256,7 +256,7 @@ export default function LabaRugiPage() {
                     Jenis Pendapatan
                   </th>
                   <th className="text-left  py-3 px-2 text-sm font-medium text-muted-foreground">
-                    Jenis Beban
+                    Jenis Biaya
                   </th>
                   <th className="text-left  py-3 px-2 text-sm font-medium text-muted-foreground">
                     Keterangan
@@ -265,7 +265,7 @@ export default function LabaRugiPage() {
                     Pendapatan
                   </th>
                   <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">
-                    Beban
+                    Biaya
                   </th>
                 </tr>
               </thead>
@@ -350,7 +350,7 @@ export default function LabaRugiPage() {
                 </p>
                 <p className="text-sm font-medium mt-0.5">{r.keterangan}</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Jenis Pendapatan: {r.jenisPendapatan || "-"} • Jenis Beban:{" "}
+                  Jenis Pendapatan: {r.jenisPendapatan || "-"} • Jenis Biaya:{" "}
                   {r.jenisBeban || "-"}
                 </p>
                 <div className="flex items-center justify-between mt-1">
@@ -361,7 +361,7 @@ export default function LabaRugiPage() {
                     variant="secondary"
                     className="bg-red-100 text-red-700"
                   >
-                    Beban: {toIDR(r.debit)}
+                    Biaya: {toIDR(r.debit)}
                   </Badge>
                 </div>
               </div>

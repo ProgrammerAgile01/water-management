@@ -782,7 +782,7 @@ export default function PengeluaranPage() {
       <AppShell>
         <div className="min-h-screen">
           <div className="container mx-auto p-4 space-y-6">
-            <AppHeader title="Data Pengeluaran" />
+            <AppHeader title="Input Pengeluaran" />
 
             {/* Header Controls */}
             <GlassCard className="p-6 mb-6">
@@ -842,7 +842,7 @@ export default function PengeluaranPage() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="biaya">Biaya</Label>
+                        <Label htmlFor="biaya"> Kategori Biaya</Label>
                         <Select
                           value={formData.biaya}
                           onValueChange={(value) =>
@@ -850,7 +850,7 @@ export default function PengeluaranPage() {
                           }
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="Pilih jenis biaya" />
+                            <SelectValue placeholder="Pilih kategori biaya" />
                           </SelectTrigger>
                           <SelectContent>
                             {biayaOptions.map((option) => (
