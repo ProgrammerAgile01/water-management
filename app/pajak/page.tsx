@@ -1069,7 +1069,7 @@ export default function PajakPage() {
                   <Input
                     value={previewNominal}
                     readOnly
-                    placeholder="Masukkan Nominal Pajak"
+                    placeholder="(Otomatis terisi setelah input tarif)"
                   />
                 </div>
               </div>
