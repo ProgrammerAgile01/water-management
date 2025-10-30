@@ -861,6 +861,11 @@ enum AuthorType {
   CS
 }
 
+enum PajakStatus {
+  DRAFT
+  CLOSE
+}
+
 model Pajak {
   id                String        @id @default(cuid())
   periodeId         String
@@ -877,6 +882,9 @@ model Pajak {
 
   // nominal total yang harus dibayar (snapshot)
   nominalBayarPajak Int
+
+  // status: DRAFT = bisa diedit/hapus, CLOSE = tidak bisa diubah/hapus
+  status            PajakStatus   @default(DRAFT)
 
   // constraint / index
   @@unique([periodeId]) // pastikan hanya 1 entri Pajak per periode

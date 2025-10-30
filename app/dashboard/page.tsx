@@ -206,23 +206,31 @@ export default function DashboardPage() {
   }
 
   /* ===== Build LRMonth untuk daftar YM tertentu (skip bulan kosong) ===== */
+  /* ===== Build LRMonth untuk daftar YM tertentu (skip bulan kosong) ===== */
   async function loadLRByMonths(months: string[]) {
+    // pastikan daftar YM yang masuk sudah urut ASC
+    const orderedMonths = Array.from(new Set(months)).sort((a, b) =>
+      a.localeCompare(b)
+    );
+
     const results: LRMonth[] = [];
     await Promise.all(
-      months.map(async (m) => {
+      orderedMonths.map(async (m) => {
         const r = await fetch(`/api/laporan/laba-rugi?scope=month&month=${m}`, {
           cache: "no-store",
         });
         if (!r.ok) return;
         const j = await r.json();
-        if (!hasLRData(j)) return; // <-- filter: jangan masukkan bulan kosong
+        if (!hasLRData(j)) return; // skip bulan kosong
         const pendapatan = j?.ringkasan?.pendapatanTotal ?? 0;
         const beban = j?.ringkasan?.bebanTotal ?? 0;
         const laba = j?.ringkasan?.labaBersih ?? pendapatan - beban;
         results.push({ ym: m, label: ymLabel(m), pendapatan, beban, laba });
       })
     );
-    // ikut urutan laporan (diasumsikan sudah ASC)
+
+    // jaga-jaga: sort lagi by ym ASC
+    results.sort((a, b) => a.ym.localeCompare(b.ym));
     setLRMonths(results);
   }
 

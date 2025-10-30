@@ -106,9 +106,8 @@
 //   }
 // }
 
-// app/api/pajak/route.ts
-import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { NextResponse } from "next/server";
 
 const MONTH_NAMES = [
   "Januari",
@@ -144,7 +143,7 @@ export async function GET(req: Request) {
     // If no periodeId => return all pajak (history)
     if (!periodeId) {
       const all = await prisma.pajak.findMany({
-        orderBy: { periodeId: "desc" }, // you can adjust ordering
+        orderBy: { periodeId: "desc" }, // adjust if needed
       });
       return NextResponse.json({ ok: true, data: all });
     }
@@ -177,18 +176,17 @@ export async function GET(req: Request) {
     }
 
     // normal: return pajak for periode (upsert unique by periodeId)
-    const pajak = await prisma.pajak.findUnique({ where: { periodeId } });
+    // Try to find by provided periodeId (either id or kodePeriode)
+    let pajak = await prisma.pajak.findUnique({ where: { periodeId } });
 
-    // if not found and periodeRecord is null, attempt by kodePeriode
     if (!pajak && !periodeRecord) {
       const byKode = await prisma.catatPeriode.findFirst({
         where: { kodePeriode: periodeId },
       });
       if (byKode) {
-        const p2 = await prisma.pajak.findUnique({
+        pajak = await prisma.pajak.findUnique({
           where: { periodeId: byKode.id },
         });
-        return NextResponse.json({ ok: true, pajak: p2 ?? null });
       }
     }
 
@@ -202,13 +200,20 @@ export async function GET(req: Request) {
   }
 }
 
+/**
+ * POST: create or update (edit) pajak entry.
+ * Behavior:
+ *  - If creating (no existing record) -> create with status = DRAFT.
+ *  - If updating an existing entry:
+ *      * if status === 'CLOSE' -> reject (cannot edit closed).
+ *      * otherwise update fields and keep status unchanged (still DRAFT unless UI calls PUT to close).
+ */
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { periodeId, tarifPajakPerM3 } = body as {
       periodeId?: string;
       tarifPajakPerM3?: number;
-      keterangan?: string;
     };
 
     if (!periodeId)
@@ -218,7 +223,10 @@ export async function POST(req: Request) {
       );
     if (typeof tarifPajakPerM3 !== "number" || tarifPajakPerM3 < 0) {
       return NextResponse.json(
-        { ok: false, message: "tarifPajakPerM3 must be a non-negative number" },
+        {
+          ok: false,
+          message: "tarifPajakPerM3 must be a non-negative number",
+        },
         { status: 400 }
       );
     }
@@ -239,6 +247,21 @@ export async function POST(req: Request) {
       );
     }
 
+    // check existing pajak by resolved periode.id
+    const existing = await prisma.pajak.findUnique({
+      where: { periodeId: periode.id },
+    });
+
+    if (existing && existing.status === "CLOSE") {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "Entri pajak sudah ditutup (CLOSE). Tidak bisa diubah.",
+        },
+        { status: 400 }
+      );
+    }
+
     // aggregate pemakaian from catatMeter with resolved periode.id
     const agg = await prisma.catatMeter.aggregate({
       _sum: { pemakaianM3: true },
@@ -254,23 +277,32 @@ export async function POST(req: Request) {
       kodePeriode: periode.kodePeriode,
     });
 
-    // upsert by unique periodeId
-    const pajak = await prisma.pajak.upsert({
-      where: { periodeId: periode.id },
-      update: {
-        keterangan: keteranganServer,
-        pemakaianM3,
-        tarifPajakPerM3,
-        nominalBayarPajak,
-      },
-      create: {
-        periodeId: periode.id,
-        keterangan: keteranganServer,
-        pemakaianM3,
-        tarifPajakPerM3,
-        nominalBayarPajak,
-      },
-    });
+    let pajak;
+    if (existing) {
+      // update (existing is not CLOSE due to check above)
+      pajak = await prisma.pajak.update({
+        where: { id: existing.id },
+        data: {
+          keterangan: keteranganServer,
+          pemakaianM3,
+          tarifPajakPerM3,
+          nominalBayarPajak,
+          // keep existing.status unchanged
+        },
+      });
+    } else {
+      // create new (default status = DRAFT)
+      pajak = await prisma.pajak.create({
+        data: {
+          periodeId: periode.id,
+          keterangan: keteranganServer,
+          pemakaianM3,
+          tarifPajakPerM3,
+          nominalBayarPajak,
+          // status default DRAFT set by Prisma schema
+        },
+      });
+    }
 
     return NextResponse.json({ ok: true, pajak });
   } catch (err: any) {
@@ -282,6 +314,83 @@ export async function POST(req: Request) {
   }
 }
 
+/**
+ * PUT: action endpoint. Use to change status (posting).
+ * Example:
+ *  - PUT /api/pajak?action=close&id=<pajakId>
+ *  - or pass JSON body { action: "close", id: "<pajakId>" }
+ *
+ * Only allows DRAFT -> CLOSE transition.
+ */
+export async function PUT(req: Request) {
+  try {
+    const url = new URL(req.url);
+    const qAction = url.searchParams.get("action");
+    const qId = url.searchParams.get("id");
+
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch {
+      body = {};
+    }
+
+    const action = (qAction || body.action || "").toString().toLowerCase();
+    const id = (qId || body.id || "").toString();
+
+    if (!action) {
+      return NextResponse.json(
+        { ok: false, message: "action required (e.g. close)" },
+        { status: 400 }
+      );
+    }
+    if (!id) {
+      return NextResponse.json(
+        { ok: false, message: "id required" },
+        { status: 400 }
+      );
+    }
+
+    const pajak = await prisma.pajak.findUnique({ where: { id } });
+    if (!pajak) {
+      return NextResponse.json(
+        { ok: false, message: "Entri pajak tidak ditemukan" },
+        { status: 404 }
+      );
+    }
+
+    if (action === "close" || action === "posting") {
+      if (pajak.status === "CLOSE") {
+        return NextResponse.json(
+          { ok: false, message: "Entri sudah ditutup" },
+          { status: 400 }
+        );
+      }
+      // update status to CLOSE (and snapshot current timestamp if desired)
+      const upd = await prisma.pajak.update({
+        where: { id },
+        data: { status: "CLOSE" },
+      });
+      return NextResponse.json({ ok: true, pajak: upd });
+    }
+
+    return NextResponse.json(
+      { ok: false, message: `Unknown action: ${action}` },
+      { status: 400 }
+    );
+  } catch (err: any) {
+    console.error("PUT /api/pajak error", err);
+    return NextResponse.json(
+      { ok: false, message: err.message ?? String(err) },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * DELETE: delete pajak by id.
+ * Reject deletion if status === 'CLOSE'
+ */
 export async function DELETE(req: Request) {
   try {
     const url = new URL(req.url);
@@ -291,6 +400,24 @@ export async function DELETE(req: Request) {
         { ok: false, message: "id required" },
         { status: 400 }
       );
+
+    const pajak = await prisma.pajak.findUnique({ where: { id } });
+    if (!pajak) {
+      return NextResponse.json(
+        { ok: false, message: "Entri tidak ditemukan" },
+        { status: 404 }
+      );
+    }
+
+    if (pajak.status === "CLOSE") {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "Entri pajak sudah ditutup (CLOSE). Tidak dapat dihapus.",
+        },
+        { status: 400 }
+      );
+    }
 
     await prisma.pajak.delete({ where: { id } });
     return NextResponse.json({ ok: true });
