@@ -106,7 +106,6 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
@@ -140,7 +139,7 @@ export async function GET(req: NextRequest) {
     });
     const prevInTagihan = prevPays._sum.jumlahBayar || 0;
 
-    // (BARU) IN: hutang (detail) < start (tanggalInput)
+    // IN: hutang (detail) < start (tanggalInput)
     const prevHutang = await prisma.hutangDetail.aggregate({
       where: { hutang: { tanggalInput: { lt: start } } },
       _sum: { nominal: true },
@@ -161,17 +160,40 @@ export async function GET(req: NextRequest) {
     });
     const prevPurchasesSum = prevPurchases._sum.total || 0;
 
-    // (BARU) OUT: pembayaran hutang (detail) < start (tanggalBayar)
+    // OUT: pembayaran hutang (detail) < start (tanggalBayar)
     const prevHutangPay = await prisma.hutangPaymentDetail.aggregate({
       where: { payment: { tanggalBayar: { lt: start } } },
       _sum: { amount: true },
     });
     const prevOutHutangPay = prevHutangPay._sum.amount || 0;
 
+    // Pajak CLOSE: gunakan periode.kodePeriode untuk menentukan apakah sebelum start
+    // ambil minimal fields (periode.kodePeriode & nominal)
+    const allPajaks = await prisma.pajak.findMany({
+      where: { status: "CLOSE" },
+      select: {
+        nominalBayarPajak: true,
+        periode: { select: { kodePeriode: true } },
+      },
+    });
+
+    let prevOutPajak = 0;
+    let outPajak = 0;
+    for (const p of allPajaks) {
+      const kode = p.periode?.kodePeriode;
+      if (!kode) continue;
+      // compare lexicographically "YYYY-MM" works for ordering
+      if (kode < periode) prevOutPajak += p.nominalBayarPajak || 0;
+      if (kode === periode) outPajak += p.nominalBayarPajak || 0;
+    }
+
     const saldoAwal =
       prevInTagihan +
       prevInHutang -
-      (prevOutPengeluaranSum + prevPurchasesSum + prevOutHutangPay);
+      (prevOutPengeluaranSum +
+        prevPurchasesSum +
+        prevOutHutangPay +
+        prevOutPajak);
 
     // ===== BULAN BERJALAN
     // IN: pembayaran tagihan pada bulan ini
@@ -181,7 +203,7 @@ export async function GET(req: NextRequest) {
     });
     const inTagihan = pays._sum.jumlahBayar || 0;
 
-    // (BARU) IN: hutang (detail) pada bulan ini
+    // IN: hutang (detail) pada bulan ini
     const hutangAgg = await prisma.hutangDetail.aggregate({
       where: { hutang: { tanggalInput: { gte: start, lt: end } } },
       _sum: { nominal: true },
@@ -208,15 +230,16 @@ export async function GET(req: NextRequest) {
     });
     const outPurchase = pcs._sum.total || 0;
 
-    // (BARU) OUT: pembayaran hutang (detail) pada bulan ini
+    // OUT: pembayaran hutang (detail) pada bulan ini
     const hutangPayAgg = await prisma.hutangPaymentDetail.aggregate({
       where: { payment: { tanggalBayar: { gte: start, lt: end } } },
       _sum: { amount: true },
     });
     const outHutangPay = hutangPayAgg._sum.amount || 0;
 
+    // outPajak sudah dihitung di atas (periode === periode)
     const totalMasuk = inTagihan + inHutang;
-    const totalKeluar = outPengeluaran + outPurchase + outHutangPay;
+    const totalKeluar = outPengeluaran + outPurchase + outHutangPay + outPajak;
     const saldoAkhir = saldoAwal + totalMasuk - totalKeluar;
 
     return NextResponse.json({

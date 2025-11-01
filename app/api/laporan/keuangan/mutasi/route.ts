@@ -254,7 +254,6 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
@@ -380,17 +379,13 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    /* ============== IN: Hutang (Pinjaman) ==============
-       Tanggal dari hutang.tanggalInput
-       Keterangan: "<keterangan header> (<keterangan detail>)"
-       → contoh: "Pinjam ke Koperasi A (Perbaikan tandon)"
-    */
+    /* ============== IN: Hutang (Pinjaman) ============== */
     const hutangDetails = await prisma.hutangDetail.findMany({
       where: { hutang: { tanggalInput: { gte: start, lt: end } } },
       select: {
         id: true,
         nominal: true,
-        keterangan: true, // keterangan detail
+        keterangan: true,
         hutang: {
           select: {
             id: true,
@@ -398,7 +393,7 @@ export async function GET(req: NextRequest) {
             tanggalInput: true,
             pemberi: true,
             status: true,
-            keterangan: true, // keterangan header
+            keterangan: true,
           },
         },
       },
@@ -406,8 +401,6 @@ export async function GET(req: NextRequest) {
 
     const inRowsFromHutang: MutasiRow[] = hutangDetails.map((d) => {
       const t = new Date(d.hutang!.tanggalInput as Date);
-
-      // rakit keterangan sesuai contoh
       const headerKet = (d.hutang?.keterangan || "").trim();
       const detailKet = (d.keterangan || "").trim();
       const ket =
@@ -538,7 +531,6 @@ export async function GET(req: NextRequest) {
         tipe: "OUT",
         kategori: "Pembayaran Hutang",
         metode: "-",
-        // pakai catatan payment sebagai keterangan utama
         keterangan:
           d.payment?.note ||
           d.note ||
@@ -559,13 +551,50 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    /* ============ OUT: Pajak (status CLOSE) - berdasarkan periode relasi ============ */
+    const pajakRaw = await prisma.pajak.findMany({
+      where: { status: "CLOSE" },
+      select: {
+        id: true,
+        keterangan: true,
+        nominalBayarPajak: true,
+        periode: { select: { kodePeriode: true } },
+      },
+    });
+
+    const outRowsFromPajak: MutasiRow[] = [];
+    for (const p of pajakRaw) {
+      const kode = p.periode?.kodePeriode; // format "YYYY-MM"
+      if (!kode) continue;
+      // derive date from kodePeriode (first day UTC)
+      const d = new Date(`${kode}-01T00:00:00Z`);
+      if (isNaN(d.getTime())) continue;
+      // include if derived date hits our [start, end)
+      if (d >= start && d < end) {
+        outRowsFromPajak.push({
+          id: p.id,
+          tanggal: toYmd(d),
+          jam: toHms(d),
+          tipe: "OUT",
+          kategori: "Pajak",
+          metode: "-",
+          keterangan: p.keterangan || `Pajak ${kode}`,
+          jumlah: p.nominalBayarPajak || 0,
+          refCode: kode || p.id || undefined,
+          createdAt: null,
+          statusVerif: "CLOSE",
+        });
+      }
+    }
+
     // gabung & filter
     let rows: MutasiRow[] = [
       ...inRowsFromTagihan,
-      ...inRowsFromHutang, // <- sudah gabung header(detail)
+      ...inRowsFromHutang,
       ...outRowsFromPengeluaran,
       ...outRowsFromPurchase,
       ...outRowsFromHutangPay,
+      ...outRowsFromPajak,
     ];
 
     if (flow !== "ALL") rows = rows.filter((r) => r.tipe === flow);
