@@ -227,10 +227,8 @@ export async function GET(req: Request) {
           : ("unpaid" as const);
 
       // label bulan PENAGIHAN
-      const periodeLabel = new Date(billY, billM - 1, 1).toLocaleDateString(
-        "id-ID",
-        { month: "long", year: "numeric" }
-      );
+      const bulanLabel = IMONTHS[billM - 1]; // 3 huruf saja, pakai IMONTHS di atas
+      const periodeLabel = `${bulanLabel} ${billY}`;
 
       // badge info
 

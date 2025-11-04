@@ -169,15 +169,8 @@ export function DataTable({ title, data }: DataTableProps) {
                 Total m³
               </th>
 
-              {/* NEW: terpisah */}
               <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">
-                Tagihan Bulan Lalu
-              </th>
-              <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">
-                Tagihan Sekarang
-              </th>
-              <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">
-                Total Tagihan
+                Tagihan
               </th>
 
               <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">
@@ -207,27 +200,8 @@ export function DataTable({ title, data }: DataTableProps) {
                     {item.totalM3.toLocaleString()} m³
                   </td>
 
-                  {/* Tagihan Bln Lalu: tampilkan negatif sebagai kredit (hijau) */}
-                  <td className="py-3 px-2 text-sm text-right">
-                    {d.tagihanLalu === 0 ? (
-                      <span className="text-muted-foreground">Rp 0</span>
-                    ) : d.tagihanLalu > 0 ? (
-                      <span className="text-red-600 font-medium">
-                        Kurang {fmtRp(d.tagihanLalu)}
-                      </span>
-                    ) : (
-                      <span className="text-green-600 font-medium">
-                        Sisa {fmtRp(Math.abs(d.tagihanLalu))}
-                      </span>
-                    )}
-                  </td>
-
                   <td className="py-3 px-2 text-sm text-right text-foreground">
                     {fmtRp(d.tagihanBlnIni)}
-                  </td>
-
-                  <td className="py-3 px-2 text-sm text-right font-semibold text-foreground">
-                    {fmtRp(d.tagihanTampil)}
                   </td>
 
                   <td className="py-3 px-2 text-sm text-right text-green-700">
@@ -252,13 +226,7 @@ export function DataTable({ title, data }: DataTableProps) {
                 {totalsPage.totalM3.toLocaleString()} m³
               </td>
               <td className="py-3 px-2 text-sm text-right text-foreground">
-                {fmtRp(totalsPage.tagihanLalu)}
-              </td>
-              <td className="py-3 px-2 text-sm text-right text-foreground">
                 {fmtRp(totalsPage.tagihanBlnIni)}
-              </td>
-              <td className="py-3 px-2 text-sm text-right text-foreground">
-                {fmtRp(totalsPage.tagihan)}
               </td>
               <td className="py-3 px-2 text-sm text-right text-green-700">
                 {fmtRp(totalsPage.sudahBayar)}
