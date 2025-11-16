@@ -346,7 +346,7 @@ export default function DashboardPage() {
           {/* Statistics Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
-              title="Total Tagihan Bulan Lalu"
+              title="Tagihan Bulan Lalu"
               value={
                 cards
                   ? rupiah(cards.totalTagihanBulanLalu ?? 0)
@@ -378,7 +378,7 @@ export default function DashboardPage() {
             />
 
             <StatCard
-              title="Total Tagihan Bulan Ini"
+              title="Tagihan Bulan Ini"
               value={
                 cards
                   ? rupiah(cards.totalTagihanBulanIni)

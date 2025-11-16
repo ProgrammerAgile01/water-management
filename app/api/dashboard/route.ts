@@ -71,6 +71,47 @@ function parseClosedBy(info?: string | null): string | null {
 }
 
 // ===== NEW: sum saldo per periode (piutang & kredit terpisah) — hormati CLOSED_BY =====
+// async function sumSaldoByPeriode(periode: string) {
+//   const rows = await prisma.tagihan.findMany({
+//     where: { deletedAt: null, periode },
+//     select: {
+//       totalTagihan: true,
+//       tagihanLalu: true,
+//       sisaKurang: true,
+//       info: true, // NEW
+//       pembayarans: { select: { jumlahBayar: true } },
+//     },
+//   });
+
+//   let piutangAmount = 0,
+//     piutangCount = 0;
+//   let kreditAmount = 0,
+//     kreditCount = 0;
+
+//   for (const r of rows) {
+//     const paid = r.pembayarans.reduce((s, p) => s + (p.jumlahBayar || 0), 0);
+//     let saldo = hitungSaldoAkhir(
+//       r.totalTagihan || 0,
+//       r.tagihanLalu,
+//       paid,
+//       r.sisaKurang
+//     );
+
+//     // NEW: hormati CLOSED_BY → untuk periode ini dianggap sudah ditutup
+//     const closedBy = parseClosedBy(r.info);
+//     if (closedBy) saldo = 0;
+
+//     if (saldo > 0) {
+//       piutangAmount += saldo;
+//       piutangCount++;
+//     } else if (saldo < 0) {
+//       kreditAmount += Math.abs(saldo);
+//       kreditCount++;
+//     }
+//   }
+//   return { piutangAmount, piutangCount, kreditAmount, kreditCount };
+// }
+
 async function sumSaldoByPeriode(periode: string) {
   const rows = await prisma.tagihan.findMany({
     where: { deletedAt: null, periode },
@@ -78,8 +119,10 @@ async function sumSaldoByPeriode(periode: string) {
       totalTagihan: true,
       tagihanLalu: true,
       sisaKurang: true,
-      info: true, // NEW
-      pembayarans: { select: { jumlahBayar: true } },
+      info: true,
+      // gunakan kolom yang jadi sumber kebenaran setelah backfill
+      sudahBayar: true,
+      belumBayar: true,
     },
   });
 
@@ -89,15 +132,17 @@ async function sumSaldoByPeriode(periode: string) {
     kreditCount = 0;
 
   for (const r of rows) {
-    const paid = r.pembayarans.reduce((s, p) => s + (p.jumlahBayar || 0), 0);
-    let saldo = hitungSaldoAkhir(
-      r.totalTagihan || 0,
-      r.tagihanLalu,
-      paid,
-      r.sisaKurang
-    );
+    // gunakan nilai yang sudah ada; fallback ke perhitungan jika belum terisi
+    const sudahBayar = Number(r.sudahBayar ?? 0);
+    let saldo: number;
+    if (typeof r.belumBayar === "number") {
+      saldo = r.belumBayar;
+    } else {
+      // fallback: totalTagihan + tagihanLalu - sudahBayar
+      saldo = (r.totalTagihan || 0) + (r.tagihanLalu || 0) - sudahBayar;
+    }
 
-    // NEW: hormati CLOSED_BY → untuk periode ini dianggap sudah ditutup
+    // hormati CLOSED_BY → bila ditutup, nolkan saldo periode ini
     const closedBy = parseClosedBy(r.info);
     if (closedBy) saldo = 0;
 
@@ -177,14 +222,26 @@ export async function GET(req: Request) {
       const totalM3 = cmRows.reduce((s, r) => s + (r.pemakaianM3 || 0), 0);
 
       // ===== ringkas tagihan periode TAGIHAN dengan carry & kredit =====
+      // const tg = await prisma.tagihan.findMany({
+      //   where: { deletedAt: null, periode: kPeriodeTagihan },
+      //   select: {
+      //     totalTagihan: true,
+      //     tagihanLalu: true,
+      //     sisaKurang: true,
+      //     info: true, // NEW
+      //     pembayarans: { select: { jumlahBayar: true } },
+      //   },
+      // });
+
       const tg = await prisma.tagihan.findMany({
         where: { deletedAt: null, periode: kPeriodeTagihan },
         select: {
           totalTagihan: true,
           tagihanLalu: true,
           sisaKurang: true,
-          info: true, // NEW
-          pembayarans: { select: { jumlahBayar: true } },
+          info: true,
+          sudahBayar: true,
+          belumBayar: true,
         },
       });
 
@@ -194,24 +251,53 @@ export async function GET(req: Request) {
       let sisaAkhirKurang = 0; // piutang (+)
       let sisaAkhirLebih = 0; // kredit (+)
 
+      // for (const r of tg) {
+      //   tagihanBulanIni += r.totalTagihan ?? 0;
+      //   totalTagihanLalu += r.tagihanLalu ?? 0;
+
+      //   const paid = r.pembayarans.reduce(
+      //     (a, b) => a + (b.jumlahBayar || 0),
+      //     0
+      //   );
+      //   totalSudahBayar += paid;
+
+      //   let saldo = hitungSaldoAkhir(
+      //     r.totalTagihan || 0,
+      //     r.tagihanLalu,
+      //     paid,
+      //     r.sisaKurang
+      //   );
+
+      //   // NEW: jika ada CLOSED_BY, saldo periode ini di-nolkan
+      //   const closedBy = parseClosedBy(r.info);
+      //   if (closedBy) saldo = 0;
+
+      //   if (saldo > 0) sisaAkhirKurang += saldo;
+      //   else if (saldo < 0) sisaAkhirLebih += Math.abs(saldo);
+      // }
+
       for (const r of tg) {
         tagihanBulanIni += r.totalTagihan ?? 0;
         totalTagihanLalu += r.tagihanLalu ?? 0;
 
-        const paid = r.pembayarans.reduce(
-          (a, b) => a + (b.jumlahBayar || 0),
-          0
-        );
+        // gunakan kolom sudahBayar jika tersedia
+        const paid = Number(r.sudahBayar ?? 0);
         totalSudahBayar += paid;
 
-        let saldo = hitungSaldoAkhir(
-          r.totalTagihan || 0,
-          r.tagihanLalu,
-          paid,
-          r.sisaKurang
-        );
+        // gunakan kolom belumBayar bila ada, jika tidak fallback ke perhitungan
+        let saldo: number;
+        if (typeof r.belumBayar === "number") {
+          saldo = r.belumBayar;
+        } else {
+          saldo = hitungSaldoAkhir(
+            r.totalTagihan || 0,
+            r.tagihanLalu,
+            paid,
+            r.sisaKurang
+          );
+        }
 
-        // NEW: jika ada CLOSED_BY, saldo periode ini di-nolkan
+        // CLOSED_BY → nolkan saldo periode ini
         const closedBy = parseClosedBy(r.info);
         if (closedBy) saldo = 0;
 
@@ -421,8 +507,22 @@ export async function GET(req: Request) {
       }, 0);
     }
 
+    async function sumTagihan(periode: string) {
+      const rows = await prisma.tagihan.findMany({
+        where: { deletedAt: null, periode },
+        select: { totalTagihan: true },
+      });
+      return rows.reduce((sum, r) => {
+        const net = (r.totalTagihan || 0);
+        return sum + Math.max(net, 0); // tampilan, jangan minus
+      }, 0);
+    }
+
     const totalInclCarryNow = await sumTagihanInclCarry(periodeNow);
     const totalInclCarryPrev = await sumTagihanInclCarry(periodePrev);
+
+    const totalTagihanNow = await sumTagihan(periodeNow);
+    const totalTagihanPrev = await sumTagihan(periodePrev);
 
     // (biarkan aggregate lama untuk _count pelanggan & payingRate)
     const tagihanCurr = await prisma.tagihan.aggregate({
@@ -508,9 +608,9 @@ export async function GET(req: Request) {
       unpaidList,
       waterIssues,
       statCards: {
-        totalTagihanBulanIni: totalInclCarryNow,
+        totalTagihanBulanIni: totalTagihanNow,
         totalTagihanCount: tagihanCurr._count ?? 0,
-        totalTagihanBulanLalu: totalInclCarryPrev,
+        totalTagihanBulanLalu: totalTagihanPrev,
         totalTagihanBulanLaluCount: tagihanPrev._count ?? 0,
         totalBelumBayarAmount: saldoCurr.piutangAmount,
         totalBelumBayarCount: saldoCurr.piutangCount,

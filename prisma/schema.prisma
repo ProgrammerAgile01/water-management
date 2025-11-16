@@ -98,6 +98,8 @@ model Pelanggan {
   resets         ResetMeter[]   @relation("PelangganReset")
   catatMeterBlok CatatMeterBlok[] @relation("PelangganToCatatMeterBlok")
 
+  detailPembayaran DetailPembayaran[]
+
   @@unique([zonaId, noUrutRumah])
   @@index([zonaId])
   @@index([deletedAt])
@@ -238,6 +240,9 @@ model Tagihan {
   // Tambahan untuk carry-over tagihan lalu dan sisa/kurang
   tagihanLalu   Int      @default(0) // saldo bulan lalu (boleh + atau −)
   sisaKurang    Int      @default(0) // saldo akhir bulan ini (boleh + atau −)
+
+  sudahBayar    Int      @default(0)
+  belumBayar    Int      @default(0)
   
   statusBayar   String   @default("UNPAID")
   statusVerif   String   @default("UNVERIFIED")
@@ -253,6 +258,8 @@ model Tagihan {
 
   // 1 tagihan punya banyak pembayaran
   pembayarans Pembayaran[]
+
+  detailPembayaran DetailPembayaran[]
 
   catatMeterId String?            @unique   // <-- agar benar2 1:1
   catatMeter   CatatMeter? @relation("TagihanToCatat", fields: [catatMeterId], references: [id])
@@ -298,6 +305,12 @@ model Pembayaran {
   // Catatan/keterangan pelunasan
   keterangan   String?  @db.Text
 
+  // detail alokasi
+  detailPembayaran DetailPembayaran[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
   // Soft delete pembayaran
   deletedAt     DateTime? @db.DateTime(3)
   deletedBy     String?
@@ -308,6 +321,30 @@ model Pembayaran {
   @@index([tagihanId], map: "Pembayaran_tagihanId_fkey")
   @@index([deletedAt])
   @@index([deletedBy])
+}
+
+model DetailPembayaran {
+  id             String    @id @default(cuid())
+
+  pembayaranId   String
+  pembayaran     Pembayaran @relation(fields: [pembayaranId], references: [id], onDelete: Cascade)
+
+  tagihanId      String
+  tagihan        Tagihan    @relation(fields: [tagihanId], references: [id], onDelete: Cascade)
+
+  pelangganId    String
+  pelanggan      Pelanggan  @relation(fields: [pelangganId], references: [id])
+
+  periode        String     // snapshot periode string (mis. "2025-10")
+  jumlahTerbayar Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([pembayaranId])
+  @@index([tagihanId])
+  @@index([pelangganId])
+  @@index([periode])
 }
 
 model Setting {
