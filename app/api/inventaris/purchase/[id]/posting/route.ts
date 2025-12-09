@@ -8,10 +8,10 @@ export const dynamic = "force-dynamic";
 // POST: close (posting) satu purchase by id
 export async function POST(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = params.id;
+   const { id } = await context.params;
 
     // cek ada & belum dihapus
     const existing = await prisma.purchase.findUnique({

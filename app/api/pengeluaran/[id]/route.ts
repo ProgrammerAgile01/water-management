@@ -21,10 +21,13 @@ function toClientHeader(p: any) {
 
 export async function GET(
   _: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
+
 ) {
+  const { id } = await context.params;
+
   const p = await prisma.pengeluaran.findUnique({
-    where: { id: params.id },
+    where: { id: id },
     include: { details: true },
   });
   if (!p) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -33,8 +36,11 @@ export async function GET(
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
+
 ) {
+  const { id } = await context.params;
+
   const body = await req.json().catch(() => ({}));
   const data: any = {};
 
@@ -50,7 +56,7 @@ export async function PATCH(
   }
 
   const updated = await prisma.pengeluaran.update({
-    where: { id: params.id },
+    where: { id: id },
     data,
     include: { details: true },
   });
@@ -59,15 +65,17 @@ export async function PATCH(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await context.params;
+
   // action: "post" => CLOSE
   const body = await req.json().catch(() => ({}));
   if (body?.action !== "post") {
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   }
   const p = await prisma.pengeluaran.findUnique({
-    where: { id: params.id },
+    where: { id: id },
     include: { details: true },
   });
   if (!p) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -75,7 +83,7 @@ export async function POST(
     return NextResponse.json({ error: "Sudah CLOSE" }, { status: 400 });
 
   const closed = await prisma.pengeluaran.update({
-    where: { id: params.id },
+    where: { id: id },
     data: { status: "CLOSE" },
     include: { details: true },
   });
@@ -85,9 +93,11 @@ export async function POST(
 
 export async function DELETE(
   _: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
-  const p = await prisma.pengeluaran.findUnique({ where: { id: params.id } });
+  const { id } = await context.params;
+
+  const p = await prisma.pengeluaran.findUnique({ where: { id: id } });
   if (!p) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   if (p.status === "CLOSE") {
@@ -97,6 +107,6 @@ export async function DELETE(
     );
   }
 
-  await prisma.pengeluaran.delete({ where: { id: params.id } });
+  await prisma.pengeluaran.delete({ where: { id: id } });
   return NextResponse.json({ ok: true });
 }

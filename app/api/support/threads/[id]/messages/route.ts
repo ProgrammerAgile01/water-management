@@ -59,19 +59,22 @@ import { botAutoReplyFor } from "@/app/api/support/_bot";
 
 export async function POST(
   req: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
+
 ) {
+  const { id } = await context.params;
+
   const { body, authorType } = await req.json();
 
   const saved = await prisma.supportMessage.create({
     data: {
-      threadId: params.id,
+      threadId: id,
       authorType: authorType === "CS" ? "CS" : "ME",
       body: String(body || ""),
     },
   });
   await prisma.supportThread.update({
-    where: { id: params.id },
+    where: { id: id },
     data: { updatedAt: new Date() },
   });
 
@@ -81,7 +84,7 @@ export async function POST(
     const bot = await botAutoReplyFor(String(body || ""), prisma);
     if (bot) {
       autoReply = await prisma.supportMessage.create({
-        data: { threadId: params.id, authorType: "CS", body: bot },
+        data: { threadId: id, authorType: "CS", body: bot },
       });
     }
   }

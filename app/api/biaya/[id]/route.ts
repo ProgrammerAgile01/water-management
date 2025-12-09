@@ -4,10 +4,11 @@ import { prisma } from "@/lib/prisma";
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
+
 ) {
   try {
-    const id = params.id;
+    const { id } = await context.params;
     const body = await req.json().catch(() => ({}));
 
     const data: any = {};
@@ -58,10 +59,11 @@ export async function PUT(
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
+
 ) {
   try {
-    const id = params.id;
+    const { id } = await context.params;
     const body = await req.json().catch(() => ({}));
 
     if (body?.action === "toggle") {

@@ -4,10 +4,11 @@ import { prisma } from "@/lib/prisma";
 // Next.js App Router params signature
 export async function POST(
   _req: NextRequest,
-  ctx: { params: { id?: string } }
+  context: { params: Promise<{ id: string }> }
+
 ) {
   try {
-    const id = ctx?.params?.id;
+   const { id } = await context.params;
     if (!id) {
       return NextResponse.json(
         { ok: false, message: "Missing id" },

@@ -14,8 +14,10 @@ const schema = z.object({
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await context.params;
+
   try {
     const body = await req.json().catch(() => ({}));
     const parsed = schema.safeParse(body);
@@ -32,7 +34,7 @@ export async function PUT(
     if (parsed.data.petugasId !== undefined) data.petugasId = parsed.data.petugasId;
 
     const updated = await prisma.jadwalPencatatan.update({
-      where: { id: params.id },
+      where: { id: id },
       data,
       select: { id: true },
     });

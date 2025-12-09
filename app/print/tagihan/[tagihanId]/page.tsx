@@ -27,13 +27,15 @@ function renderTagihanLaluText(n: number) {
 }
 
 type PageProps = {
-  params: { tagihanId: string };
-  searchParams?: { compact?: string };
+  params: Promise<{ tagihanId: string }>;
+  searchParams: Promise<{ compact?: string }>;
 };
 
-export default async function Page({ params, searchParams }: PageProps) {
-  const { tagihanId } = params;
-  const compact = (searchParams?.compact ?? "") === "1";
+export default async function Page(props: PageProps) {
+  const { tagihanId } = await props.params;
+  const { compact: compactParam = "" } = await props.searchParams;
+
+  const compact = compactParam === "1";
 
   // ===== data umum =====
   const setting = await prisma.setting.findUnique({ where: { id: 1 } });

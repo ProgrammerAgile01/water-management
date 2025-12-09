@@ -1,4 +1,3 @@
-// lib/wa-send.ts
 import { prisma } from "@/lib/prisma";
 
 /** Kirim WA TEKS + catat log detail respon */

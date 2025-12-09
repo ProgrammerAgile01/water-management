@@ -79,11 +79,13 @@ const putSchema = z.object({
 
 export async function GET(
   _: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await context.params;
+
   try {
     const r = await prisma.resetMeter.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       select: {
         id: true,
         pelangganId: true,
@@ -140,14 +142,16 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await context.params;
+
   try {
     const body = await req.json().catch(() => ({}));
     const data = putSchema.parse(body);
 
     const old = await prisma.resetMeter.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       select: { id: true, pelangganId: true, tanggalReset: true },
     });
     if (!old)
@@ -168,7 +172,7 @@ export async function PUT(
       data.tanggalReset ?? old.tanggalReset.toISOString().slice(0, 10);
 
     const updated = await prisma.resetMeter.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         ...(data.tanggalReset
           ? { tanggalReset: new Date(data.tanggalReset) }
@@ -195,10 +199,12 @@ export async function PUT(
 
 export async function DELETE(
   _: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await context.params;
+
   try {
-    await prisma.resetMeter.delete({ where: { id: params.id } });
+    await prisma.resetMeter.delete({ where: { id: id } });
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     if (e?.code === "P2025") {

@@ -24,10 +24,12 @@ const toHeader = (h: any) => ({
 
 export async function GET(
   _: NextRequest,
-  { params }: { params: { id: string } }
+  ctx: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await ctx.params;
+
   const h = await prisma.hutang.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: { details: true },
   });
   if (!h)
@@ -40,10 +42,12 @@ export async function GET(
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  ctx: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await ctx.params;
+
   const body = await req.json().catch(() => ({}));
-  const h = await prisma.hutang.findUnique({ where: { id: params.id } });
+  const h = await prisma.hutang.findUnique({ where: { id: id } });
   if (!h)
     return NextResponse.json(
       { ok: false, error: "NOT_FOUND" },
@@ -66,7 +70,7 @@ export async function PATCH(
     data.nominal = Number(body.nominal);
 
   const updated = await prisma.hutang.update({
-    where: { id: params.id },
+    where: { id: id },
     data,
     include: { details: true },
   });

@@ -2,11 +2,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export async function POST(_: Request, { params }: { params: { id: string } }) {
+export async function POST(_: Request, context: { params: Promise<{ id: string }> }) {
+  const { id } = await context.params;
+
   try {
     // Hanya update bila belum DONE
     await prisma.jadwalPencatatan.updateMany({
-      where: { id: params.id, NOT: { status: "DONE" } },
+      where: { id: id, NOT: { status: "DONE" } },
       data: { status: "IN_PROGRESS" },
     });
     return NextResponse.json({ ok: true, message: "Pencatatan dimulai." });

@@ -11,10 +11,12 @@ export const runtime = "nodejs";
  */
 export async function GET(
   _req: NextRequest,
-  ctx: { params: { path: string[] } }
+  ctx: { params: Promise<{ path: string[] }> }
 ) {
+  const { path } = await ctx.params;
+
   try {
-    const parts = ctx.params.path || [];
+    const parts = path || [];
     if (!parts.length) {
       return NextResponse.json(
         { ok: false, message: "Path kosong" },

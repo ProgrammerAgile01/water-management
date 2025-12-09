@@ -13,10 +13,10 @@ const UpdateSchema = z.object({
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  ctx: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = params.id;
+    const { id } = await ctx.params;
     const body = await req.json();
     const parsed = UpdateSchema.parse(body);
 
@@ -55,10 +55,10 @@ export async function PATCH(
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = params.id;
+    const { id } = await context.params;
     await prisma.item.update({
       where: { id },
       data: { deletedAt: new Date() }, // SOFT DELETE

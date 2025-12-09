@@ -3,9 +3,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export async function GET(_: Request, { params }: { params: { id: string } }) {
+export async function GET(_: Request, context: { params: Promise<{ id: string }> }
+) {
+  const { id } = await context.params;
+
   const item = await prisma.supportThread.findUnique({
-    where: { id: params.id },
+    where: { id: id },
     include: { messages: { orderBy: { createdAt: "asc" } } },
   });
   if (!item)
@@ -18,11 +21,14 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
 
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
+
 ) {
+  const { id } = await context.params;
+
   const { status, topic } = await req.json();
   const item = await prisma.supportThread.update({
-    where: { id: params.id },
+    where: { id: id },
     data: { status, topic },
   });
   return NextResponse.json({ ok: true, item });

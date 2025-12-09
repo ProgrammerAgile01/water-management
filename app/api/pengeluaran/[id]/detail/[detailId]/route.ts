@@ -4,13 +4,15 @@ import { prisma } from "@/lib/prisma";
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string; detailId: string } }
+  ctx: { params: Promise<{ id: string; detailId: string }> }
 ) {
+  const { id, detailId } = await ctx.params;
+
   const body = await req.json().catch(() => ({}));
   const { masterBiayaId, keterangan, nominal } = body ?? {};
 
   const header = await prisma.pengeluaran.findUnique({
-    where: { id: params.id },
+    where: { id: id },
   });
   if (!header)
     return NextResponse.json({ error: "Header not found" }, { status: 404 });
@@ -38,21 +40,21 @@ export async function PUT(
 
   await prisma.$transaction(async (tx) => {
     await tx.pengeluaranDetail.update({
-      where: { id: params.detailId },
+      where: { id: detailId },
       data,
     });
     const totalAgg = await tx.pengeluaranDetail.aggregate({
-      where: { pengeluaranId: params.id },
+      where: { pengeluaranId: id },
       _sum: { nominal: true },
     });
     await tx.pengeluaran.update({
-      where: { id: params.id },
+      where: { id: id },
       data: { total: totalAgg._sum.nominal ?? 0 },
     });
   });
 
   const updated = await prisma.pengeluaran.findUnique({
-    where: { id: params.id },
+    where: { id: id },
     include: { details: true },
   });
 
@@ -74,10 +76,11 @@ export async function PUT(
 
 export async function DELETE(
   _: NextRequest,
-  { params }: { params: { id: string; detailId: string } }
+  ctx: { params: Promise<{ id: string; detailId: string }> }
 ) {
+  const { id, detailId } = await ctx.params;
   const header = await prisma.pengeluaran.findUnique({
-    where: { id: params.id },
+    where: { id: id },
   });
   if (!header)
     return NextResponse.json({ error: "Header not found" }, { status: 404 });
@@ -88,13 +91,13 @@ export async function DELETE(
     );
 
   await prisma.$transaction(async (tx) => {
-    await tx.pengeluaranDetail.delete({ where: { id: params.detailId } });
+    await tx.pengeluaranDetail.delete({ where: { id: detailId } });
     const totalAgg = await tx.pengeluaranDetail.aggregate({
-      where: { pengeluaranId: params.id },
+      where: { pengeluaranId: id },
       _sum: { nominal: true },
     });
     await tx.pengeluaran.update({
-      where: { id: params.id },
+      where: { id: id },
       data: { total: totalAgg._sum.nominal ?? 0 },
     });
   });

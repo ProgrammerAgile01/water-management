@@ -429,6 +429,7 @@ export async function POST(req: NextRequest) {
             statusVerif: "UNVERIFIED",
             tglJatuhTempo: due,
             catatMeterId: row.id,
+            belumBayar: total,
           },
           create: {
             pelangganId: row.pelangganId,
@@ -444,6 +445,7 @@ export async function POST(req: NextRequest) {
             statusVerif: "UNVERIFIED",
             tglJatuhTempo: due,
             catatMeterId: row.id,
+            belumBayar: total,
           },
         });
 

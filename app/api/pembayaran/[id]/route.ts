@@ -626,7 +626,7 @@ async function makeCompressedFileMax200KB(original: File, targetKB = 200) {
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   // ——— Guard: hanya ADMIN/PETUGAS
   const uid = await getAuthUserId(req);
@@ -647,7 +647,7 @@ export async function PATCH(
   }
 
   try {
-    const id = params.id;
+    const { id } = await context.params;
     if (!id)
       return NextResponse.json(
         { ok: false, message: "id wajib" },

@@ -20,10 +20,10 @@ function parseLocalDateTimeToUTC(s: string) {
   return new Date(Date.UTC(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, 0));
 }
 
-export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     // Next 15: params async — aman juga kalau sync.
-    const { id } = ctx.params;
+    const { id } = await context.params;
     const body = await req.json();
     const parsed = UpdateSchema.parse({
       ...body,
@@ -146,10 +146,10 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = params.id;
+    const { id } = await context.params;
     const existing = await prisma.purchase.findUnique({
       where: { id },
       select: { id: true, status: true },

@@ -4,8 +4,10 @@ import { prisma } from "@/lib/prisma";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await context.params;
+
   const body = await req.json().catch(() => ({}));
   const { masterBiayaId, keterangan, nominal } = body ?? {};
 
@@ -18,7 +20,7 @@ export async function POST(
 
   // cek header & status
   const header = await prisma.pengeluaran.findUnique({
-    where: { id: params.id },
+    where: { id: id },
   });
   if (!header)
     return NextResponse.json({ error: "Header not found" }, { status: 404 });
@@ -41,7 +43,7 @@ export async function POST(
   await prisma.$transaction(async (tx) => {
     await tx.pengeluaranDetail.create({
       data: {
-        pengeluaranId: params.id,
+        pengeluaranId: id,
         masterBiayaId,
         biayaNamaSnapshot: mb.nama,
         keterangan,
@@ -49,17 +51,17 @@ export async function POST(
       },
     });
     const totalAgg = await tx.pengeluaranDetail.aggregate({
-      where: { pengeluaranId: params.id },
+      where: { pengeluaranId: id },
       _sum: { nominal: true },
     });
     await tx.pengeluaran.update({
-      where: { id: params.id },
+      where: { id: id },
       data: { total: totalAgg._sum.nominal ?? 0 },
     });
   });
 
   const updated = await prisma.pengeluaran.findUnique({
-    where: { id: params.id },
+    where: { id: id },
     include: { details: true },
   });
   return NextResponse.json({

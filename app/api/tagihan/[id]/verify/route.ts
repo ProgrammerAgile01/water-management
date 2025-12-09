@@ -874,10 +874,10 @@ function waTextPembayaranVerified(p: {
 /* ===== PATCH /api/tagihan/:id/verify ===== */
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = params.id;
+    const { id } = await context.params;
     const body = (await (req as any).json()) ?? {};
     const to =
       typeof body.verified === "boolean"

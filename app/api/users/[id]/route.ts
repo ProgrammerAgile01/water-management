@@ -8,8 +8,8 @@ const select = {
   role: true, isActive: true, createdAt: true, updatedAt: true,
 }
 
-export async function PUT(_: Request, { params }: { params: { id: string } }) {
-  const id = params.id
+export async function PUT(_: Request, context: { params: Promise<{ id: string }> }) {
+  const { id } = await context.params;
   const body = await _.json().catch(() => ({} as any))
   const { username, password, name, role, phone } = body as {
     username?: string
@@ -51,8 +51,8 @@ export async function PUT(_: Request, { params }: { params: { id: string } }) {
   return NextResponse.json(updated)
 }
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  const id = params.id
+export async function PATCH(req: Request, context: { params: Promise<{ id: string }> }) {
+  const { id } = await context.params;
   const body = await req.json().catch(() => ({} as any))
   const { action, isActive } = body as { action?: "toggle"; isActive?: boolean }
 
@@ -73,8 +73,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   return NextResponse.json(updated)
 }
 
-export async function DELETE(_: Request, { params }: { params: { id: string } }) {
-  const id = params.id
+export async function DELETE(_: Request, context: { params: Promise<{ id: string }> }) {
+  const { id } = await context.params;
   const user = await prisma.user.findUnique({ where: { id } })
   if (!user) return NextResponse.json({ message: "User tidak ditemukan" }, { status: 404 })
   if (user.username === "admin") {

@@ -3,12 +3,14 @@ import { prisma } from "@/lib/prisma";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  ctx: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await ctx.params;
+  
   const body = await req.json().catch(() => ({}));
   const { keterangan, nominal, tanggal } = body ?? {};
 
-  const head = await prisma.hutang.findUnique({ where: { id: params.id } });
+  const head = await prisma.hutang.findUnique({ where: { id: id } });
   if (!head)
     return NextResponse.json(
       { ok: false, error: "NOT_FOUND" },
@@ -29,11 +31,11 @@ export async function POST(
 
   await prisma.$transaction(async (tx) => {
     const count = await tx.hutangDetail.count({
-      where: { hutangId: params.id },
+      where: { hutangId: id },
     });
     await tx.hutangDetail.create({
       data: {
-        hutangId: params.id,
+        hutangId: id,
         keterangan: String(keterangan),
         nominal: Number(nominal),
         no: count + 1,
@@ -42,11 +44,11 @@ export async function POST(
     });
 
     const agg = await tx.hutangDetail.aggregate({
-      where: { hutangId: params.id },
+      where: { hutangId: id },
       _sum: { nominal: true },
     });
     await tx.hutang.update({
-      where: { id: params.id },
+      where: { id: id },
       data: { nominal: agg._sum.nominal ?? 0 },
     });
   });
