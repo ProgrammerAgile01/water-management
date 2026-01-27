@@ -39,7 +39,7 @@ model User {
   deletedCatatPeriode CatatPeriode[] @relation("DeletedByUserCatatPeriode")
   lockedPeriods       CatatPeriode[] @relation("LockedByUser")
   petugasCatat        CatatPeriode[] @relation("PetugasCatatPeriode")
-  // 🔁 back-relation: 1 petugas bisa pegang banyak zona
+  // back-relation: 1 petugas bisa pegang banyak zona
   zonasDipegang       Zona[]         @relation("UserZonaPetugas")
 
   // Relasi opsional user→tandon (jika user terikat ke tandon tertentu)
@@ -114,7 +114,7 @@ enum PeriodeStatus {
 
 model CatatPeriode {
   id          String @id @default(cuid())
-  kodePeriode String @unique // "YYYY-MM"
+  kodePeriode String @unique // "YYYY-MM" 
   bulan       Int
   tahun       Int
 

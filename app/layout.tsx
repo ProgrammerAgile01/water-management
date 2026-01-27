@@ -6,7 +6,6 @@ import { Analytics } from "@vercel/analytics/next"
 import { Suspense } from "react"
 import "./globals.css"
 import { Toaster } from "@/components/ui/toaster"
-import { SiteFooter } from "@/components/site-footer"
 
 export const metadata: Metadata = {
   title: "Tirta Bening - Water Billing Management",

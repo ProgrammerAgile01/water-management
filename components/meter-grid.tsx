@@ -103,6 +103,15 @@ export function MeterGrid() {
 
   async function finalizeRow(row: ApiRow) {
     try {
+      if (!Number.isFinite(row.meterAkhir)) {
+        toast({
+          title: "Tidak bisa finalisasi",
+          description: "Meter akhir belum valid",
+          variant: "destructive",
+        });
+        return;
+      }
+
       setLocking(true);
       const res = await fetch("/api/catat-meter/finalize-row", {
         method: "POST",
@@ -128,6 +137,53 @@ export function MeterGrid() {
       setLocking(false);
       setLockTarget(null);
     }
+  }
+
+  async function handleLockClick(row: ApiRow) {
+    if (isPeriodLocked || row.locked) {
+      showLockedToast();
+      return;
+    }
+
+    const buf = editEnd[row.id];
+    const hasBuf = buf !== undefined && buf !== "";
+    const end = hasBuf ? Number(buf) : row.meterAkhir;
+
+    // ===== GUARD 1: harus ada meter akhir
+    if (!Number.isFinite(end)) {
+      toast({
+        title: "Belum bisa dikunci",
+        description: "Meter akhir belum diisi",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // ===== GUARD 2: validasi nilai
+    if (end < row.meterAwal) {
+      toast({
+        title: "Nilai tidak valid",
+        description: "Meter akhir tidak boleh < meter awal",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // ===== AUTOSAVE dulu
+    if (hasBuf) {
+      try {
+        const ok = await saveReading(row, end);
+        if (!ok) return;
+      } catch {
+        return; // save gagal → jangan lanjut
+      }
+    }
+
+    // ===== baru tampilkan modal konfirmasi
+    setLockTarget({
+      ...row,
+      meterAkhir: end,
+    });
   }
 
   const period = currentPeriod || "";
@@ -192,7 +248,7 @@ export function MeterGrid() {
   const calcTotal = (
     pemakaian: number,
     rowTarif?: number,
-    rowAbon?: number
+    rowAbon?: number,
   ) => {
     const t = (typeof rowTarif === "number" ? rowTarif : headerTarif) ?? 0;
     const a = (typeof rowAbon === "number" ? rowAbon : headerAbon) ?? 0;
@@ -201,13 +257,13 @@ export function MeterGrid() {
 
   const completedCount = useMemo(
     () => rows.filter((r) => r.status === "completed").length,
-    [rows]
+    [rows],
   );
   const totalCount = rows.length;
-  const percentRaw = data?.ok ? data.progress?.percent ?? 0 : 0;
+  const percentRaw = data?.ok ? (data.progress?.percent ?? 0) : 0;
   const percent = Math.min(
     100,
-    Math.max(0, Math.round(Number(percentRaw) || 0))
+    Math.max(0, Math.round(Number(percentRaw) || 0)),
   );
 
   const filtered = useMemo(
@@ -216,9 +272,9 @@ export function MeterGrid() {
         (r) =>
           r.nama.toLowerCase().includes(searchTerm.toLowerCase()) ||
           r.kodeCustomer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          r.alamat.toLowerCase().includes(searchTerm.toLowerCase())
+          r.alamat.toLowerCase().includes(searchTerm.toLowerCase()),
       ),
-    [rows, searchTerm]
+    [rows, searchTerm],
   );
 
   useEffect(() => {
@@ -275,7 +331,10 @@ export function MeterGrid() {
     digits(end) === digits(start) && end >= start;
 
   // ===== SAVE =====
-  const saveReading = async (row: ApiRow, endOverride?: number) => {
+  const saveReading = async (
+    row: ApiRow,
+    endOverride?: number,
+  ): Promise<boolean> => {
     const rowLocked = !!row.locked;
     if (rowLocked) {
       toast({
@@ -283,7 +342,7 @@ export function MeterGrid() {
         description: "Data pelanggan ini sudah dikunci.",
         variant: "destructive",
       });
-      return;
+      return false;
     }
 
     const raw = endOverride != null ? String(endOverride) : editEnd[row.id];
@@ -294,7 +353,7 @@ export function MeterGrid() {
         description: "Masukkan meter akhir terlebih dahulu",
         variant: "destructive",
       });
-      return;
+      return false;
     }
     if (parsed < row.meterAwal) {
       toast({
@@ -302,7 +361,7 @@ export function MeterGrid() {
         description: "Meter akhir tidak boleh < meter awal",
         variant: "destructive",
       });
-      return;
+      return false;
     }
 
     try {
@@ -316,6 +375,7 @@ export function MeterGrid() {
           kendala: editNote[row.id] || "",
         }),
       });
+
       const json = await res.json();
       if (!res.ok || !json?.ok)
         throw new Error(json?.message || "Gagal menyimpan");
@@ -347,12 +407,15 @@ export function MeterGrid() {
         title: "Tersimpan",
         description: `Pencatatan ${row.nama} disimpan`,
       });
+
+      return true;
     } catch (e: any) {
       toast({
         title: "Gagal menyimpan",
         description: e.message ?? "Error",
         variant: "destructive",
       });
+      return false;
     } finally {
       setAutoSaving((p) => {
         const { [row.id]: _, ...rest } = p;
@@ -396,7 +459,7 @@ export function MeterGrid() {
     try {
       const endFromBuf = Number(editEnd[row.id]);
       const hasBuf = Number.isFinite(endFromBuf);
-      const end = hasBuf ? endFromBuf : row.meterAkhir ?? row.meterAwal;
+      const end = hasBuf ? endFromBuf : (row.meterAkhir ?? row.meterAwal);
 
       const pem = Math.max(0, end - row.meterAwal);
       const rowTarif =
@@ -420,8 +483,8 @@ export function MeterGrid() {
         window.open(
           `https://wa.me/${row.phone.replace(
             /^0/,
-            "62"
-          )}?text=${encodeURIComponent(msg)}`
+            "62",
+          )}?text=${encodeURIComponent(msg)}`,
         );
       } else {
         toast({
@@ -554,7 +617,7 @@ export function MeterGrid() {
                   ))}
                 </SelectContent>
               </Select>
-              <Button
+              {/* <Button
                 onClick={handleDownloadCustomerPDF}
                 variant="outline"
                 size="sm"
@@ -563,7 +626,7 @@ export function MeterGrid() {
               >
                 <Download className="w-4 h-4 mr-2" />
                 Download PDF
-              </Button>
+              </Button> */}
             </div>
           </div>
         </div>
@@ -635,7 +698,7 @@ export function MeterGrid() {
                 {filtered.map((r) => {
                   const rowLocked = !!r.locked;
                   const buf = editEnd[r.id];
-                  const endVal = buf === undefined ? r.meterAkhir ?? "" : buf;
+                  const endVal = buf === undefined ? (r.meterAkhir ?? "") : buf;
                   const parsed = endVal === "" ? NaN : Number(endVal);
                   const pem = Number.isFinite(parsed)
                     ? Math.max(0, parsed - r.meterAwal)
@@ -669,16 +732,24 @@ export function MeterGrid() {
                         </td>
                         <td className="py-3 px-2 text-center">
                           <Input
-                            type="number"
-                            value={endVal}
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            value={endVal === undefined ? "" : endVal}
+                            placeholder="0"
                             onChange={(e) => {
                               if (isPeriodLocked || rowLocked) return;
-                              const str = e.target.value;
-                              const v = Number(str || 0);
-                              setEditEnd((p) => ({ ...p, [r.id]: str }));
+
+                              // hanya angka
+                              const raw = e.target.value.replace(/\D/g, "");
+
+                              setEditEnd((p) => ({ ...p, [r.id]: raw }));
+
+                              const v = raw === "" ? NaN : Number(raw);
 
                               if (
                                 !autoSaving[r.id] &&
+                                Number.isFinite(v) &&
                                 shouldAutoSave(v, r.meterAwal)
                               ) {
                                 setAutoSaving((p) => ({ ...p, [r.id]: true }));
@@ -686,22 +757,11 @@ export function MeterGrid() {
                                   setAutoSaving((p) => {
                                     const { [r.id]: _, ...rest } = p;
                                     return rest;
-                                  })
+                                  }),
                                 );
-                              } else if (
-                                canValidate(v, r.meterAwal) &&
-                                v < r.meterAwal
-                              ) {
-                                toast({
-                                  title: "Perhatikan nilai",
-                                  description:
-                                    "Meter akhir lebih kecil dari meter awal",
-                                  variant: "destructive",
-                                });
                               }
                             }}
                             className="w-28 h-8 text-center text-sm"
-                            placeholder="0"
                             min={r.meterAwal}
                             readOnly={isPeriodLocked || rowLocked}
                             disabled={
@@ -733,7 +793,7 @@ export function MeterGrid() {
                                       r,
                                       Number.isFinite(parsed)
                                         ? Number(parsed)
-                                        : undefined
+                                        : undefined,
                                     )
                                   }
                                   className="h-8 px-2 bg-transparent"
@@ -765,7 +825,8 @@ export function MeterGrid() {
                                 size="sm"
                                 variant="outline"
                                 className="h-8 px-2"
-                                onClick={() => setLockTarget(r)}
+                                onClick={() => handleLockClick(r)}
+                                disabled={!!autoSaving[r.id]}
                                 title="Kunci & Finalisasi"
                               >
                                 <LockOpen className="w-4 h-4" />
@@ -788,7 +849,7 @@ export function MeterGrid() {
                               className="h-8 px-2 bg-transparent"
                               onClick={() =>
                                 setExpandedCard(
-                                  expandedCard === r.id ? null : r.id
+                                  expandedCard === r.id ? null : r.id,
                                 )
                               }
                               title="Kendala & Rincian"
@@ -847,7 +908,7 @@ export function MeterGrid() {
                                     0,
                                     (Number.isFinite(Number(editEnd[r.id]))
                                       ? Number(editEnd[r.id])
-                                      : r.meterAkhir ?? 0) - r.meterAwal
+                                      : (r.meterAkhir ?? 0)) - r.meterAwal,
                                   )}{" "}
                                   m³
                                 </p>
@@ -925,7 +986,7 @@ export function MeterGrid() {
             {filtered.map((r) => {
               const rowLocked = !!r.locked;
               const buf = editEnd[r.id];
-              const endVal = buf === undefined ? r.meterAkhir ?? "" : buf;
+              const endVal = buf === undefined ? (r.meterAkhir ?? "") : buf;
               const parsed = endVal === "" ? NaN : Number(endVal);
               const pem = Number.isFinite(parsed)
                 ? Math.max(0, parsed - r.meterAwal)
@@ -972,15 +1033,24 @@ export function MeterGrid() {
                           Meter Akhir (Bulan Ini)
                         </p>
                         <Input
-                          type="number"
-                          value={endVal}
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={endVal === undefined ? "" : endVal}
+                          placeholder="0"
                           onChange={(e) => {
                             if (isPeriodLocked || rowLocked) return;
-                            const str = e.target.value;
-                            const v = Number(str || 0);
-                            setEditEnd((p) => ({ ...p, [r.id]: str }));
+
+                            // hanya angka
+                            const raw = e.target.value.replace(/\D/g, "");
+
+                            setEditEnd((p) => ({ ...p, [r.id]: raw }));
+
+                            const v = raw === "" ? NaN : Number(raw);
+
                             if (
                               !autoSaving[r.id] &&
+                              Number.isFinite(v) &&
                               shouldAutoSave(v, r.meterAwal)
                             ) {
                               setAutoSaving((p) => ({ ...p, [r.id]: true }));
@@ -988,26 +1058,11 @@ export function MeterGrid() {
                                 setAutoSaving((p) => {
                                   const { [r.id]: _, ...rest } = p;
                                   return rest;
-                                })
+                                }),
                               );
-                            } else if (
-                              canValidate(v, r.meterAwal) &&
-                              v < r.meterAwal
-                            ) {
-                              toast({
-                                title: "Perhatikan nilai",
-                                description:
-                                  "Meter akhir lebih kecil dari meter awal",
-                                variant: "destructive",
-                              });
                             }
                           }}
                           className="h-8 text-sm mt-1"
-                          placeholder={
-                            isPeriodLocked || rowLocked
-                              ? "Dikunci"
-                              : "Masukkan meter akhir"
-                          }
                           min={r.meterAwal}
                           readOnly={isPeriodLocked || rowLocked}
                           disabled={
@@ -1051,7 +1106,7 @@ export function MeterGrid() {
                               r,
                               Number.isFinite(parsed)
                                 ? Number(parsed)
-                                : undefined
+                                : undefined,
                             )
                           }
                           className="h-8 px-2 bg-transparent"
@@ -1083,7 +1138,8 @@ export function MeterGrid() {
                         size="sm"
                         variant="outline"
                         className="h-8 px-2"
-                        onClick={() => setLockTarget(r)}
+                        onClick={() => handleLockClick(r)}
+                        disabled={!!autoSaving[r.id]}
                         title="Kunci & Finalisasi"
                       >
                         <LockOpen className="w-4 h-4" />

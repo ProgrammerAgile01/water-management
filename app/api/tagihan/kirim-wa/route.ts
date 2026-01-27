@@ -74,8 +74,8 @@ function waText(p: {
     n > 0
       ? `Kurang ${formatRp(n)}`
       : n < 0
-      ? `Sisa ${formatRp(Math.abs(n))}`
-      : "Rp 0";
+        ? `Sisa ${formatRp(Math.abs(n))}`
+        : "Rp 0";
 
   const sections: string[] = [];
   sections.push(
@@ -85,7 +85,7 @@ function waText(p: {
       p.nama ? `Pelanggan: *${p.nama}*` : undefined,
     ]
       .filter(Boolean)
-      .join("\n")
+      .join("\n"),
   );
   sections.push(
     [
@@ -94,7 +94,7 @@ function waText(p: {
       `• Tagihan Bulan Ini: ${formatRp(p.tagihanBulanIni)}`,
       `• *Total Tagihan: ${formatRp(totalGabungan)}*`,
       `• Batas Bayar: *${fmtTanggalID(p.due)}*`,
-    ].join("\n")
+    ].join("\n"),
   );
   sections.push(
     [
@@ -113,7 +113,7 @@ function waText(p: {
       `*Total Tagihan: ${formatRp(totalGabungan)}*`,
     ]
       .filter(Boolean)
-      .join("\n")
+      .join("\n"),
   );
   sections.push(["*Cara Pembayaran*", bayarLines].join("\n"));
   if (kontakLine) sections.push(["*Bantuan*", kontakLine].join("\n"));
@@ -122,7 +122,7 @@ function waText(p: {
     [
       "*NOTE:*",
       `Setelah melakukan Transfer, silahkan konfirmasi ke nomor ${p.setting?.whatsappCs}\n\nAtau`,
-    ].join("\n")
+    ].join("\n"),
   );
 
   return sections.map((s) => s.replace(/[ \t]+$/g, "")).join("\n\n");
@@ -167,10 +167,13 @@ async function sendWaAndLog(tujuanRaw: string, text: string) {
       prisma.waLog.update({
         where: { id: log.id },
         data: { status: r.ok ? "SENT" : "FAILED" },
-      })
+      }),
     )
     .catch(() =>
-      prisma.waLog.update({ where: { id: log.id }, data: { status: "FAILED" } })
+      prisma.waLog.update({
+        where: { id: log.id },
+        data: { status: "FAILED" },
+      }),
     )
     .finally(() => clearTimeout(t));
 }
@@ -178,7 +181,7 @@ async function sendWaAndLog(tujuanRaw: string, text: string) {
 async function sendWaImageAndLog(
   tujuanRaw: string,
   tagihanId: string,
-  caption?: string
+  caption?: string,
 ) {
   const to = tujuanRaw.replace(/\D/g, "").replace(/^0/, "62");
   const base = (process.env.WA_SENDER_URL || "").replace(/\/$/, "");
@@ -200,7 +203,18 @@ async function sendWaImageAndLog(
     return;
   }
   try {
-    const browser = await puppeteer.launch({ headless: "new" });
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--no-zygote",
+        "--single-process",
+      ],
+    });
+
     const page = await browser.newPage();
     const origin =
       process.env.APP_ORIGIN ||
@@ -271,7 +285,7 @@ export async function POST(req: NextRequest) {
     if (!tagihanId) {
       return NextResponse.json(
         { ok: false, message: "tagihanId wajib" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -301,7 +315,7 @@ export async function POST(req: NextRequest) {
     if (!t || t.deletedAt) {
       return NextResponse.json(
         { ok: false, message: "Tagihan tidak ditemukan" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -309,7 +323,7 @@ export async function POST(req: NextRequest) {
     if (targets.length === 0) {
       return NextResponse.json(
         { ok: false, message: "Nomor WhatsApp pelanggan belum diisi" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -317,7 +331,7 @@ export async function POST(req: NextRequest) {
     if (!setting) {
       return NextResponse.json(
         { ok: false, message: "Setting tidak ditemukan" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -398,12 +412,12 @@ export async function POST(req: NextRequest) {
     (async () => {
       await Promise.allSettled(targets.map((to) => sendWaAndLog(to, text)));
       const caption = `Tagihan Air Periode ${new Date(
-        `${t.periode}-01`
+        `${t.periode}-01`,
       ).toLocaleDateString("id-ID", { month: "long", year: "numeric" })} - ${
         t.pelanggan?.nama
       }`;
       await Promise.allSettled(
-        targets.map((to) => sendWaImageAndLog(to, t.id, caption))
+        targets.map((to) => sendWaImageAndLog(to, t.id, caption)),
       );
     })();
 
@@ -412,7 +426,7 @@ export async function POST(req: NextRequest) {
     console.error(e);
     return NextResponse.json(
       { ok: false, message: e?.message ?? "Server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

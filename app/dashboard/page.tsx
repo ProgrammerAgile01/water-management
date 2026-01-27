@@ -26,6 +26,13 @@ import {
   InfoDot,
 } from "@/components/ui/radix-tooltip";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type UsageItem = { month: string; usage: number };
 type BillingItem = { month: string; amount: number };
@@ -123,7 +130,9 @@ export default function DashboardPage() {
   const [selectedYm, setSelectedYm] = useState<string>(ymNow);
   const [lrMonths, setLRMonths] = useState<LRMonth[]>([]);
 
-  const year = useMemo(() => new Date().getFullYear(), []);
+  const [year, setYear] = useState<number | null>(null);
+  const [availableYears, setAvailableYears] = useState<number[]>([]);
+
   const rupiah = (n: number) => "Rp " + Number(n || 0).toLocaleString("id-ID");
 
   /* ===== Load 1 bulan (untuk modal) ===== */
@@ -241,13 +250,16 @@ export default function DashboardPage() {
       try {
         setLoading(true);
 
-        const dashRes = await fetch(`/api/dashboard?year=${year}`, {
-          cache: "no-store",
-        });
+        const dashRes = await fetch(
+          year ? `/api/dashboard?year=${year}` : `/api/dashboard`,
+          { cache: "no-store" }
+        );
 
         if (dashRes.ok) {
           const data = await dashRes.json();
           if (!cancelled) {
+            setYear(data.activeYear);
+            setAvailableYears(data.availableYears ?? []);
             setUsageData(data.usageData ?? []);
             setBillingData(data.billingData ?? []);
             setTableData(data.tableData ?? []);
@@ -342,6 +354,31 @@ export default function DashboardPage() {
             showBackButton={false}
             showBreadcrumb={false}
           />
+
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-foreground">
+              Dashboard Tahun {year ?? "—"}
+            </h2>
+
+            {availableYears.length > 0 && year && (
+              <Select
+                value={String(year)}
+                onValueChange={(v) => setYear(Number(v))}
+              >
+                <SelectTrigger className="w-[120px]">
+                  <SelectValue placeholder="Pilih Tahun" />
+                </SelectTrigger>
+
+                <SelectContent align="end">
+                  {availableYears.map((y) => (
+                    <SelectItem key={y} value={String(y)}>
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
 
           {/* Statistics Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -238,6 +238,8 @@ function findScrollableAncestor(el: HTMLElement | null): HTMLElement | null {
 export function BottomNav() {
   const pathname = usePathname();
 
+  const year = new Date().getFullYear();
+
   // Hooks top-level
   const [role, setRole] = useState<Role | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -359,15 +361,15 @@ export function BottomNav() {
         <div className="pb-[2px] text-center text-[10px] leading-[12px] text-muted-foreground">
           <span className="mr-1">Supported by</span>
           <Link
-            href="#"
+            href="https://agilestore.id"
             target="_blank"
             rel="noopener noreferrer"
             className="font-semibold text-foreground hover:text-primary"
           >
-            agile.com
+            agilestore.id
           </Link>
           <span className="mx-2 opacity-50">•</span>
-          <span className="select-none">© 2025</span>
+          <span className="select-none">© {year}</span>
         </div>
       </GlassCard>
     </div>

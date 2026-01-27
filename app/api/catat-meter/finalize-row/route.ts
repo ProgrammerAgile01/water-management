@@ -107,8 +107,8 @@ function waText(p: {
     n > 0
       ? `Kurang ${formatRp(n)}`
       : n < 0
-      ? `Sisa ${formatRp(Math.abs(n))}`
-      : "Rp 0";
+        ? `Sisa ${formatRp(Math.abs(n))}`
+        : "Rp 0";
 
   const sections: string[] = [];
   sections.push(
@@ -118,7 +118,7 @@ function waText(p: {
       p.nama ? `Pelanggan: *${p.nama}*` : undefined,
     ]
       .filter(Boolean)
-      .join("\n")
+      .join("\n"),
   );
   sections.push(
     [
@@ -127,7 +127,7 @@ function waText(p: {
       `• Tagihan Bulan Ini: ${formatRp(p.tagihanBulanIni)}`,
       `• *Total Tagihan: ${formatRp(totalGabungan)}*`,
       `• Batas Bayar: *${fmtTanggalID(p.due)}*`,
-    ].join("\n")
+    ].join("\n"),
   );
   sections.push(
     [
@@ -144,7 +144,7 @@ function waText(p: {
       `*Total Tagihan: ${formatRp(totalGabungan)}*`,
     ]
       .filter(Boolean)
-      .join("\n")
+      .join("\n"),
   );
   sections.push(["*Cara Pembayaran*", bayarLines].join("\n"));
   if (kontakLine) sections.push(["*Bantuan*", kontakLine].join("\n"));
@@ -153,7 +153,7 @@ function waText(p: {
     [
       "*NOTE:*",
       `Setelah melakukan Transfer, silahkan konfirmasi ke Bp. Masrur di nomor ${p.setting?.whatsappCs}\n\nAtau`,
-    ].join("\n")
+    ].join("\n"),
   );
 
   return sections.map((s) => s.replace(/[ \t]+$/g, "")).join("\n\n");
@@ -198,10 +198,13 @@ async function sendWaAndLog(tujuanRaw: string, text: string) {
       prisma.waLog.update({
         where: { id: log.id },
         data: { status: r.ok ? "SENT" : "FAILED" },
-      })
+      }),
     )
     .catch(() =>
-      prisma.waLog.update({ where: { id: log.id }, data: { status: "FAILED" } })
+      prisma.waLog.update({
+        where: { id: log.id },
+        data: { status: "FAILED" },
+      }),
     )
     .finally(() => clearTimeout(t));
 }
@@ -209,7 +212,7 @@ async function sendWaAndLog(tujuanRaw: string, text: string) {
 async function sendWaImageAndLog(
   tujuanRaw: string,
   tagihanId: string,
-  caption?: string
+  caption?: string,
 ) {
   const to = tujuanRaw.replace(/\D/g, "").replace(/^0/, "62");
   const base = (process.env.WA_SENDER_URL || "").replace(/\/$/, "");
@@ -232,7 +235,18 @@ async function sendWaImageAndLog(
   }
 
   try {
-    const browser = await puppeteer.launch({ headless: "new" });
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--no-zygote",
+        "--single-process",
+      ],
+    });
+
     const page = await browser.newPage();
     const origin =
       process.env.APP_ORIGIN ||
@@ -305,7 +319,7 @@ export async function POST(req: NextRequest) {
     if (!id)
       return NextResponse.json(
         { ok: false, message: "id wajib" },
-        { status: 400 }
+        { status: 400 },
       );
 
     const row = await prisma.catatMeter.findUnique({
@@ -327,12 +341,12 @@ export async function POST(req: NextRequest) {
     if (!row || row.deletedAt)
       return NextResponse.json(
         { ok: false, message: "Data tidak ditemukan" },
-        { status: 404 }
+        { status: 404 },
       );
     if (row.periode.isLocked)
       return NextResponse.json(
         { ok: false, message: "Periode sudah dikunci" },
-        { status: 423 }
+        { status: 423 },
       );
     if (row.isLocked)
       return NextResponse.json({
@@ -340,13 +354,25 @@ export async function POST(req: NextRequest) {
         locked: true,
         message: "Row sudah dikunci",
       });
+    if (row.meterAkhir == null) {
+      return NextResponse.json(
+        { ok: false, message: "Meter akhir belum diinput" },
+        { status: 400 },
+      );
+    }
+    if (row.meterAkhir < row.meterAwal) {
+      return NextResponse.json(
+        { ok: false, message: "Meter akhir tidak valid" },
+        { status: 400 },
+      );
+    }
 
     const periodeStr = row.periode.kodePeriode; // "YYYY-MM" (bulan catat)
     const setting = await prisma.setting.findUnique({ where: { id: 1 } });
     if (!setting)
       return NextResponse.json(
         { ok: false, message: "Setting tidak ditemukan" },
-        { status: 500 }
+        { status: 500 },
       );
 
     // Periode tagihan = +1 bulan
@@ -364,7 +390,7 @@ export async function POST(req: NextRequest) {
     const [yy, mm] = billingPeriode.split("-").map(Number);
     const day = Math.min(
       Math.max(1, setting.tglJatuhTempo ?? 15),
-      new Date(yy, mm, 0).getDate()
+      new Date(yy, mm, 0).getDate(),
     );
     const due = new Date(yy, mm - 1, day, 12, 0, 0, 0);
 
@@ -513,7 +539,7 @@ export async function POST(req: NextRequest) {
           pelanggan: row.pelanggan,
           tagihan: t,
         };
-      }
+      },
     );
 
     // === Magic link user WARGA ===
@@ -581,11 +607,11 @@ export async function POST(req: NextRequest) {
             meterAwal: row.meterAwal,
             meterAkhir: Math.max(
               row.meterAkhir ?? row.meterAwal,
-              row.meterAwal
+              row.meterAwal,
             ),
             pemakaian: Math.max(
               0,
-              (row.meterAkhir ?? row.meterAwal) - row.meterAwal
+              (row.meterAkhir ?? row.meterAwal) - row.meterAwal,
             ),
             tarifPerM3: tarif,
             abonemen: abon,
@@ -604,10 +630,10 @@ export async function POST(req: NextRequest) {
               try {
                 await sendWaAndLog(to, text);
               } catch {}
-            })
+            }),
           );
           const caption = `Tagihan Air Periode ${new Date(
-            `${billingPeriode}-01`
+            `${billingPeriode}-01`,
           ).toLocaleDateString("id-ID", {
             month: "long",
             year: "numeric",
@@ -617,7 +643,7 @@ export async function POST(req: NextRequest) {
               try {
                 await sendWaImageAndLog(to, tagihan.id, caption);
               } catch {}
-            })
+            }),
           );
         })();
       }
@@ -627,7 +653,7 @@ export async function POST(req: NextRequest) {
   } catch (e: any) {
     return NextResponse.json(
       { ok: false, message: e?.message ?? "Server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

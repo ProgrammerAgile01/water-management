@@ -161,7 +161,27 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const now = new Date();
-    const year = Number(searchParams.get("year") ?? now.getFullYear());
+    // const year = Number(searchParams.get("year") ?? now.getFullYear());
+
+    // cari tahun terakhir yg ada data
+    const latestYearRow = await prisma.catatPeriode.findFirst({
+      where: { deletedAt: null },
+      orderBy: [{ tahun: "desc" }],
+      select: { tahun: true },
+    });
+
+    const fallbackYear = latestYearRow?.tahun ?? new Date().getFullYear();
+
+    const year = Number(searchParams.get("year") ?? fallbackYear);
+
+    // ambil daftar tahun tersedia
+    const availableYearsRaw = await prisma.catatPeriode.findMany({
+      where: { deletedAt: null },
+      distinct: ["tahun"],
+      orderBy: { tahun: "desc" },
+      select: { tahun: true },
+    });
+    const availableYears = availableYearsRaw.map((y) => y.tahun);
 
     // ==== CHART: Pemakaian (CatatMeter by tahun CatatPeriode) ====
     const catats = await prisma.catatMeter.findMany({
@@ -200,7 +220,7 @@ export async function GET(req: Request) {
     const periods = await prisma.catatPeriode.findMany({
       where: { deletedAt: null, tahun: year },
       orderBy: [{ tahun: "desc" }, { bulan: "desc" }],
-      take: 5,
+      take: 12,
       select: { kodePeriode: true, bulan: true, tahun: true },
     });
     const kode = (y: number, m: number) => `${y}-${pad2(m)}`;
@@ -513,7 +533,7 @@ export async function GET(req: Request) {
         select: { totalTagihan: true },
       });
       return rows.reduce((sum, r) => {
-        const net = (r.totalTagihan || 0);
+        const net = r.totalTagihan || 0;
         return sum + Math.max(net, 0); // tampilan, jangan minus
       }, 0);
     }
@@ -601,6 +621,8 @@ export async function GET(req: Request) {
     };
 
     return NextResponse.json({
+      activeYear: year,
+      availableYears,
       usageData,
       billingData,
       tableData,
