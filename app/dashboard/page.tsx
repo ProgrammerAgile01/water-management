@@ -33,6 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ChartHeader } from "@/components/chart-dashboard-header";
 
 type UsageItem = { month: string; usage: number };
 type BillingItem = { month: string; amount: number };
@@ -155,92 +156,20 @@ export default function DashboardPage() {
     }
   }
 
-  /* ===== Cek apakah response bulan tsb punya data ===== */
-  function hasLRData(j: any): boolean {
-    const pend = j?.ringkasan?.pendapatanTotal ?? 0;
-    const beb = j?.ringkasan?.bebanTotal ?? 0;
-    const lab = j?.ringkasan?.labaBersih ?? 0;
-    const hasLedger = Array.isArray(j?.ledger) && j.ledger.length > 0;
-    return hasLedger || pend !== 0 || beb !== 0 || lab !== 0;
-  }
+  async function loadLRMonths() {
+    const qs = year ? `&year=${year}` : "";
+    const r = await fetch(`/api/laporan/laba-rugi?multi=months${qs}`, {
+      cache: "no-store",
+    });
+    if (!r.ok) return;
+    const j = await r.json();
+    setLRMonths(j.months || []);
 
-  /* ===== Ambil daftar bulan dari API laporan (kalau ada) ===== */
-  async function fetchReportMonths(): Promise<string[] | null> {
-    const scopes = ["months", "available-months", "periods"];
-    for (const scope of scopes) {
-      try {
-        const r = await fetch(`/api/laporan/laba-rugi?scope=${scope}`, {
-          cache: "no-store",
-        });
-        if (!r.ok) continue;
-        const j = await r.json();
-
-        // bisa {months:[...]} atau {periods:[...]} atau langsung array
-        const arr: unknown = Array.isArray(j)
-          ? j
-          : j?.months ?? j?.periods ?? j?.data;
-
-        if (Array.isArray(arr) && arr.every((x) => typeof x === "string")) {
-          // unique + sort ASC (YYYY-MM)
-          const uniq = Array.from(new Set(arr as string[])).sort();
-          if (uniq.length) return uniq;
-        }
-      } catch {
-        // ignore & try next scope
-      }
+    const last = j.months?.[j.months.length - 1];
+    if (last) {
+      setSelectedYm(last.ym);
+      await loadLRMonth(last.ym);
     }
-    return null;
-  }
-
-  /* ===== Discovery bulan yg ada data (fallback jika scope bulan tidak ada) =====
-     - Cek mundur 12 bulan dari bulan sekarang (tidak ambil bulan depan)
-     - Hanya ambil bulan yang benar-benar punya data (ledger/total ≠ 0)
-  */
-  async function discoverMonthsWithData(centerYm: string): Promise<string[]> {
-    const candidates: string[] = [];
-    for (let back = 12; back >= 0; back--) {
-      candidates.push(ymAdd(centerYm, -back));
-    }
-    const res = await Promise.all(
-      candidates.map(async (m) => {
-        const r = await fetch(`/api/laporan/laba-rugi?scope=month&month=${m}`, {
-          cache: "no-store",
-        });
-        if (!r.ok) return null;
-        const j = await r.json();
-        return hasLRData(j) ? m : null;
-      })
-    );
-    return res.filter(Boolean) as string[]; // tanpa bulan kosong
-  }
-
-  /* ===== Build LRMonth untuk daftar YM tertentu (skip bulan kosong) ===== */
-  /* ===== Build LRMonth untuk daftar YM tertentu (skip bulan kosong) ===== */
-  async function loadLRByMonths(months: string[]) {
-    // pastikan daftar YM yang masuk sudah urut ASC
-    const orderedMonths = Array.from(new Set(months)).sort((a, b) =>
-      a.localeCompare(b)
-    );
-
-    const results: LRMonth[] = [];
-    await Promise.all(
-      orderedMonths.map(async (m) => {
-        const r = await fetch(`/api/laporan/laba-rugi?scope=month&month=${m}`, {
-          cache: "no-store",
-        });
-        if (!r.ok) return;
-        const j = await r.json();
-        if (!hasLRData(j)) return; // skip bulan kosong
-        const pendapatan = j?.ringkasan?.pendapatanTotal ?? 0;
-        const beban = j?.ringkasan?.bebanTotal ?? 0;
-        const laba = j?.ringkasan?.labaBersih ?? pendapatan - beban;
-        results.push({ ym: m, label: ymLabel(m), pendapatan, beban, laba });
-      })
-    );
-
-    // jaga-jaga: sort lagi by ym ASC
-    results.sort((a, b) => a.ym.localeCompare(b.ym));
-    setLRMonths(results);
   }
 
   /* ===== Effect utama: load dashboard + LR (mengikuti laporan) ===== */
@@ -252,7 +181,7 @@ export default function DashboardPage() {
 
         const dashRes = await fetch(
           year ? `/api/dashboard?year=${year}` : `/api/dashboard`,
-          { cache: "no-store" }
+          { cache: "no-store" },
         );
 
         if (dashRes.ok) {
@@ -278,20 +207,8 @@ export default function DashboardPage() {
           setCards(null);
         }
 
-        // 1) coba baca daftar bulan dari laporan
-        let months = await fetchReportMonths();
-
-        // 2) kalau tidak ada, discovery bulan yg ada data (tanpa bulan depan)
-        if (!months || months.length === 0) {
-          months = await discoverMonthsWithData(ymNow);
-        }
-
-        // 3) muat sesuai urutan dan pilih default ke bulan terakhir yg ada data
         if (!cancelled) {
-          await loadLRByMonths(months);
-          const latest = months[months.length - 1] ?? ymNow;
-          setSelectedYm(latest);
-          await loadLRMonth(latest);
+          await loadLRMonths();
         }
       } catch (e) {
         console.error(e);
@@ -323,7 +240,7 @@ export default function DashboardPage() {
     return lrLedger.filter(
       (r) =>
         (r.keterangan || "").toLowerCase().includes(q) ||
-        new Date(r.tanggal as any).toISOString().slice(0, 10).includes(q)
+        new Date(r.tanggal as any).toISOString().slice(0, 10).includes(q),
     );
   }, [lrLedger, lrSearch]);
 
@@ -356,28 +273,27 @@ export default function DashboardPage() {
           />
 
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-foreground">
-              Dashboard Tahun {year ?? "—"}
+            <h2 className="text-lg font-semibold">
+              Dashboard {year ? `Tahun ${year}` : "Semua Tahun"}
             </h2>
 
-            {availableYears.length > 0 && year && (
-              <Select
-                value={String(year)}
-                onValueChange={(v) => setYear(Number(v))}
-              >
-                <SelectTrigger className="w-[120px]">
-                  <SelectValue placeholder="Pilih Tahun" />
-                </SelectTrigger>
+            <Select
+              value={year === null ? "ALL" : String(year)}
+              onValueChange={(v) => setYear(v === "ALL" ? null : Number(v))}
+            >
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Pilih Tahun" />
+              </SelectTrigger>
 
-                <SelectContent align="end">
-                  {availableYears.map((y) => (
-                    <SelectItem key={y} value={String(y)}>
-                      {y}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+              <SelectContent align="end">
+                <SelectItem value="ALL">Semua Tahun</SelectItem>
+                {availableYears.map((y) => (
+                  <SelectItem key={y} value={String(y)}>
+                    {y}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Statistics Cards */}
@@ -388,8 +304,8 @@ export default function DashboardPage() {
                 cards
                   ? rupiah(cards.totalTagihanBulanLalu ?? 0)
                   : loading
-                  ? "…"
-                  : "Rp 0"
+                    ? "…"
+                    : "Rp 0"
               }
               subtitle={`${cards?.totalTagihanBulanLaluCount ?? 0} pelanggan`}
               trend={
@@ -420,8 +336,8 @@ export default function DashboardPage() {
                 cards
                   ? rupiah(cards.totalTagihanBulanIni)
                   : loading
-                  ? "…"
-                  : "Rp 0"
+                    ? "…"
+                    : "Rp 0"
               }
               subtitle={`${cards?.totalTagihanCount ?? 0} pelanggan`}
               trend={
@@ -451,8 +367,8 @@ export default function DashboardPage() {
                   cards
                     ? rupiah(cards.totalBelumBayarAmount)
                     : loading
-                    ? "…"
-                    : "Rp 0"
+                      ? "…"
+                      : "Rp 0"
                 }
                 subtitle={`${cards?.totalBelumBayarCount ?? 0} tagihan aktif`}
                 trend={
@@ -649,44 +565,22 @@ export default function DashboardPage() {
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <GlassCard className="p-6">
-              <h3 className="text-lg font-semibold text-foreground mb-4">
-                Pemakaian Air (m³){" "}
-                <TooltipProvider delayDuration={150}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <InfoDot label="Info Ringkasan Periode" />
-                    </TooltipTrigger>
-                    <TooltipContent
-                      side="top"
-                      align="start"
-                      className="max-w-xs"
-                    >
-                      Data ini diambil dari <b>periode catat meter</b>.
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </h3>
+              <ChartHeader
+                title="Pemakaian Air (m³)"
+                year={year}
+                count={usageData.length}
+                source="Data diambil dari periode catat meter pelanggan. Saat memilih Semua Tahun, data ditampilkan sebagai timeline (YYYY-MM)."
+              />
               <UsageLineChart data={usageData} />
             </GlassCard>
 
             <GlassCard className="p-6">
-              <h3 className="text-lg font-semibold text-foreground mb-4">
-                Total Tagihan per Bulan{" "}
-                <TooltipProvider delayDuration={150}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <InfoDot label="Info Ringkasan Periode" />
-                    </TooltipTrigger>
-                    <TooltipContent
-                      side="top"
-                      align="start"
-                      className="max-w-xs"
-                    >
-                      Data ini diambil dari <b>periode tagihan</b>.
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </h3>
+              <ChartHeader
+                title="Total Tagihan per Periode"
+                year={year}
+                count={billingData.length}
+                source="Data diambil dari periode tagihan (YYYY-MM) termasuk carry tagihan bulan sebelumnya."
+              />
               <BillingBarChart data={billingData} />
             </GlassCard>
           </div>
@@ -755,7 +649,7 @@ export default function DashboardPage() {
                         (item as any).carry < 0 ? (
                           <span
                             title={`Sisa tagihan lalu: Rp ${Math.abs(
-                              (item as any).carry
+                              (item as any).carry,
                             ).toLocaleString("id-ID")}`}
                             className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-medium"
                           >
@@ -853,7 +747,7 @@ export default function DashboardPage() {
                         (item as any).carry < 0 ? (
                           <span
                             title={`Sisa tagihan lalu: Rp ${Math.abs(
-                              (item as any).carry
+                              (item as any).carry,
                             ).toLocaleString("id-ID")}`}
                             className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-medium"
                           >

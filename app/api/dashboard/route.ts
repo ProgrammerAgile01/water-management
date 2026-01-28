@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { wherePeriodeYear, whereYear } from "@/lib/filter-year-dashboard";
 
 const IMONTHS = [
   "Jan",
@@ -57,7 +58,7 @@ function hitungSaldoAkhir(
   totalTagihan: number,
   tagihanLalu: number | null | undefined,
   totalBayar: number,
-  sisaKurang: number | null | undefined
+  sisaKurang: number | null | undefined,
 ) {
   const fallback = (totalTagihan || 0) + (tagihanLalu || 0) - (totalBayar || 0);
   return sisaKurang ?? fallback;
@@ -157,22 +158,23 @@ async function sumSaldoByPeriode(periode: string) {
   return { piutangAmount, piutangCount, kreditAmount, kreditCount };
 }
 
+// filter tahun chart
+type ChartPoint = { month: string; value: number };
+
+function sortYM(a: string, b: string) {
+  return a.localeCompare(b); // aman untuk YYYY-MM
+}
+
+function ym(y: number, m: number) {
+  return `${y}-${String(m).padStart(2, "0")}`;
+}
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const now = new Date();
-    // const year = Number(searchParams.get("year") ?? now.getFullYear());
 
-    // cari tahun terakhir yg ada data
-    const latestYearRow = await prisma.catatPeriode.findFirst({
-      where: { deletedAt: null },
-      orderBy: [{ tahun: "desc" }],
-      select: { tahun: true },
-    });
-
-    const fallbackYear = latestYearRow?.tahun ?? new Date().getFullYear();
-
-    const year = Number(searchParams.get("year") ?? fallbackYear);
+    const yearParam = searchParams.get("year");
+    const year = yearParam ? Number(yearParam) : null;
 
     // ambil daftar tahun tersedia
     const availableYearsRaw = await prisma.catatPeriode.findMany({
@@ -185,40 +187,106 @@ export async function GET(req: Request) {
 
     // ==== CHART: Pemakaian (CatatMeter by tahun CatatPeriode) ====
     const catats = await prisma.catatMeter.findMany({
-      where: { deletedAt: null, periode: { tahun: year } },
-      select: { pemakaianM3: true, periode: { select: { bulan: true } } },
+      where: { deletedAt: null, ...wherePeriodeYear(year) },
+      select: { pemakaianM3: true, periode: { select: { bulan: true, tahun: true } } },
     });
     const usageByMonth: number[] = Array(12).fill(0);
     for (const r of catats) {
       const idx = Math.max(0, Math.min(11, (r.periode?.bulan ?? 1) - 1));
       usageByMonth[idx] += r.pemakaianM3 ?? 0;
     }
-    const usageData = IMONTHS.map((m, i) => ({
-      month: m,
-      usage: usageByMonth[i],
-    }));
+
+    let usageData: { month: string; usage: number }[] = [];
+
+    if (year) {
+      // ===== MODE TAHUNAN (12 bulan) =====
+      const byMonth = Array(12).fill(0);
+
+      for (const r of catats) {
+        const idx = (r.periode?.bulan ?? 1) - 1;
+        if (idx < 0 || idx > 11) continue;
+        byMonth[idx] += r.pemakaianM3 ?? 0;
+      }
+
+      usageData = IMONTHS.map((m, i) => ({
+        month: m,
+        usage: byMonth[i],
+      }));
+    } else {
+      // ===== MODE TIMELINE (YYYY-MM) =====
+      const map = new Map<string, number>();
+
+      for (const r of catats) {
+        const y = r.periode?.tahun;
+        const m = r.periode?.bulan;
+        if (!y || !m) continue;
+
+        const key = ym(y, m);
+        map.set(key, (map.get(key) ?? 0) + (r.pemakaianM3 ?? 0));
+      }
+
+      usageData = Array.from(map.entries())
+        .sort(([a], [b]) => sortYM(a, b))
+        .map(([k, v]) => ({ month: k, usage: v }));
+    }
 
     // ==== CHART: Tagihan per bulan (pakai Tagihan.periode 'YYYY-MM') ====
     const tagihanTahun = await prisma.tagihan.findMany({
-      where: { deletedAt: null, periode: { startsWith: `${year}-` } },
+      where: {
+        deletedAt: null,
+        ...(year ? { periode: { startsWith: `${year}-` } } : {}),
+      },
       select: { periode: true, totalTagihan: true, tagihanLalu: true }, // <-- include carry
     });
     const billingByMonth: number[] = Array(12).fill(0);
     for (const t of tagihanTahun) {
       const [yStr, mStr] = (t.periode ?? "").split("-");
-      if (Number(yStr) !== year) continue;
-      const midx = Math.max(0, Math.min(11, Number(mStr) - 1));
-      const net = Math.max((t.totalTagihan || 0) + (t.tagihanLalu || 0), 0); // <-- incl. carry, no minus
+      if (!mStr) continue;
+
+      const midx = Number(mStr) - 1;
+      if (midx < 0 || midx > 11) continue;
+
+      const net = Math.max((t.totalTagihan || 0) + (t.tagihanLalu || 0), 0);
       billingByMonth[midx] += net;
     }
-    const billingData = IMONTHS.map((m, i) => ({
-      month: m,
-      amount: billingByMonth[i],
-    }));
+
+    let billingData: { month: string; amount: number }[] = [];
+
+    if (year) {
+      // ===== MODE TAHUNAN =====
+      const byMonth = Array(12).fill(0);
+
+      for (const t of tagihanTahun) {
+        const [, mStr] = (t.periode ?? "").split("-");
+        const idx = Number(mStr) - 1;
+        if (idx < 0 || idx > 11) continue;
+
+        const net = Math.max((t.totalTagihan || 0) + (t.tagihanLalu || 0), 0);
+        byMonth[idx] += net;
+      }
+
+      billingData = IMONTHS.map((m, i) => ({
+        month: m,
+        amount: byMonth[i],
+      }));
+    } else {
+      // ===== MODE TIMELINE (YYYY-MM) =====
+      const map = new Map<string, number>();
+
+      for (const t of tagihanTahun) {
+        if (!t.periode) continue;
+        const net = Math.max((t.totalTagihan || 0) + (t.tagihanLalu || 0), 0);
+        map.set(t.periode, (map.get(t.periode) ?? 0) + net);
+      }
+
+      billingData = Array.from(map.entries())
+        .sort(([a], [b]) => sortYM(a, b))
+        .map(([k, v]) => ({ month: k, amount: v }));
+    }
 
     // ==== TABLE: 5 periode catat terakhir tahun ini (label = periode tagihan) ====
     const periods = await prisma.catatPeriode.findMany({
-      where: { deletedAt: null, tahun: year },
+      where: { deletedAt: null, ...whereYear(year, "tahun") },
       orderBy: [{ tahun: "desc" }, { bulan: "desc" }],
       take: 12,
       select: { kodePeriode: true, bulan: true, tahun: true },
@@ -227,9 +295,6 @@ export async function GET(req: Request) {
     const tableData: any[] = [];
 
     for (const p of periods) {
-      // periode catat
-      const kPeriodeCatat = p.kodePeriode || kode(p.tahun, p.bulan);
-
       // periode TAGIHAN = bulan berikutnya
       const { y: billY, m: billM } = nextYM(p.tahun, p.bulan);
       const kPeriodeTagihan = kode(billY, billM);
@@ -313,7 +378,7 @@ export async function GET(req: Request) {
             r.totalTagihan || 0,
             r.tagihanLalu,
             paid,
-            r.sisaKurang
+            r.sisaKurang,
           );
         }
 
@@ -329,8 +394,8 @@ export async function GET(req: Request) {
         sisaAkhirKurang <= 0
           ? ("paid" as const)
           : totalSudahBayar > 0
-          ? ("partial" as const)
-          : ("unpaid" as const);
+            ? ("partial" as const)
+            : ("unpaid" as const);
 
       // label bulan PENAGIHAN
       const bulanLabel = IMONTHS[billM - 1]; // 3 huruf saja, pakai IMONTHS di atas
@@ -341,16 +406,16 @@ export async function GET(req: Request) {
       let infoBadge: string | null = null;
       if ((totalTagihanLalu || 0) > 0) {
         infoBadge = `Termasuk tagihan bulan lalu ${Intl.NumberFormat(
-          "id-ID"
+          "id-ID",
         ).format(totalTagihanLalu)}`;
       } else if ((totalTagihanLalu || 0) < 0) {
         infoBadge = `Terpakai saldo kredit ${Intl.NumberFormat("id-ID").format(
-          Math.abs(totalTagihanLalu)
+          Math.abs(totalTagihanLalu),
         )}`;
       }
       if (sisaAkhirLebih > 0) {
         infoBadge = `Lebih bayar ${Intl.NumberFormat("id-ID").format(
-          sisaAkhirLebih
+          sisaAkhirLebih,
         )}`;
       }
 
@@ -375,7 +440,7 @@ export async function GET(req: Request) {
 
     // Top 5 pemakai (periode catat terbaru tahun ini)
     const latestPeriod = await prisma.catatPeriode.findFirst({
-      where: { deletedAt: null, tahun: year },
+      where: { deletedAt: null, ...whereYear(year, "tahun") },
       orderBy: [{ tahun: "desc" }, { bulan: "desc" }],
       select: { id: true },
     });
@@ -427,7 +492,7 @@ export async function GET(req: Request) {
         t.totalTagihan || 0,
         t.tagihanLalu,
         paid,
-        t.sisaKurang
+        t.sisaKurang,
       );
 
       // CLOSED_BY → nolkan saldo periode ini
@@ -489,7 +554,7 @@ export async function GET(req: Request) {
 
     // ==== STAT CARDS + TRENDS ====
     const lastTwo = await prisma.catatPeriode.findMany({
-      where: { deletedAt: null, tahun: year },
+      where: { deletedAt: null, ...whereYear(year, "tahun") },
       orderBy: [{ tahun: "desc" }, { bulan: "desc" }],
       take: 2,
       select: { tahun: true, bulan: true },
@@ -599,7 +664,7 @@ export async function GET(req: Request) {
       },
       totalBelumBayar: {
         value: Math.round(
-          pctChange(saldoCurr.piutangAmount, saldoPrev.piutangAmount)
+          pctChange(saldoCurr.piutangAmount, saldoPrev.piutangAmount),
         ),
         isPositive: saldoCurr.piutangAmount <= saldoPrev.piutangAmount,
       },
@@ -614,7 +679,7 @@ export async function GET(req: Request) {
       // NEW: trend kredit (lebih bayar)
       totalLebihBayar: {
         value: Math.round(
-          pctChange(saldoCurr.kreditAmount, saldoPrev.kreditAmount)
+          pctChange(saldoCurr.kreditAmount, saldoPrev.kreditAmount),
         ),
         isPositive: saldoCurr.kreditAmount >= saldoPrev.kreditAmount,
       },
@@ -649,7 +714,7 @@ export async function GET(req: Request) {
     console.error(e);
     return NextResponse.json(
       { error: e?.message ?? "Server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
