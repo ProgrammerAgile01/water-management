@@ -1,60 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { RefreshCw, Download, FileSpreadsheet, FileText } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { FileText } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { AuthGuard } from "@/components/auth-guard";
 import { AppShell } from "@/components/app-shell";
 import { GlassCard } from "@/components/glass-card";
 import { BillingTable } from "@/components/billing-table";
-import { BillingFilters } from "@/components/billing-filters";
-import { useBillingStore } from "@/lib/billing-store";
-import { useToast } from "@/hooks/use-toast";
 
 export default function TagihanPembayaranPage() {
-  const { fetch, isLoading } = useBillingStore();
-  const { toast } = useToast();
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // Load data saat halaman dibuka
-  // useEffect(() => {
-  //   fetch();
-  // }, [fetch]);
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      await fetch();
-      toast({
-        title: "Berhasil",
-        description: "Data tagihan berhasil diperbarui.",
-      });
-    } catch {
-      toast({
-        title: "Error",
-        description: "Gagal memuat data tagihan.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
-  const handleExport = (format: "excel" | "pdf") => {
-    toast({
-      title: "Export",
-      description: `Mengunduh data dalam format ${format.toUpperCase()}...`,
-    });
-    // TODO: hubungkan ke endpoint export kalau sudah siap
-  };
-
   return (
     <div className="space-y-6">
       {/* Halaman ini boleh diakses semua role, jadi tanpa requiredRole */}
