@@ -60,6 +60,7 @@ model User {
   // back relation session dan magic link
   sessions        Session[]         @relation("UserSessions")
   magicLinkTokens MagicLinkToken[]  @relation("UserMagicLinks")
+  pemasukans Pemasukan[]
 }
 
 model Pelanggan {
@@ -926,4 +927,31 @@ model Pajak {
   // constraint / index
   @@unique([periodeId]) // pastikan hanya 1 entri Pajak per periode
   @@index([periodeId])
+}
+
+enum PemasukanStatus {
+  DRAFT
+  POSTED
+}
+
+model Pemasukan {
+  id               String           @id @default(cuid())
+  tanggal          DateTime         @default(now())
+  nama             String           @db.VarChar(150)
+  keterangan       String?          @db.VarChar(255)
+  nominal          Int
+
+  status           PemasukanStatus  @default(DRAFT)
+
+  // Info posting (kunci)
+  postedAt         DateTime?
+  postedBy         String?
+  postedByUser     User? @relation(fields: [postedBy], references: [id])
+
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@index([tanggal])
+  @@index([status])
+  @@index([postedAt])
 }
