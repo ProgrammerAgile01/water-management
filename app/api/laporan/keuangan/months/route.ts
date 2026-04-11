@@ -51,6 +51,7 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { PemasukanStatus } from "@prisma/client";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -87,6 +88,11 @@ export async function GET() {
       select: { tanggalBayar: true },
     });
 
+    const pemasukan = await prisma.pemasukan.findMany({
+      where: { status: PemasukanStatus.POSTED },
+      select: { tanggal: true },
+    });
+
     // Pajak CLOSE - ambil relasi periode (CatatPeriode.kodePeriode)
     const pajaks = await prisma.pajak.findMany({
       where: { status: "CLOSE" },
@@ -109,6 +115,8 @@ export async function GET() {
       if (h.tanggalInput) set.add(ymUTC(new Date(h.tanggalInput)));
     for (const hp of hutangPays)
       if (hp.tanggalBayar) set.add(ymUTC(new Date(hp.tanggalBayar)));
+    for (const item of pemasukan)
+      if (item.tanggal) set.add(ymUTC(new Date(item.tanggal)));
 
     // dari pajak gunakan periode.kodePeriode (format "YYYY-MM")
     for (const px of pajaks) {

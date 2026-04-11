@@ -254,6 +254,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { PemasukanStatus } from "@prisma/client";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
@@ -424,6 +425,41 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    const pemasukanRows = await prisma.pemasukan.findMany({
+      where: {
+        status: PemasukanStatus.POSTED,
+        tanggal: { gte: start, lt: end },
+      },
+      select: {
+        id: true,
+        tanggal: true,
+        nama: true,
+        keterangan: true,
+        nominal: true,
+        postedAt: true,
+        status: true,
+      },
+    });
+
+    const inRowsFromPemasukan: MutasiRow[] = pemasukanRows.map((item) => {
+      const t = new Date(item.tanggal);
+      return {
+        id: item.id,
+        tanggal: toYmd(t),
+        jam: toHms(t),
+        tipe: "IN",
+        kategori: "Pemasukan Lain",
+        metode: "-",
+        keterangan: item.keterangan?.trim()
+          ? `${item.nama} • ${item.keterangan.trim()}`
+          : item.nama,
+        jumlah: item.nominal || 0,
+        refCode: item.id,
+        createdAt: item.postedAt?.toISOString() ?? null,
+        statusVerif: item.status,
+      };
+    });
+
     /* ============ OUT: Pengeluaran CLOSE (tanggalInput) ============ */
     const outs = await prisma.pengeluaranDetail.findMany({
       where: {
@@ -591,6 +627,7 @@ export async function GET(req: NextRequest) {
     let rows: MutasiRow[] = [
       ...inRowsFromTagihan,
       ...inRowsFromHutang,
+      ...inRowsFromPemasukan,
       ...outRowsFromPengeluaran,
       ...outRowsFromPurchase,
       ...outRowsFromHutangPay,

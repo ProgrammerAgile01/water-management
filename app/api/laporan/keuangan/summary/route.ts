@@ -106,6 +106,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { PemasukanStatus } from "@prisma/client";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
@@ -145,6 +146,12 @@ export async function GET(req: NextRequest) {
       _sum: { nominal: true },
     });
     const prevInHutang = prevHutang._sum.nominal || 0;
+
+    const prevPemasukan = await prisma.pemasukan.aggregate({
+      where: { status: PemasukanStatus.POSTED, tanggal: { lt: start } },
+      _sum: { nominal: true },
+    });
+    const prevInPemasukan = prevPemasukan._sum.nominal || 0;
 
     // OUT: pengeluaran CLOSE < start (tanggalInput)
     const prevOutPengeluaran = await prisma.pengeluaranDetail.aggregate({
@@ -189,7 +196,8 @@ export async function GET(req: NextRequest) {
 
     const saldoAwal =
       prevInTagihan +
-      prevInHutang -
+      prevInHutang +
+      prevInPemasukan -
       (prevOutPengeluaranSum +
         prevPurchasesSum +
         prevOutHutangPay +
@@ -209,6 +217,15 @@ export async function GET(req: NextRequest) {
       _sum: { nominal: true },
     });
     const inHutang = hutangAgg._sum.nominal || 0;
+
+    const pemasukanAgg = await prisma.pemasukan.aggregate({
+      where: {
+        status: PemasukanStatus.POSTED,
+        tanggal: { gte: start, lt: end },
+      },
+      _sum: { nominal: true },
+    });
+    const inPemasukan = pemasukanAgg._sum.nominal || 0;
 
     // OUT: pengeluaran CLOSE pada bulan ini
     const outs = await prisma.pengeluaranDetail.aggregate({
@@ -238,7 +255,7 @@ export async function GET(req: NextRequest) {
     const outHutangPay = hutangPayAgg._sum.amount || 0;
 
     // outPajak sudah dihitung di atas (periode === periode)
-    const totalMasuk = inTagihan + inHutang;
+    const totalMasuk = inTagihan + inHutang + inPemasukan;
     const totalKeluar = outPengeluaran + outPurchase + outHutangPay + outPajak;
     const saldoAkhir = saldoAwal + totalMasuk - totalKeluar;
 

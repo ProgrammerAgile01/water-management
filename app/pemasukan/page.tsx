@@ -33,7 +33,7 @@ import {
   TableRow,
   TableFooter,
 } from "@/components/ui/table";
-import { Plus, Trash2, CheckCircle } from "lucide-react";
+import { Plus, Trash2, CheckCircle, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 type Pemasukan = {
@@ -65,6 +65,20 @@ const formatDateLong = (dateString: string) => {
   });
 };
 
+const toLocalDateInputValue = (value?: string | Date) => {
+  const date = value ? new Date(value) : new Date();
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+const todayYMD = () => toLocalDateInputValue();
+
+const getMonthKey = (value: string) => toLocalDateInputValue(value).slice(0, 7);
+
 export default function PemasukanPage() {
   const { toast } = useToast();
 
@@ -72,12 +86,23 @@ export default function PemasukanPage() {
   const [selectedMonth, setSelectedMonth] = useState("ALL");
   const [months, setMonths] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const [form, setForm] = useState({
+    tanggal: todayYMD(),
     nama: "",
     nominal: "",
     keterangan: "",
   });
+  const resetForm = () => {
+    setEditingId(null);
+    setForm({
+      tanggal: todayYMD(),
+      nama: "",
+      nominal: "",
+      keterangan: "",
+    });
+  };
 
   const loadData = async () => {
     const res = await fetch("/api/pemasukan");
@@ -85,16 +110,20 @@ export default function PemasukanPage() {
     setData(json);
   };
 
+  const loadMonths = async () => {
+    const res = await fetch("/api/pemasukan/months");
+    const json = await res.json();
+    setMonths(json.months ?? []);
+  };
+
   useEffect(() => {
     loadData();
-    fetch("/api/pemasukan/months")
-      .then((res) => res.json())
-      .then((res) => setMonths(res.months ?? []));
+    loadMonths();
   }, []);
 
   const filtered = useMemo(() => {
     if (selectedMonth === "ALL") return data;
-    return data.filter((d) => d.tanggal.startsWith(selectedMonth));
+    return data.filter((d) => getMonthKey(d.tanggal) === selectedMonth);
   }, [data, selectedMonth]);
 
   const total = useMemo(
@@ -117,34 +146,73 @@ export default function PemasukanPage() {
   };
 
   const getRawNominal = () => Number(form.nominal.replace(/\D/g, ""));
+  const formatNominalInput = (n: number) =>
+    n > 0 ? `Rp ${new Intl.NumberFormat("id-ID").format(n)}` : "";
+
+  const openCreateModal = () => {
+    resetForm();
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (item: Pemasukan) => {
+    setEditingId(item.id);
+    setForm({
+      tanggal: toLocalDateInputValue(item.tanggal),
+      nama: item.nama,
+      nominal: formatNominalInput(item.nominal),
+      keterangan: item.keterangan ?? "",
+    });
+    setIsModalOpen(true);
+  };
 
   const handleSubmit = async () => {
-    if (!form.nama || !form.nominal) {
+    if (!form.tanggal || !form.nama || !form.nominal) {
       toast({
         title: "Error",
-        description: "Nama dan nominal wajib diisi",
+        description: "Tanggal, nama, dan nominal wajib diisi",
         variant: "destructive",
       });
       return;
     }
 
-    await fetch("/api/pemasukan", {
-      method: "POST",
+    const isEditing = Boolean(editingId);
+    const endpoint = isEditing
+      ? `/api/pemasukan/${editingId}`
+      : "/api/pemasukan";
+    const method = isEditing ? "PUT" : "POST";
+
+    const res = await fetch(endpoint, {
+      method,
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        tanggal: form.tanggal,
         nama: form.nama,
         nominal: getRawNominal(),
         keterangan: form.keterangan,
       }),
     });
 
+    if (!res.ok) {
+      const error = await res.json().catch(() => null);
+      toast({
+        title: "Error",
+        description: error?.message ?? "Pemasukan gagal ditambahkan",
+        variant: "destructive",
+      });
+      return;
+    }
+
     toast({
       title: "Berhasil",
-      description: "Pemasukan berhasil ditambahkan",
+      description: isEditing
+        ? "Pemasukan berhasil diperbarui"
+        : "Pemasukan berhasil ditambahkan",
     });
 
-    setForm({ nama: "", nominal: "", keterangan: "" });
+    resetForm();
     setIsModalOpen(false);
     loadData();
+    loadMonths();
   };
 
   const handleDelete = async (id: string) => {
@@ -153,6 +221,7 @@ export default function PemasukanPage() {
     });
     toast({ title: "Berhasil", description: "Pemasukan dihapus" });
     loadData();
+    loadMonths();
   };
 
   const handlePosting = async (id: string) => {
@@ -161,6 +230,7 @@ export default function PemasukanPage() {
     });
     toast({ title: "Diposting", description: "Data berhasil dikunci" });
     loadData();
+    loadMonths();
   };
 
   return (
@@ -185,9 +255,18 @@ export default function PemasukanPage() {
               </SelectContent>
             </Select>
 
-            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+            <Dialog
+              open={isModalOpen}
+              onOpenChange={(open) => {
+                setIsModalOpen(open);
+                if (!open) resetForm();
+              }}
+            >
               <DialogTrigger asChild>
-                <Button className="bg-teal-600 hover:bg-teal-700">
+                <Button
+                  className="bg-teal-600 hover:bg-teal-700"
+                  onClick={openCreateModal}
+                >
                   <Plus className="h-4 w-4 mr-2" />
                   Tambah Pemasukan
                 </Button>
@@ -195,14 +274,29 @@ export default function PemasukanPage() {
 
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Tambah Pemasukan</DialogTitle>
+                  <DialogTitle>
+                    {editingId ? "Edit Pemasukan" : "Tambah Pemasukan"}
+                  </DialogTitle>
                 </DialogHeader>
 
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Nama Pemasukan</Label>
+                    <Label htmlFor="tanggal-pemasukan">Tanggal</Label>
                     <Input
-                      placeholder="Contoh: Denda Telat Pak Budi"
+                      id="tanggal-pemasukan"
+                      type="date"
+                      value={form.tanggal}
+                      onChange={(e) =>
+                        setForm({ ...form, tanggal: e.target.value })
+                      }
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="nama-pemasukan">Nama Pemasukan</Label>
+                    <Input
+                      id="nama-pemasukan"
+                      placeholder="Contoh: Pemasangan meteran"
                       value={form.nama}
                       onChange={(e) =>
                         setForm({ ...form, nama: e.target.value })
@@ -211,8 +305,9 @@ export default function PemasukanPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Nominal</Label>
+                    <Label htmlFor="nominal-pemasukan">Nominal</Label>
                     <Input
+                      id="nominal-pemasukan"
                       placeholder="Rp 0"
                       value={form.nominal}
                       onChange={(e) => handleNominalChange(e.target.value)}
@@ -220,8 +315,9 @@ export default function PemasukanPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Keterangan</Label>
+                    <Label htmlFor="keterangan-pemasukan">Keterangan</Label>
                     <Input
+                      id="keterangan-pemasukan"
                       placeholder="Opsional"
                       value={form.keterangan}
                       onChange={(e) =>
@@ -237,7 +333,10 @@ export default function PemasukanPage() {
                 <DialogFooter>
                   <Button
                     variant="outline"
-                    onClick={() => setIsModalOpen(false)}
+                    onClick={() => {
+                      resetForm();
+                      setIsModalOpen(false);
+                    }}
                   >
                     Batal
                   </Button>
@@ -245,7 +344,7 @@ export default function PemasukanPage() {
                     onClick={handleSubmit}
                     className="bg-teal-600 hover:bg-teal-700"
                   >
-                    Simpan
+                    {editingId ? "Simpan Perubahan" : "Simpan"}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -260,6 +359,7 @@ export default function PemasukanPage() {
                   <TableHead>Tanggal</TableHead>
                   <TableHead>Nama</TableHead>
                   <TableHead className="text-right">Nominal</TableHead>
+                  <TableHead>Keterangan</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Aksi</TableHead>
                 </TableRow>
@@ -273,6 +373,7 @@ export default function PemasukanPage() {
                     <TableCell className="text-right">
                       {formatCurrency(d.nominal)}
                     </TableCell>
+                    <TableCell>{d.keterangan ?? "-"}</TableCell>
                     <TableCell>
                       <Badge
                         variant={
@@ -287,11 +388,20 @@ export default function PemasukanPage() {
                         <>
                           <Button
                             size="sm"
-                            variant="outline"
+                            variant="default"
                             onClick={() => handlePosting(d.id)}
                           >
                             <CheckCircle className="h-4 w-4 mr-1" />
                             Posting
+                          </Button>
+
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openEditModal(d)}
+                          >
+                            <Pencil className="h-4 w-4 mr-1" />
+                            Edit
                           </Button>
 
                           <Button

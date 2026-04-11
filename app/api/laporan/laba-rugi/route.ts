@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserWithRole } from "@/lib/auth-user-server";
-import { PengeluaranStatus, MetodeBayar, PurchaseStatus } from "@prisma/client";
+import {
+  PengeluaranStatus,
+  MetodeBayar,
+  PurchaseStatus,
+  PemasukanStatus,
+} from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -82,6 +87,17 @@ export async function GET(req: NextRequest) {
         },
       });
 
+      const pemasukanRows = await prisma.pemasukan.findMany({
+        where: {
+          status: PemasukanStatus.POSTED,
+          ...(whereYear ? { tanggal: whereYear } : {}),
+        },
+        select: {
+          tanggal: true,
+          nominal: true,
+        },
+      });
+
       // =========================
       // 2. Beban pengeluaran
       // =========================
@@ -125,6 +141,13 @@ export async function GET(req: NextRequest) {
         const ym = getYm(r.tanggalBayar);
         const cur = map.get(ym) || { pendapatan: 0, beban: 0 };
         cur.pendapatan += r.jumlahBayar || 0;
+        map.set(ym, cur);
+      }
+
+      for (const r of pemasukanRows) {
+        const ym = getYm(r.tanggal);
+        const cur = map.get(ym) || { pendapatan: 0, beban: 0 };
+        cur.pendapatan += r.nominal || 0;
         map.set(ym, cur);
       }
 
@@ -195,16 +218,31 @@ export async function GET(req: NextRequest) {
       include: { tagihan: { select: { periode: true } } },
       orderBy: { tanggalBayar: "asc" },
     });
-    const pendapatanTotal = payments.reduce(
+    const pemasukanWhere: any = { status: PemasukanStatus.POSTED };
+    if (start && end) pemasukanWhere.tanggal = { gte: start, lt: end };
+
+    const pemasukan = await prisma.pemasukan.findMany({
+      where: pemasukanWhere,
+      orderBy: { tanggal: "asc" },
+    });
+
+    const pendapatanTagihan = payments.reduce(
       (s, p) => s + (p.jumlahBayar || 0),
       0,
     );
+    const pendapatanPemasukan = pemasukan.reduce(
+      (s, p) => s + (p.nominal || 0),
+      0,
+    );
+    const pendapatanTotal = pendapatanTagihan + pendapatanPemasukan;
     const pendapatanByMetode: Record<string, number> = {};
     for (const m of Object.values(MetodeBayar)) pendapatanByMetode[m] = 0;
     for (const p of payments) {
       pendapatanByMetode[p.metode] =
         (pendapatanByMetode[p.metode] || 0) + (p.jumlahBayar || 0);
     }
+    pendapatanByMetode.PEMASUKAN_LAIN =
+      (pendapatanByMetode.PEMASUKAN_LAIN || 0) + pendapatanPemasukan;
 
     // ===== BEBAN =====
     const pengeluaranDetailWhere: any = {
@@ -300,10 +338,21 @@ export async function GET(req: NextRequest) {
       jenisPendapatan: "Pembayaran Tagihan",
       jenisBeban: null,
     }));
+    const ledgerPemasukan: Row[] = pemasukan.map((p) => ({
+      tanggal: p.tanggal,
+      keterangan: p.keterangan?.trim()
+        ? `${p.nama} • ${p.keterangan.trim()}`
+        : p.nama,
+      debit: 0,
+      kredit: p.nominal,
+      jenisPendapatan: "Pemasukan Lain",
+      jenisBeban: null,
+    }));
     const ledgerAll: Row[] = [
       ...ledgerPengeluaran,
       ...ledgerPurchases,
       ...ledgerPayments,
+      ...ledgerPemasukan,
     ].sort((a, b) => +new Date(a.tanggal) - +new Date(b.tanggal));
 
     // pagination in-memory (tetap)
@@ -326,7 +375,7 @@ export async function GET(req: NextRequest) {
       pendapatan: {
         total: pendapatanTotal,
         byMetode: pendapatanByMetode,
-        rows: payments,
+        rows: [...payments, ...pemasukan],
       },
       beban: {
         total: bebanTotal,

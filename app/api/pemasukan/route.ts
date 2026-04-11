@@ -1,6 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
+const parseTanggal = (value?: string) => {
+  if (!value) return undefined;
+
+  const parsed = new Date(`${value}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+};
+
 // GET ALL
 export async function GET() {
   const data = await prisma.pemasukan.findMany({
@@ -14,6 +21,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+    const tanggal = parseTanggal(body.tanggal);
 
     if (!body.nama || !body.nominal) {
       return NextResponse.json(
@@ -22,9 +30,16 @@ export async function POST(req: Request) {
       );
     }
 
+    if (body.tanggal && !tanggal) {
+      return NextResponse.json(
+        { message: "Tanggal pemasukan tidak valid" },
+        { status: 400 },
+      );
+    }
+
     const created = await prisma.pemasukan.create({
       data: {
-        tanggal: body.tanggal ? new Date(body.tanggal) : new Date(),
+        tanggal,
         nama: body.nama,
         nominal: Number(body.nominal),
         keterangan: body.keterangan || null,

@@ -1,6 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
+const parseTanggal = (value?: string) => {
+  if (!value) return undefined;
+
+  const parsed = new Date(`${value}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+};
+
 // GET DETAIL
 export async function GET(
   _: Request,
@@ -48,6 +55,14 @@ export async function PUT(
   }
 
   const body = await req.json();
+  const tanggal = parseTanggal(body.tanggal);
+
+  if (body.tanggal && !tanggal) {
+    return NextResponse.json(
+      { message: "Tanggal pemasukan tidak valid" },
+      { status: 400 },
+    );
+  }
 
   const updated = await prisma.pemasukan.update({
     where: { id },
@@ -55,7 +70,7 @@ export async function PUT(
       nama: body.nama,
       nominal: Number(body.nominal),
       keterangan: body.keterangan,
-      tanggal: body.tanggal ? new Date(body.tanggal) : existing.tanggal,
+      tanggal: tanggal ?? existing.tanggal,
     },
   });
 
