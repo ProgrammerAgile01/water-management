@@ -240,20 +240,31 @@ export default function PemasukanPage() {
           <AppHeader title="Input Pemasukan" />
 
           {/* Header */}
-          <GlassCard className="p-6 flex justify-between items-center">
-            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Pilih bulan" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">Semua Bulan</SelectItem>
-                {months.map((m) => (
-                  <SelectItem key={m} value={m}>
-                    {formatMonthLabel(m)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <GlassCard className="p-4 sm:p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                <SelectTrigger className="w-full sm:w-48">
+                  <SelectValue placeholder="Pilih bulan" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">Semua Bulan</SelectItem>
+                  {months.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {formatMonthLabel(m)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <div className="flex items-center justify-between rounded-xl border border-border/40 bg-white/40 px-4 py-3 sm:hidden">
+                <div>
+                  <p className="text-xs text-muted-foreground">Total Pemasukan</p>
+                  <p className="text-lg font-semibold text-foreground">
+                    {formatCurrency(total)}
+                  </p>
+                </div>
+                <Badge variant="secondary">{filtered.length} data</Badge>
+              </div>
 
             <Dialog
               open={isModalOpen}
@@ -264,7 +275,7 @@ export default function PemasukanPage() {
             >
               <DialogTrigger asChild>
                 <Button
-                  className="bg-teal-600 hover:bg-teal-700"
+                  className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700"
                   onClick={openCreateModal}
                 >
                   <Plus className="h-4 w-4 mr-2" />
@@ -349,6 +360,7 @@ export default function PemasukanPage() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+            </div>
           </GlassCard>
 
           {/* Table */}
@@ -427,11 +439,104 @@ export default function PemasukanPage() {
                   <TableCell className="text-right font-bold">
                     {formatCurrency(total)}
                   </TableCell>
-                  <TableCell colSpan={2}></TableCell>
+                  <TableCell colSpan={3}></TableCell>
                 </TableRow>
               </TableFooter>
             </Table>
           </GlassCard>
+
+          <div className="space-y-3 md:hidden">
+            {filtered.length > 0 ? (
+              filtered.map((item) => (
+                <GlassCard key={item.id} className="overflow-hidden">
+                  <div className="bg-gradient-to-r from-teal-500/10 via-white/60 to-emerald-500/10 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium uppercase tracking-[0.18em] text-teal-700/80">
+                          {formatDateLong(item.tanggal)}
+                        </p>
+                        <h3 className="mt-1 truncate text-base font-semibold text-foreground">
+                          {item.nama}
+                        </h3>
+                      </div>
+                      <Badge
+                        variant={item.status === "POSTED" ? "default" : "secondary"}
+                        className={
+                          item.status === "POSTED"
+                            ? "bg-emerald-600 text-white hover:bg-emerald-600"
+                            : ""
+                        }
+                      >
+                        {item.status}
+                      </Badge>
+                    </div>
+
+                    <div className="mt-4 flex items-end justify-between gap-3">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Nominal</p>
+                        <p className="text-2xl font-bold tracking-tight text-teal-700">
+                          {formatCurrency(item.nominal)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 p-4">
+                    <div className="rounded-2xl border border-border/40 bg-white/50 p-3">
+                      <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        Keterangan
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-foreground">
+                        {item.keterangan?.trim() ? item.keterangan : "-"}
+                      </p>
+                    </div>
+
+                    {item.status === "DRAFT" ? (
+                      <div className="grid grid-cols-3 gap-2">
+                        <Button
+                          size="sm"
+                          className="bg-teal-600 hover:bg-teal-700"
+                          onClick={() => handlePosting(item.id)}
+                        >
+                          <CheckCircle className="mr-1 h-4 w-4" />
+                          Posting
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openEditModal(item)}
+                        >
+                          <Pencil className="mr-1 h-4 w-4" />
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDelete(item.id)}
+                          className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-sm text-emerald-700">
+                        Pemasukan ini sudah diposting dan terkunci.
+                      </div>
+                    )}
+                  </div>
+                </GlassCard>
+              ))
+            ) : (
+              <GlassCard className="p-8 text-center">
+                <p className="text-sm font-medium text-foreground">
+                  Belum ada data pemasukan
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Tambahkan pemasukan baru atau ubah filter bulan untuk melihat data.
+                </p>
+              </GlassCard>
+            )}
+          </div>
         </div>
       </AppShell>
     </AuthGuard>
