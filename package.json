@@ -5,10 +5,11 @@
   "scripts": {
     "dev": "next dev --turbopack -p 3011",
     "build": "next build",
-    "start": "next start -p 3011",
+    "start": "next start -p 5511",
     "lint": "next lint",
     "seed": "tsx prisma/seed.ts",
     "dump:pelanggan": "tsx scripts/dump-pelanggan.ts",
+    "wa:resend-admin-payment": "tsx scripts/resend-admin-payment-wa.ts",
     "seed:pelanggan": "tsx prisma/seed-pelanggan.ts",
     "backfill:info:dry": "DRY_RUN=1 ts-node scripts/backfill-info.ts",
     "backfill:info": "DRY_RUN=0 ts-node scripts/backfill-info.ts"
