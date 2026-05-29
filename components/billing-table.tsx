@@ -652,32 +652,83 @@ export function BillingTable() {
     }
     return null;
   }
-  async function downloadBinaryFromApi(url: string, fallbackName: string) {
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) {
-      let msg = `HTTP ${res.status}`;
-      try {
-        const t = await res.text();
-        try {
-          const j = JSON.parse(t);
-          if (j?.message) msg = j.message;
-        } catch {
-          if (t) msg = t;
-        }
-      } catch {}
-      throw new Error(msg);
+
+  function getFilenameFromUrl(url: string): string | null {
+    try {
+      const pathname = new URL(url, window.location.origin).pathname;
+      const name = pathname.split("/").filter(Boolean).pop();
+      return name ? sanitizeFilename(name) : null;
+    } catch {
+      return null;
     }
-    const blob = await res.blob();
-    const filename =
-      getFilenameFromHeaders(res) || sanitizeFilename(fallbackName);
+  }
+
+  async function getErrorMessageFromResponse(res: Response) {
+    let msg = `HTTP ${res.status}`;
+    try {
+      const t = await res.text();
+      try {
+        const j = JSON.parse(t);
+        if (j?.message) msg = j.message;
+      } catch {
+        if (t) msg = t;
+      }
+    } catch {}
+    return msg;
+  }
+
+  function saveBlob(blob: Blob, filename: string) {
     const href = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = href;
-    a.download = filename;
+    a.download = sanitizeFilename(filename);
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(href);
+  }
+
+  async function downloadImageResponse(res: Response, fallbackName: string) {
+    if (!res.ok) {
+      throw new Error(await getErrorMessageFromResponse(res));
+    }
+
+    const contentType = res.headers.get("Content-Type") || "";
+    if (!contentType.toLowerCase().startsWith("image/")) {
+      throw new Error(await getErrorMessageFromResponse(res));
+    }
+
+    const blob = await res.blob();
+    const filename =
+      getFilenameFromHeaders(res) || sanitizeFilename(fallbackName);
+    saveBlob(blob, filename);
+  }
+
+  async function downloadBinaryFromApi(url: string, fallbackName: string) {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) {
+      throw new Error(await getErrorMessageFromResponse(res));
+    }
+
+    const contentType = res.headers.get("Content-Type") || "";
+    if (contentType.toLowerCase().includes("application/json")) {
+      const data = await res.json();
+      if (!data?.ok) {
+        throw new Error(data?.message || "Gagal mengunduh");
+      }
+      if (!data?.url) {
+        throw new Error("Server tidak mengirim URL file unduhan");
+      }
+
+      const fileRes = await fetch(data.url, { cache: "no-store" });
+      await downloadImageResponse(
+        fileRes,
+        getFilenameFromUrl(data.url) || fallbackName
+      );
+      return;
+    }
+
+    await downloadImageResponse(res, fallbackName);
   }
 
   // downloads (PAKAI BLOB, BUKAN JSON)
