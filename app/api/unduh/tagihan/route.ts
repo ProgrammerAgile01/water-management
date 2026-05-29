@@ -211,7 +211,7 @@ export async function GET(req: NextRequest) {
       persist: false,
     });
     if (typeof out === "string") {
-      throw new Error("Renderer returned a file URL instead of image bytes");
+      return NextResponse.json({ ok: true, url: out, cache: false });
     }
 
     const buf = Buffer.from(out.base64, "base64");
