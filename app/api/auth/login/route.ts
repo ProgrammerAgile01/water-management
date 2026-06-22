@@ -14,7 +14,6 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-    console.log("[LOGIN] body =", { username, password });
 
     const user = await prisma.user.findUnique({ where: { username } });
     if (!user || !user.isActive) {
