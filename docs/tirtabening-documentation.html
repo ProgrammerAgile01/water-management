@@ -1,0 +1,1067 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dokumentasi Sistem Tirtabening</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --surface: #ffffff;
+      --surface-2: #eef5f4;
+      --ink: #17202a;
+      --muted: #617080;
+      --line: #d9e2e8;
+      --blue: #2563eb;
+      --teal: #0f766e;
+      --green: #15803d;
+      --amber: #b45309;
+      --red: #b91c1c;
+      --slate: #334155;
+      --shadow: 0 18px 50px rgba(20, 37, 63, .08);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        linear-gradient(180deg, rgba(37, 99, 235, .08), transparent 380px),
+        var(--bg);
+      line-height: 1.6;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    code, kbd {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      background: #eef2f7;
+      color: #0f172a;
+      border: 1px solid #dce4ec;
+      border-radius: 6px;
+      padding: 2px 6px;
+      font-size: .9em;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 300px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    aside {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: auto;
+      border-right: 1px solid var(--line);
+      background: rgba(255, 255, 255, .88);
+      backdrop-filter: blur(16px);
+      padding: 24px 18px;
+    }
+
+    .brand {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding: 8px 8px 20px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 18px;
+    }
+
+    .logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--blue), var(--teal));
+      box-shadow: var(--shadow);
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 17px;
+      line-height: 1.2;
+    }
+
+    .brand p {
+      margin: 2px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .nav-title {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin: 20px 8px 8px;
+      font-weight: 800;
+    }
+
+    nav a {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 9px 10px;
+      border-radius: 8px;
+      color: #304052;
+      font-size: 14px;
+    }
+
+    nav a:hover { background: var(--surface-2); color: #0f172a; }
+
+    main {
+      padding: 30px;
+      max-width: 1320px;
+      width: 100%;
+    }
+
+    .hero {
+      min-height: 330px;
+      display: grid;
+      align-items: end;
+      padding: 36px;
+      color: white;
+      border-radius: 12px;
+      background:
+        linear-gradient(115deg, rgba(15, 23, 42, .92), rgba(15, 118, 110, .78)),
+        url("../public/logo.PNG");
+      background-size: cover;
+      background-position: center;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .hero h2 {
+      margin: 0 0 10px;
+      font-size: clamp(34px, 5vw, 64px);
+      line-height: .98;
+      letter-spacing: 0;
+      max-width: 850px;
+    }
+
+    .hero p {
+      max-width: 860px;
+      margin: 0;
+      font-size: 17px;
+      color: rgba(255, 255, 255, .88);
+    }
+
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid rgba(255, 255, 255, .26);
+      color: rgba(255, 255, 255, .94);
+      background: rgba(255, 255, 255, .12);
+      padding: 7px 10px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    section {
+      margin-top: 28px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .section-head {
+      padding: 24px 26px 18px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(180deg, #ffffff, #f8fbfd);
+    }
+
+    .section-head h3 {
+      margin: 0;
+      font-size: 26px;
+      letter-spacing: 0;
+    }
+
+    .section-head p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      max-width: 900px;
+    }
+
+    .content { padding: 24px 26px 28px; }
+
+    .grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .grid.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 16px;
+    }
+
+    .card h4 {
+      margin: 0 0 7px;
+      font-size: 16px;
+    }
+
+    .card p, .card li {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .card p { margin: 0; }
+    ul, ol { padding-left: 20px; margin: 10px 0 0; }
+    li + li { margin-top: 6px; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+
+    .badge.blue { color: #1d4ed8; background: #eff6ff; border-color: #bfdbfe; }
+    .badge.green { color: #166534; background: #f0fdf4; border-color: #bbf7d0; }
+    .badge.amber { color: #92400e; background: #fffbeb; border-color: #fde68a; }
+    .badge.red { color: #991b1b; background: #fef2f2; border-color: #fecaca; }
+    .badge.slate { color: #334155; background: #f8fafc; border-color: #cbd5e1; }
+    .badge.teal { color: #0f766e; background: #ecfdf5; border-color: #99f6e4; }
+
+    .flow {
+      display: grid;
+      gap: 12px;
+      counter-reset: flow;
+    }
+
+    .flow-item {
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: #fff;
+    }
+
+    .flow-item::before {
+      counter-increment: flow;
+      content: counter(flow);
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: #e0f2fe;
+      color: #075985;
+      font-weight: 900;
+    }
+
+    .flow-item h4 { margin: 0 0 4px; }
+    .flow-item p { margin: 0; color: var(--muted); }
+
+    .table-tools {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 14px;
+      align-items: center;
+    }
+
+    .search {
+      width: min(520px, 100%);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font: inherit;
+      background: #fff;
+    }
+
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .tab {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: #334155;
+      border-radius: 999px;
+      padding: 7px 11px;
+      font-weight: 750;
+      cursor: pointer;
+    }
+
+    .tab.active {
+      background: #0f172a;
+      color: #fff;
+      border-color: #0f172a;
+    }
+
+    .table-wrap {
+      width: 100%;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 800px;
+      background: #fff;
+    }
+
+    th, td {
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      text-align: left;
+      font-size: 14px;
+    }
+
+    th {
+      color: #475569;
+      background: #f8fafc;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+
+    .module-map {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 10px;
+    }
+
+    .node {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 8px;
+      padding: 12px;
+      min-height: 86px;
+    }
+
+    .node strong { display: block; margin-bottom: 4px; }
+    .node span { color: var(--muted); font-size: 13px; }
+    .span-3 { grid-column: span 3; }
+    .span-4 { grid-column: span 4; }
+    .span-6 { grid-column: span 6; }
+    .span-12 { grid-column: span 12; }
+
+    .note {
+      border-left: 4px solid var(--blue);
+      background: #eff6ff;
+      padding: 14px 16px;
+      border-radius: 8px;
+      color: #1e3a8a;
+    }
+
+    .warning {
+      border-left-color: var(--amber);
+      background: #fffbeb;
+      color: #78350f;
+    }
+
+    .danger {
+      border-left-color: var(--red);
+      background: #fef2f2;
+      color: #7f1d1d;
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 18px;
+    }
+
+    .footer {
+      color: var(--muted);
+      text-align: center;
+      padding: 30px;
+      font-size: 13px;
+    }
+
+    @media (max-width: 980px) {
+      .layout { grid-template-columns: 1fr; }
+      aside {
+        position: static;
+        height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+      nav {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 4px;
+      }
+      main { padding: 18px; }
+      .hero { padding: 24px; min-height: 310px; }
+      .grid.cols-2, .grid.cols-3, .grid.cols-4, .split { grid-template-columns: 1fr; }
+      .module-map { grid-template-columns: 1fr; }
+      .span-3, .span-4, .span-6, .span-12 { grid-column: auto; }
+    }
+
+    @media print {
+      body { background: #fff; }
+      .layout { display: block; }
+      aside, .table-tools, .tabs { display: none; }
+      main { max-width: none; padding: 0; }
+      section, .hero { box-shadow: none; break-inside: avoid; }
+      .hero { color: #111; background: #fff; border: 1px solid #ddd; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside>
+      <div class="brand">
+        <div class="logo">TB</div>
+        <div>
+          <h1>Tirtabening Docs</h1>
+          <p>Project, bisnis, API, database</p>
+        </div>
+      </div>
+      <div class="nav-title">Navigasi</div>
+      <nav>
+        <a href="#overview">Overview</a>
+        <a href="#architecture">Arsitektur</a>
+        <a href="#structure">Struktur Proyek</a>
+        <a href="#business-flow">Alur Bisnis</a>
+        <a href="#modules">Modul Aplikasi</a>
+        <a href="#pages">Halaman</a>
+        <a href="#endpoints">Endpoint API</a>
+        <a href="#database">Database</a>
+        <a href="#wa-service">WA Service</a>
+        <a href="#security">Security</a>
+        <a href="#operations">Operasional</a>
+        <a href="#roadmap">Rekomendasi</a>
+      </nav>
+    </aside>
+
+    <main>
+      <header class="hero">
+        <div>
+          <h2>Dokumentasi Sistem Tirtabening</h2>
+          <p>
+            Dokumentasi teknis dan bisnis untuk aplikasi pengelolaan air Tirtabening:
+            struktur proyek, alur operasional, endpoint, database, integrasi WhatsApp,
+            serta catatan production-grade untuk pengembangan berikutnya.
+          </p>
+          <div class="meta-row">
+            <span class="pill">Next.js App Router</span>
+            <span class="pill">Prisma + MySQL/MariaDB</span>
+            <span class="pill">WA Sender Service</span>
+            <span class="pill">Generated: 2026-07-10</span>
+          </div>
+        </div>
+      </header>
+
+      <section id="overview">
+        <div class="section-head">
+          <h3>Overview</h3>
+          <p>Ringkasan sistem dan batas tanggung jawab setiap service.</p>
+        </div>
+        <div class="content">
+          <div class="grid cols-4">
+            <div class="card">
+              <h4>Aplikasi Utama</h4>
+              <p><code>D:\Work\water-management</code> mengelola UI, API internal, Prisma, laporan, upload, print, dan integrasi WhatsApp.</p>
+            </div>
+            <div class="card">
+              <h4>WA Sender</h4>
+              <p><code>D:\Work\wa-sender-tirta</code> adalah gateway WhatsApp berbasis Express dan whatsapp-web.js.</p>
+            </div>
+            <div class="card">
+              <h4>Database</h4>
+              <p>Prisma memakai provider <code>mysql</code>. Data inti berada pada pelanggan, catat periode, tagihan, pembayaran, dan detail pembayaran.</p>
+            </div>
+            <div class="card">
+              <h4>Role</h4>
+              <p>Role database: <code>ADMIN</code>, <code>PETUGAS</code>, <code>WARGA</code>. Sebagian UI juga menyebut operator sebagai kategori akses.</p>
+            </div>
+          </div>
+
+          <div class="note" style="margin-top:16px">
+            Dokumentasi ini dibuat dari struktur kode lokal, schema Prisma, route API, helper auth, helper WA, dan service WhatsApp eksternal. File ini bersifat standalone dan bisa dibuka langsung di browser.
+          </div>
+        </div>
+      </section>
+
+      <section id="architecture">
+        <div class="section-head">
+          <h3>Arsitektur</h3>
+          <p>Pemisahan tanggung jawab antara UI, API internal, database, storage file, dan WhatsApp sender.</p>
+        </div>
+        <div class="content">
+          <div class="module-map">
+            <div class="node span-3"><strong>Browser Pengguna</strong><span>Admin, petugas, warga, halaman print, dan dashboard laporan.</span></div>
+            <div class="node span-3"><strong>Next.js App</strong><span>Page route, server route, middleware, protected UI, dan API internal.</span></div>
+            <div class="node span-3"><strong>Prisma Client</strong><span>Data access layer langsung dari route API dan helper server.</span></div>
+            <div class="node span-3"><strong>MySQL/MariaDB</strong><span>Persistensi pelanggan, periode, tagihan, pembayaran, laporan, dan audit.</span></div>
+            <div class="node span-4"><strong>Public Uploads</strong><span>Bukti bayar, gambar tagihan, kwitansi, invoice, dan file publik.</span></div>
+            <div class="node span-4"><strong>Puppeteer/PDF</strong><span>Render tagihan/kwitansi menjadi gambar/PDF untuk print dan WA.</span></div>
+            <div class="node span-4"><strong>WA Sender Service</strong><span>Express gateway ke WhatsApp Web, QR login, send text, send image, logs.</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="structure">
+        <div class="section-head">
+          <h3>Struktur Proyek</h3>
+          <p>Folder penting di project utama dan service WA.</p>
+        </div>
+        <div class="content">
+          <div class="grid cols-2">
+            <div class="card">
+              <h4>Project Utama</h4>
+              <table>
+                <thead><tr><th>Path</th><th>Fungsi</th></tr></thead>
+                <tbody>
+                  <tr><td><code>app/</code></td><td>Next.js App Router: halaman, layout, API route, halaman print.</td></tr>
+                  <tr><td><code>app/api/</code></td><td>Backend API internal yang membaca/menulis database melalui Prisma.</td></tr>
+                  <tr><td><code>components/</code></td><td>Reusable UI component: form, table, modal, shell, chart, auth guard, dan komponen domain.</td></tr>
+                  <tr><td><code>components/ui/</code></td><td>Komponen UI dasar berbasis Radix/shadcn-style.</td></tr>
+                  <tr><td><code>lib/</code></td><td>Helper domain, Zustand store, auth, Prisma, WA, period, render, laporan, rekon.</td></tr>
+                  <tr><td><code>prisma/</code></td><td>Schema database, migration, seed, dan data seed pelanggan.</td></tr>
+                  <tr><td><code>public/</code></td><td>Asset statis, logo, manifest PWA, uploads bukti bayar, billing image, kwitansi.</td></tr>
+                  <tr><td><code>scripts/</code></td><td>Script utilitas: backfill, dump pelanggan, resend WA admin payment.</td></tr>
+                  <tr><td><code>docs/</code></td><td>Dokumentasi HTML ini.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="card">
+              <h4>WA Sender Service</h4>
+              <table>
+                <thead><tr><th>Path</th><th>Fungsi</th></tr></thead>
+                <tbody>
+                  <tr><td><code>server.js</code></td><td>Express server, QR handling, session WhatsApp, endpoint send/logs/status.</td></tr>
+                  <tr><td><code>.wwebjs_auth/</code></td><td>Session WhatsApp Web lokal.</td></tr>
+                  <tr><td><code>.wwebjs_cache/</code></td><td>Cache browser/WhatsApp Web.</td></tr>
+                  <tr><td><code>.env.example</code></td><td>Konfigurasi <code>PORT</code>, <code>API_KEY</code>, <code>ALLOWED_ORIGINS</code>, dan label session.</td></tr>
+                  <tr><td><code>package.json</code></td><td>Script <code>npm run dev</code> dan <code>npm start</code>.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="business-flow">
+        <div class="section-head">
+          <h3>Alur Bisnis</h3>
+          <p>Alur utama dari master data sampai pembayaran dan laporan.</p>
+        </div>
+        <div class="content">
+          <div class="flow">
+            <div class="flow-item">
+              <div>
+                <h4>Setup Sistem</h4>
+                <p>Admin mengisi setting tarif per m3, abonemen, biaya admin, tanggal jatuh tempo, denda, profil perusahaan, rekening pembayaran, bendahara, dan WhatsApp CS.</p>
+              </div>
+            </div>
+            <div class="flow-item">
+              <div>
+                <h4>Master Distribusi</h4>
+                <p>Admin membuat tandon, zona/blok, petugas, dan menghubungkan pelanggan ke zona serta user warga.</p>
+              </div>
+            </div>
+            <div class="flow-item">
+              <div>
+                <h4>Periode Catat Meter</h4>
+                <p>Admin/petugas membuat periode <code>YYYY-MM</code>. Sistem snapshot tarif dan abonemen dari setting, lalu generate baris <code>CatatMeter</code> untuk pelanggan aktif.</p>
+              </div>
+            </div>
+            <div class="flow-item">
+              <div>
+                <h4>Pencatatan Meter</h4>
+                <p>Petugas mengisi meter akhir. Sistem menghitung pemakaian, total, status <code>DONE</code>, dan memperbarui progress periode serta jadwal zona.</p>
+              </div>
+            </div>
+            <div class="flow-item">
+              <div>
+                <h4>Finalisasi dan Tagihan</h4>
+                <p>Baris catat meter yang selesai dapat dikunci/finalisasi. Endpoint finalisasi membuat atau memperbarui tagihan, mengunci baris, dan menjadikan periode <code>FINAL</code> bila semua baris terkunci.</p>
+              </div>
+            </div>
+            <div class="flow-item">
+              <div>
+                <h4>Kirim Tagihan WA</h4>
+                <p>Sistem membuat pesan ringkasan tagihan, gambar tagihan, magic link warga, lalu mengirim ke nomor <code>wa</code> dan <code>wa2</code> lewat WA Sender.</p>
+              </div>
+            </div>
+            <div class="flow-item">
+              <div>
+                <h4>Pembayaran dan Pelunasan</h4>
+                <p>Pembayaran dibuat dari form pelunasan/input pembayaran. Bukti transfer dikompresi, detail pembayaran dialokasikan ke tagihan lama sampai baru, lalu sistem menghitung sisa kurang atau kredit.</p>
+              </div>
+            </div>
+            <div class="flow-item">
+              <div>
+                <h4>Revisi Pembayaran</h4>
+                <p>Admin/petugas dapat merevisi pembayaran. Sistem menghapus ulang detail alokasi lama untuk pembayaran tersebut, membangun alokasi baru, dan menghitung ulang status serta carry-over.</p>
+              </div>
+            </div>
+            <div class="flow-item">
+              <div>
+                <h4>Laporan</h4>
+                <p>Dashboard dan laporan membaca data tagihan, pembayaran, catat meter, pengeluaran, pemasukan, hutang, pajak, serta distribusi untuk kebutuhan monitoring operasional dan keuangan.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="split" style="margin-top:18px">
+            <div class="note">
+              Rumus catat meter: <code>pemakaian = max(meterAkhir - meterAwal, 0)</code> dan <code>total = tarifPerM3 * pemakaian + abonemen</code>. Pada finalisasi tagihan, total juga memperhitungkan <code>biayaAdmin</code> dari setting.
+            </div>
+            <div class="note warning">
+              Alur pembayaran memakai <code>DetailPembayaran</code> sebagai sumber alokasi. Field <code>sisaKurang</code> dan <code>tagihanLalu</code> berperan sebagai snapshot carry-over antar periode.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="modules">
+        <div class="section-head">
+          <h3>Modul Aplikasi</h3>
+          <p>Kelompok fungsi domain dalam aplikasi.</p>
+        </div>
+        <div class="content">
+          <div class="grid cols-3">
+            <div class="card"><h4>Auth dan Role</h4><p>Login JWT, logout, magic link, session DB, pembatasan halaman via middleware.</p></div>
+            <div class="card"><h4>Pelanggan</h4><p>CRUD pelanggan, reset password warga, history tagihan, profil warga, koordinat lokasi.</p></div>
+            <div class="card"><h4>Zona dan Tandon</h4><p>Master tandon-zona, petugas zona, hirarki distribusi, peta pelanggan.</p></div>
+            <div class="card"><h4>Jadwal</h4><p>Jadwal pencatatan per zona/petugas, status waiting, in progress, done, overdue.</p></div>
+            <div class="card"><h4>Catat Meter</h4><p>Generate periode, input meter, kendala, lock row, finalize row/periode.</p></div>
+            <div class="card"><h4>Catat Tandon/Blok</h4><p>Pencatatan meter tandon dan zona untuk rekonsiliasi distribusi.</p></div>
+            <div class="card"><h4>Tagihan</h4><p>Listing, preview, unpaid, verifikasi, print, unduh PDF, kirim WA.</p></div>
+            <div class="card"><h4>Pembayaran</h4><p>Pelunasan, input bukti, revisi pembayaran, detail alokasi, notifikasi admin.</p></div>
+            <div class="card"><h4>Laporan</h4><p>Status pembayaran, catat meter, keuangan, laba-rugi, piutang, hutang, konsumsi zona.</p></div>
+            <div class="card"><h4>Keuangan Operasional</h4><p>Pengeluaran, master biaya, pemasukan, pajak, hutang, pembayaran hutang.</p></div>
+            <div class="card"><h4>Inventaris</h4><p>Item, purchase, posting pembelian, stock ledger, summary inventaris.</p></div>
+            <div class="card"><h4>Support</h4><p>Thread support warga/admin, pesan, attachment, status open/pending/resolved/closed.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="pages">
+        <div class="section-head">
+          <h3>Halaman Aplikasi</h3>
+          <p>Route UI utama di App Router.</p>
+        </div>
+        <div class="content">
+          <div class="grid cols-3">
+            <div class="card"><h4>Admin/Petugas</h4><p><code>/dashboard</code>, <code>/pelanggan</code>, <code>/zona</code>, <code>/tandon</code>, <code>/catat-meter</code>, <code>/jadwal-pencatatan</code>, <code>/tagihan-pembayaran</code>.</p></div>
+            <div class="card"><h4>Distribusi</h4><p><code>/catat-tandon</code>, <code>/catat-blok</code>, <code>/catat-meter-blok</code>, <code>/distribusi/peta</code>, <code>/distribusi/hirarki</code>, <code>/distribusi/rekonsiliasi</code>.</p></div>
+            <div class="card"><h4>Warga</h4><p><code>/warga-dashboard</code>, <code>/warga-profil</code>, <code>/warga-profil/edit</code>, <code>/input-pembayaran/[id]</code>, <code>/hubungi-admin</code>.</p></div>
+            <div class="card"><h4>Keuangan</h4><p><code>/pelunasan</code>, <code>/pengeluaran</code>, <code>/pemasukan</code>, <code>/hutang</code>, <code>/hutang-pembayaran</code>, <code>/pajak</code>, <code>/biaya</code>.</p></div>
+            <div class="card"><h4>Laporan</h4><p><code>/laporan-summary</code>, <code>/laporan-status-pembayaran</code>, <code>/laporan-catat-meter</code>, <code>/laporan/keuangan</code>, <code>/laporan/laba-rugi</code>, <code>/laporan/piutang</code>.</p></div>
+            <div class="card"><h4>Print dan Support</h4><p><code>/print/tagihan/[tagihanId]</code>, <code>/print/kwitansi/[tagihanId]</code>, <code>/print/invoice/[pelangganId]</code>, <code>/support</code>, <code>/admin/support</code>.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="endpoints">
+        <div class="section-head">
+          <h3>Endpoint API</h3>
+          <p>Endpoint dikelompokkan berdasarkan domain. Gunakan pencarian untuk menemukan route tertentu.</p>
+        </div>
+        <div class="content">
+          <div class="table-tools">
+            <input class="search" id="endpointSearch" placeholder="Cari endpoint, method, modul, atau fungsi..." />
+          </div>
+          <div class="tabs" id="endpointTabs">
+            <button class="tab active" data-filter="all">Semua</button>
+            <button class="tab" data-filter="auth">Auth</button>
+            <button class="tab" data-filter="master">Master</button>
+            <button class="tab" data-filter="meter">Meter</button>
+            <button class="tab" data-filter="billing">Tagihan</button>
+            <button class="tab" data-filter="finance">Keuangan</button>
+            <button class="tab" data-filter="report">Laporan</button>
+            <button class="tab" data-filter="wa">WA</button>
+            <button class="tab" data-filter="support">Support</button>
+          </div>
+          <div class="table-wrap">
+            <table id="endpointTable">
+              <thead>
+                <tr>
+                  <th>Modul</th>
+                  <th>Method</th>
+                  <th>Endpoint</th>
+                  <th>Fungsi</th>
+                  <th>Catatan</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr data-cat="auth"><td>Auth</td><td><span class="badge green">POST</span></td><td><code>/api/auth/login</code></td><td>Login username/password, set cookie token.</td><td>Memakai JWT dan cookie <code>tb_token</code>.</td></tr>
+                <tr data-cat="auth"><td>Auth</td><td><span class="badge blue">GET</span> <span class="badge green">POST</span></td><td><code>/api/auth/logout</code></td><td>Logout dan hapus cookie/session.</td><td>Dipanggil dari UI warga/admin.</td></tr>
+                <tr data-cat="auth"><td>Auth</td><td><span class="badge blue">GET</span></td><td><code>/api/auth/me</code></td><td>Mengambil user aktif dari token.</td><td>Validasi user masih aktif.</td></tr>
+                <tr data-cat="auth"><td>Auth</td><td><span class="badge blue">GET</span></td><td><code>/api/auth/magic</code></td><td>Login via magic link dari token.</td><td>Dipakai WA tagihan dan admin review.</td></tr>
+
+                <tr data-cat="master"><td>Pelanggan</td><td><span class="badge blue">GET</span> <span class="badge green">POST</span> <span class="badge amber">PUT</span> <span class="badge red">DELETE</span></td><td><code>/api/pelanggan</code></td><td>CRUD pelanggan, user warga, zona, WA, alamat, koordinat.</td><td>Memakai soft delete pada pelanggan.</td></tr>
+                <tr data-cat="master"><td>Pelanggan</td><td><span class="badge blue">GET</span></td><td><code>/api/pelanggan/history</code></td><td>Riwayat tagihan pelanggan.</td><td>Untuk modal/history pelanggan.</td></tr>
+                <tr data-cat="master"><td>Pelanggan</td><td><span class="badge green">POST</span></td><td><code>/api/pelanggan/reset-password</code></td><td>Reset password satu/banyak pelanggan.</td><td>Membuat log WA bila relevan.</td></tr>
+                <tr data-cat="master"><td>Zona</td><td><span class="badge blue">GET</span> <span class="badge green">POST</span> <span class="badge amber">PUT</span> <span class="badge red">DELETE</span></td><td><code>/api/zona</code></td><td>CRUD zona, petugas zona, dan relasi tandon.</td><td>Validasi kode unik dan zona terpakai.</td></tr>
+                <tr data-cat="master"><td>Tandon</td><td><span class="badge blue">GET</span> <span class="badge green">POST</span> <span class="badge amber">PUT</span> <span class="badge red">DELETE</span></td><td><code>/api/tandon</code></td><td>CRUD tandon.</td><td>Parent distribusi untuk zona.</td></tr>
+                <tr data-cat="master"><td>Tandon</td><td><span class="badge blue">GET</span></td><td><code>/api/tandon/list</code>, <code>/api/tandon/next-code</code></td><td>List tandon dan generate kode berikutnya.</td><td>Dipakai form tandon/catat tandon.</td></tr>
+                <tr data-cat="master"><td>User</td><td><span class="badge blue">GET</span> <span class="badge green">POST</span></td><td><code>/api/users</code></td><td>List dan buat user.</td><td>Manajemen user internal.</td></tr>
+                <tr data-cat="master"><td>User</td><td><span class="badge amber">PUT/PATCH</span> <span class="badge red">DELETE</span></td><td><code>/api/users/[id]</code></td><td>Update, aktif/nonaktif, atau hapus user.</td><td>Route dinamis.</td></tr>
+                <tr data-cat="master"><td>Setting</td><td><span class="badge blue">GET</span> <span class="badge amber">PUT</span></td><td><code>/api/setting</code>, <code>/api/setting-form</code></td><td>Setting tarif, profil perusahaan, rekening, jadwal default.</td><td>Record utama memakai <code>id=1</code>.</td></tr>
+
+                <tr data-cat="meter"><td>Catat Meter</td><td><span class="badge green">POST</span></td><td><code>/api/catat-meter?periode=YYYY-MM</code></td><td>Inisialisasi periode dan generate baris catat meter pelanggan aktif.</td><td>Validasi tidak lompat bulan dan periode sebelumnya final.</td></tr>
+                <tr data-cat="meter"><td>Catat Meter</td><td><span class="badge blue">GET</span></td><td><code>/api/catat-meter?periode=YYYY-MM</code></td><td>List baris catat meter, progress, tarif snapshot, petugas, tanggal catat.</td><td>Bisa filter zona.</td></tr>
+                <tr data-cat="meter"><td>Catat Meter</td><td><span class="badge amber">PUT</span> <span class="badge red">DELETE</span></td><td><code>/api/catat-meter</code></td><td>Update meter akhir/kendala atau hapus input.</td><td>Ditolak bila periode/baris locked.</td></tr>
+                <tr data-cat="meter"><td>Finalize Meter</td><td><span class="badge green">POST</span></td><td><code>/api/catat-meter/finalize</code></td><td>Membuat tagihan dari baris DONE dan mengunci baris/periode.</td><td>Total termasuk biaya admin.</td></tr>
+                <tr data-cat="meter"><td>Finalize Row</td><td><span class="badge green">POST</span></td><td><code>/api/catat-meter/finalize-row</code></td><td>Finalisasi satu baris catat meter.</td><td>Dipakai lock per pelanggan.</td></tr>
+                <tr data-cat="meter"><td>Lock/Status</td><td><span class="badge blue">GET</span> <span class="badge green">POST</span></td><td><code>/api/catat-meter/status</code>, <code>/api/catat-meter/lock</code></td><td>Cek status periode dan lock catat meter.</td><td>Untuk kontrol UI.</td></tr>
+                <tr data-cat="meter"><td>Catat Blok</td><td><span class="badge blue">GET</span> <span class="badge amber">PUT</span></td><td><code>/api/catat-blok</code></td><td>Catat meter pelanggan berbasis blok/zona.</td><td>Bagian distribusi.</td></tr>
+                <tr data-cat="meter"><td>Catat Tandon</td><td><span class="badge blue">GET</span> <span class="badge green">POST</span> <span class="badge amber">PUT</span></td><td><code>/api/catat-tandon</code></td><td>Inisialisasi, list, dan update reading tandon.</td><td>Tanpa komponen tagihan pelanggan.</td></tr>
+                <tr data-cat="meter"><td>Catat Meter Blok</td><td><span class="badge blue">GET</span> <span class="badge green">POST</span> <span class="badge amber">PUT</span> <span class="badge red">DELETE</span></td><td><code>/api/catat-meter-blok</code></td><td>Catat meter pelanggan dalam konteks blok.</td><td>Ada endpoint lock.</td></tr>
+                <tr data-cat="meter"><td>Periode</td><td><span class="badge blue">GET</span> <span class="badge green">POST</span></td><td><code>/api/catat-periode/options</code>, <code>/api/catat-periode/finalize</code></td><td>Opsi periode dan finalisasi periode.</td><td>Menjaga status draft/final.</td></tr>
+                <tr data-cat="meter"><td>Reset Meter</td><td><span class="badge blue">GET</span> <span class="badge green">POST</span> <span class="badge amber">PUT</span></td><td><code>/api/reset-meter</code>, <code>/api/reset-meter/[id]</code></td><td>Reset meter pelanggan dan status reset.</td><td>Berpengaruh ke meter awal periode.</td></tr>
+                <tr data-cat="meter"><td>Jadwal</td><td><span class="badge blue">GET</span> <span class="badge green">POST</span> <span class="badge amber">PUT</span></td><td><code>/api/jadwal</code>, <code>/api/jadwal/[id]</code>, <code>/api/jadwal/[id]/start</code></td><td>Kelola jadwal pencatatan, start pekerjaan, sinkron tanggal.</td><td>Opsi petugas/zona dan export tersedia.</td></tr>
+
+                <tr data-cat="billing"><td>Tagihan</td><td><span class="badge blue">GET</span></td><td><code>/api/tagihan</code></td><td>List tagihan dengan filter periode/status/search/pagination.</td><td>Default menampilkan periode terbaru.</td></tr>
+                <tr data-cat="billing"><td>Tagihan Detail</td><td><span class="badge blue">GET</span> <span class="badge amber">PATCH</span></td><td><code>/api/tagihan/[id]</code>, <code>/api/tagihan/[id]/verify</code></td><td>Detail tagihan dan verifikasi pembayaran/tagihan.</td><td>Route dinamis.</td></tr>
+                <tr data-cat="billing"><td>Preview</td><td><span class="badge blue">GET</span></td><td><code>/api/tagihan/preview</code>, <code>/api/tagihan/preview/[pelangganId]</code></td><td>Preview tagihan rekap atau per pelanggan.</td><td>Beberapa output berbentuk PDF.</td></tr>
+                <tr data-cat="billing"><td>Unpaid</td><td><span class="badge blue">GET</span></td><td><code>/api/tagihan/unpaid</code></td><td>List tagihan belum lunas.</td><td>Dipakai pelunasan.</td></tr>
+                <tr data-cat="billing"><td>Kirim WA</td><td><span class="badge green">POST</span></td><td><code>/api/tagihan/kirim-wa</code></td><td>Kirim pesan dan gambar tagihan ke pelanggan.</td><td>Membuat magic link pembayaran.</td></tr>
+                <tr data-cat="billing"><td>Kirim Kwitansi WA</td><td><span class="badge green">POST</span></td><td><code>/api/tagihan/kirim-wa-kwitansi</code></td><td>Kirim kwitansi pembayaran ke WhatsApp.</td><td>Menggunakan WA Sender.</td></tr>
+                <tr data-cat="billing"><td>Pelunasan</td><td><span class="badge green">POST</span></td><td><code>/api/pelunasan</code></td><td>Input pembayaran, upload bukti, alokasi ke tagihan, notifikasi admin.</td><td>Bukti dikompresi maksimal sekitar 200 KB.</td></tr>
+                <tr data-cat="billing"><td>Pelunasan Query</td><td><span class="badge blue">GET</span></td><td><code>/api/pelunasan/list</code>, <code>/api/pelunasan/detail</code></td><td>List dan detail data untuk form pelunasan.</td><td>Dipakai halaman pembayaran.</td></tr>
+                <tr data-cat="billing"><td>Pembayaran</td><td><span class="badge amber">PATCH</span></td><td><code>/api/pembayaran/[id]</code></td><td>Revisi pembayaran dan rebuild alokasi detail pembayaran.</td><td>Hanya admin/petugas.</td></tr>
+                <tr data-cat="billing"><td>Pembayaran Lookup</td><td><span class="badge blue">GET</span></td><td><code>/api/pembayaran/by-tagihan</code></td><td>Ambil pembayaran berdasarkan tagihan.</td><td>Untuk form/edit pembayaran.</td></tr>
+                <tr data-cat="billing"><td>Unduh</td><td><span class="badge blue">GET</span></td><td><code>/api/unduh/tagihan</code>, <code>/api/unduh/kwitansi</code></td><td>Generate/unduh dokumen tagihan dan kwitansi.</td><td>PDF/asset print.</td></tr>
+
+                <tr data-cat="finance"><td>Biaya</td><td><span class="badge blue">GET</span> <span class="badge green">POST</span> <span class="badge amber">PUT/PATCH</span> <span class="badge red">DELETE</span></td><td><code>/api/biaya</code>, <code>/api/biaya/[id]</code>, <code>/api/biaya/options</code></td><td>Master biaya untuk pengeluaran.</td><td>Mapped ke tabel <code>master_biaya</code>.</td></tr>
+                <tr data-cat="finance"><td>Pengeluaran</td><td><span class="badge blue">GET</span> <span class="badge green">POST</span> <span class="badge amber">PATCH</span> <span class="badge red">DELETE</span></td><td><code>/api/pengeluaran</code>, <code>/api/pengeluaran/[id]</code>, <code>/api/pengeluaran/[id]/detail</code></td><td>Header dan detail pengeluaran.</td><td>Status <code>DRAFT</code>/<code>CLOSE</code>.</td></tr>
+                <tr data-cat="finance"><td>Pemasukan</td><td><span class="badge blue">GET</span> <span class="badge green">POST</span> <span class="badge amber">PUT/PATCH</span> <span class="badge red">DELETE</span></td><td><code>/api/pemasukan</code>, <code>/api/pemasukan/[id]</code>, <code>/api/pemasukan/[id]/post</code></td><td>Kelola pemasukan non-tagihan dan posting.</td><td>Status <code>DRAFT</code>/<code>POSTED</code>.</td></tr>
+                <tr data-cat="finance"><td>Hutang</td><td><span class="badge blue">GET</span> <span class="badge green">POST</span> <span class="badge amber">PATCH</span> <span class="badge red">DELETE</span></td><td><code>/api/hutang</code>, <code>/api/hutang/[id]</code>, <code>/api/hutang/[id]/detail</code></td><td>Kelola hutang dan detail hutang.</td><td>Posting hutang tersedia.</td></tr>
+                <tr data-cat="finance"><td>Pembayaran Hutang</td><td><span class="badge blue">GET</span> <span class="badge green">POST</span> <span class="badge amber">PATCH/PUT</span> <span class="badge red">DELETE</span></td><td><code>/api/hutang-pembayaran</code>, <code>/api/hutang-pembayaran/riwayat</code>, <code>/api/hutang-pembayaran/posting</code></td><td>Pembayaran hutang dan riwayatnya.</td><td>Ada posting/close payment.</td></tr>
+                <tr data-cat="finance"><td>Inventaris</td><td><span class="badge blue">GET</span> <span class="badge green">POST</span> <span class="badge amber">PATCH</span> <span class="badge red">DELETE</span></td><td><code>/api/inventaris/items</code>, <code>/api/inventaris/purchase</code>, <code>/api/inventaris/summary</code></td><td>Item, purchase, posting purchase, stock summary.</td><td>Posting pembelian menutup purchase.</td></tr>
+                <tr data-cat="finance"><td>Pajak</td><td><span class="badge blue">GET</span> <span class="badge green">POST</span> <span class="badge amber">PUT</span> <span class="badge red">DELETE</span></td><td><code>/api/pajak</code>, <code>/api/pajak/months</code></td><td>Pajak per periode berdasarkan pemakaian m3 dan tarif pajak.</td><td>Satu pajak per periode.</td></tr>
+
+                <tr data-cat="report"><td>Dashboard</td><td><span class="badge blue">GET</span></td><td><code>/api/dashboard</code>, <code>/api/laporan-summary</code></td><td>Ringkasan dashboard dan laporan tahunan.</td><td>Agregasi banyak sumber data.</td></tr>
+                <tr data-cat="report"><td>Laporan Pembayaran</td><td><span class="badge blue">GET</span></td><td><code>/api/laporan/status</code>, <code>/api/laporan/status/detail</code>, <code>/api/laporan/status/months</code></td><td>Status pembayaran per bulan dan detail pelanggan.</td><td>Dipakai halaman status pembayaran.</td></tr>
+                <tr data-cat="report"><td>Laporan Catat Meter</td><td><span class="badge blue">GET</span></td><td><code>/api/laporan/catat-meter</code>, <code>/api/laporan/catat-meter/periods</code></td><td>Rekap pencatatan meter per periode.</td><td>Filter periode/zona.</td></tr>
+                <tr data-cat="report"><td>Laporan Keuangan</td><td><span class="badge blue">GET</span></td><td><code>/api/laporan/keuangan/summary</code>, <code>/api/laporan/keuangan/mutasi</code>, <code>/api/laporan/keuangan/months</code></td><td>Summary dan mutasi keuangan.</td><td>Menggabungkan pembayaran, pengeluaran, pemasukan.</td></tr>
+                <tr data-cat="report"><td>Laporan Laba Rugi</td><td><span class="badge blue">GET</span></td><td><code>/api/laporan/laba-rugi</code>, <code>/api/laporan/laba-rugi/export</code></td><td>Laporan laba rugi dan export.</td><td>Export file tersedia.</td></tr>
+                <tr data-cat="report"><td>Laporan Lain</td><td><span class="badge blue">GET</span></td><td><code>/api/laporan/piutang</code>, <code>/api/laporan/hutang</code>, <code>/api/laporan/konsumsi-zona</code></td><td>Piutang, hutang, konsumsi zona, dan export Excel konsumsi zona.</td><td>Untuk monitoring operasional.</td></tr>
+                <tr data-cat="report"><td>Distribusi</td><td><span class="badge blue">GET</span></td><td><code>/api/distribusi/peta</code>, <code>/api/distribusi/hirarki</code>, <code>/api/distribusi/rekonsiliasi/*</code></td><td>Peta, hirarki, dan rekonsiliasi tandon-blok-pelanggan.</td><td>Memakai TandonReading, BlokReading, CatatMeter.</td></tr>
+                <tr data-cat="report"><td>Dashboard Laporan</td><td><span class="badge blue">GET</span></td><td><code>/api/dashboard-laporan/belum-bayar</code>, <code>/api/dashboard-laporan/pemakai-terbanyak</code></td><td>Widget laporan belum bayar dan pemakai terbanyak.</td><td>Untuk dashboard.</td></tr>
+
+                <tr data-cat="wa"><td>WA Proxy</td><td><span class="badge blue">GET</span></td><td><code>/api/wa/status</code>, <code>/api/wa/qr</code>, <code>/api/wa/logs</code></td><td>Proxy status, QR, dan log dari WA Sender.</td><td>Dipakai halaman <code>/whatsapp-setting</code>.</td></tr>
+                <tr data-cat="wa"><td>WA Control</td><td><span class="badge green">POST</span></td><td><code>/api/wa/logout</code>, <code>/api/wa/reinit</code></td><td>Logout session WA dan reinitialize client.</td><td>Butuh WA Sender aktif.</td></tr>
+                <tr data-cat="support"><td>Support</td><td><span class="badge blue">GET</span> <span class="badge green">POST</span> <span class="badge amber">PATCH</span></td><td><code>/api/support/threads</code>, <code>/api/support/threads/[id]</code>, <code>/api/support/threads/[id]/messages</code></td><td>Thread support, update status, dan kirim pesan.</td><td>Untuk warga dan admin support.</td></tr>
+                <tr data-cat="support"><td>Support Legacy</td><td><span class="badge blue">GET</span> <span class="badge green">POST</span></td><td><code>/api/support-messages</code></td><td>Endpoint pesan support sederhana.</td><td>Masih ada berdampingan dengan thread support.</td></tr>
+                <tr data-cat="master"><td>File/Upload</td><td><span class="badge blue">GET</span> <span class="badge green">POST</span></td><td><code>/api/file/[...path]</code>, <code>/api/upload</code></td><td>Akses file publik dan upload file.</td><td>Upload dipakai bukti/attachment.</td></tr>
+                <tr data-cat="master"><td>Profil</td><td><span class="badge blue">GET</span> <span class="badge amber">PUT/PATCH</span></td><td><code>/api/warga/profil</code>, <code>/api/petugas/profil</code>, <code>/api/petugas/riwayat</code></td><td>Profil warga/petugas dan riwayat petugas.</td><td>Scope berdasarkan user login.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="database">
+        <div class="section-head">
+          <h3>Database</h3>
+          <p>Model utama dari <code>prisma/schema.prisma</code>, relasi penting, dan enum/status.</p>
+        </div>
+        <div class="content">
+          <div class="grid cols-3">
+            <div class="card">
+              <h4>Core Identity</h4>
+              <ul>
+                <li><code>User</code>: akun admin, petugas, warga.</li>
+                <li><code>Session</code>: session magic-link DB-backed.</li>
+                <li><code>MagicLinkToken</code>: token auto-login untuk pembayaran/admin review.</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h4>Master Air</h4>
+              <ul>
+                <li><code>Pelanggan</code>: data warga/pelanggan.</li>
+                <li><code>Zona</code>: area pelanggan, relasi petugas dan tandon.</li>
+                <li><code>Tandon</code>: parent distribusi air.</li>
+                <li><code>Setting</code>: tarif, abonemen, jatuh tempo, profil perusahaan.</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h4>Operasional Meter</h4>
+              <ul>
+                <li><code>CatatPeriode</code>: master periode catat meter.</li>
+                <li><code>CatatMeter</code>: catatan meter pelanggan.</li>
+                <li><code>ResetMeter</code>: reset meter pelanggan.</li>
+                <li><code>TandonReading</code> dan <code>BlokReading</code>: catatan distribusi.</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h4>Billing</h4>
+              <ul>
+                <li><code>Tagihan</code>: tagihan per pelanggan/periode.</li>
+                <li><code>Pembayaran</code>: transaksi pembayaran.</li>
+                <li><code>DetailPembayaran</code>: alokasi pembayaran ke satu atau banyak tagihan.</li>
+                <li><code>WaLog</code>: audit pengiriman WhatsApp.</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h4>Keuangan</h4>
+              <ul>
+                <li><code>MasterBiaya</code>, <code>Pengeluaran</code>, <code>PengeluaranDetail</code>.</li>
+                <li><code>Pemasukan</code>.</li>
+                <li><code>Hutang</code>, <code>HutangDetail</code>, <code>HutangPayment</code>, <code>HutangPaymentDetail</code>.</li>
+                <li><code>Pajak</code>.</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h4>Inventaris dan Support</h4>
+              <ul>
+                <li><code>Item</code>, <code>Purchase</code>, <code>StockLedger</code>.</li>
+                <li><code>SupportThread</code>, <code>SupportMessage</code>.</li>
+              </ul>
+            </div>
+          </div>
+
+          <h4 style="margin:24px 0 10px">Relasi Penting</h4>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Relasi</th><th>Penjelasan</th><th>Dampak Bisnis</th></tr></thead>
+              <tbody>
+                <tr><td><code>User 1-1 Pelanggan</code></td><td><code>Pelanggan.userId</code> unik ke <code>User</code>.</td><td>Warga login untuk melihat dashboard dan membayar tagihan.</td></tr>
+                <tr><td><code>Tandon 1-N Zona</code></td><td><code>Zona.tandonId</code> menghubungkan zona ke tandon.</td><td>Dipakai peta, hirarki, dan rekonsiliasi distribusi.</td></tr>
+                <tr><td><code>Zona 1-N Pelanggan</code></td><td><code>Pelanggan.zonaId</code> menentukan area dan petugas.</td><td>Mempermudah jadwal pencatatan dan laporan per zona.</td></tr>
+                <tr><td><code>CatatPeriode 1-N CatatMeter</code></td><td>Satu periode punya banyak baris meter pelanggan.</td><td>Basis progress pencatatan dan finalisasi bulanan.</td></tr>
+                <tr><td><code>CatatMeter 1-1 Tagihan</code></td><td><code>Tagihan.catatMeterId</code> unik.</td><td>Tagihan bisa menampilkan meter awal/akhir/pemakaian.</td></tr>
+                <tr><td><code>Pelanggan 1-N Tagihan</code></td><td>Unik <code>pelangganId + periode</code>.</td><td>Mencegah tagihan ganda per bulan.</td></tr>
+                <tr><td><code>Tagihan 1-N Pembayaran</code></td><td>Pembayaran anchor mengacu ke tagihan tertentu.</td><td>Satu tagihan bisa punya lebih dari satu pembayaran/revisi.</td></tr>
+                <tr><td><code>Pembayaran 1-N DetailPembayaran</code></td><td>Detail menyimpan alokasi nominal ke periode lama/baru.</td><td>Mendukung pelunasan tagihan lama dan kredit.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h4 style="margin:24px 0 10px">Enum dan Status Penting</h4>
+          <div class="grid cols-4">
+            <div class="card"><h4>Role</h4><p><span class="badge blue">ADMIN</span> <span class="badge teal">PETUGAS</span> <span class="badge slate">WARGA</span></p></div>
+            <div class="card"><h4>Periode</h4><p><span class="badge amber">DRAFT</span> <span class="badge green">FINAL</span></p></div>
+            <div class="card"><h4>Catat</h4><p><span class="badge amber">PENDING</span> <span class="badge green">DONE</span></p></div>
+            <div class="card"><h4>Metode Bayar</h4><p><span class="badge slate">TUNAI</span> <span class="badge blue">TRANSFER</span> <span class="badge teal">EWALLET</span> <span class="badge green">QRIS</span></p></div>
+            <div class="card"><h4>Jadwal</h4><p><span class="badge slate">WAITING</span> <span class="badge blue">IN_PROGRESS</span> <span class="badge red">NON_PROGRESS</span> <span class="badge green">DONE</span> <span class="badge amber">OVERDUE</span></p></div>
+            <div class="card"><h4>Pengeluaran</h4><p><span class="badge amber">DRAFT</span> <span class="badge green">CLOSE</span></p></div>
+            <div class="card"><h4>Pemasukan</h4><p><span class="badge amber">DRAFT</span> <span class="badge green">POSTED</span></p></div>
+            <div class="card"><h4>Support</h4><p><span class="badge blue">OPEN</span> <span class="badge amber">PENDING</span> <span class="badge green">RESOLVED</span> <span class="badge slate">CLOSED</span></p></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="wa-service">
+        <div class="section-head">
+          <h3>WhatsApp Service</h3>
+          <p>Service terpisah untuk mengirim pesan, dokumen, dan gambar via WhatsApp Web.</p>
+        </div>
+        <div class="content">
+          <div class="grid cols-2">
+            <div class="card">
+              <h4>Konfigurasi Aplikasi Utama</h4>
+              <ul>
+                <li><code>WA_SENDER_URL=http://localhost:4001</code></li>
+                <li><code>WA_SENDER_API_KEY=change-me</code></li>
+                <li><code>NEXT_PUBLIC_APP_URL=http://localhost:3011</code></li>
+              </ul>
+            </div>
+            <div class="card">
+              <h4>Konfigurasi WA Sender</h4>
+              <ul>
+                <li><code>PORT=4001</code></li>
+                <li><code>API_KEY=your-api-key-here</code></li>
+                <li><code>WWS_SESSION_LABEL=tirtabening</code></li>
+                <li><code>ALLOWED_ORIGINS=http://localhost:3011</code></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="table-wrap" style="margin-top:16px">
+            <table>
+              <thead><tr><th>Method</th><th>Endpoint WA Sender</th><th>Fungsi</th><th>Payload/Catatan</th></tr></thead>
+              <tbody>
+                <tr><td><span class="badge blue">GET</span></td><td><code>/health</code></td><td>Health check service.</td><td>Mengembalikan state, ready, dan info akun.</td></tr>
+                <tr><td><span class="badge blue">GET</span></td><td><code>/status</code></td><td>Status WhatsApp.</td><td>Dipakai proxy <code>/api/wa/status</code>.</td></tr>
+                <tr><td><span class="badge blue">GET</span></td><td><code>/qr</code></td><td>QR login WhatsApp.</td><td>Return <code>204</code> bila tidak ada QR.</td></tr>
+                <tr><td><span class="badge green">POST</span></td><td><code>/send</code></td><td>Kirim teks.</td><td>Body: <code>{ to, text }</code>.</td></tr>
+                <tr><td><span class="badge green">POST</span></td><td><code>/send-image</code></td><td>Kirim gambar.</td><td>Body: <code>{ to, url/base64, filename, caption, mimeType }</code>.</td></tr>
+                <tr><td><span class="badge green">POST</span></td><td><code>/send-document</code></td><td>Kirim dokumen PDF.</td><td>Body: <code>{ to, url/base64, filename, caption }</code>.</td></tr>
+                <tr><td><span class="badge green">POST</span></td><td><code>/bulk</code></td><td>Kirim banyak pesan.</td><td>Body: <code>{ items, delayMs }</code>.</td></tr>
+                <tr><td><span class="badge green">POST</span></td><td><code>/logout</code></td><td>Logout dan scan ulang.</td><td>Menghapus session aktif di client.</td></tr>
+                <tr><td><span class="badge green">POST</span></td><td><code>/reinit</code></td><td>Paksa reinitialize WA client.</td><td>Untuk QR/session stuck.</td></tr>
+                <tr><td><span class="badge blue">GET</span></td><td><code>/logs</code></td><td>Ring buffer logs.</td><td>Limit default 200, max mengikuti <code>LOG_MAX</code>.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="note warning" style="margin-top:16px">
+            WA Sender memakai API key sederhana via header <code>x-api-key</code>. Untuk production, jalankan service di jaringan privat atau balik reverse proxy dengan TLS, IP allowlist, dan monitoring proses.
+          </div>
+        </div>
+      </section>
+
+      <section id="security">
+        <div class="section-head">
+          <h3>Security</h3>
+          <p>Catatan keamanan berdasarkan implementasi saat ini.</p>
+        </div>
+        <div class="content">
+          <div class="grid cols-2">
+            <div class="card">
+              <h4>Auth Saat Ini</h4>
+              <ul>
+                <li>Middleware menjaga beberapa halaman protected memakai cookie <code>tb_token</code>.</li>
+                <li>Magic link memakai tabel <code>MagicLinkToken</code> dan session cookie <code>session</code>.</li>
+                <li>Beberapa route juga membaca fallback cookie/header via <code>getAuthUserId</code>.</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h4>Rekomendasi Production</h4>
+              <ul>
+                <li>Standarkan auth API pada satu guard server-side untuk semua route sensitif.</li>
+                <li>Hindari mempercayai header <code>x-user-id</code>/<code>x-user-role</code> dari client tanpa token tervalidasi.</li>
+                <li>Rotasi <code>JWT_SECRET</code> dan <code>WA_SENDER_API_KEY</code> dengan secret manager.</li>
+                <li>Pastikan cookie production memakai <code>httpOnly</code>, <code>secure</code>, dan <code>sameSite</code>.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="note danger" style="margin-top:16px">
+            Field <code>Pelanggan.passwordPlain</code> ada di schema. Untuk production, hindari penyimpanan password plaintext. Bila masih dibutuhkan untuk migrasi/operasional, batasi akses, audit penggunaan, dan rencanakan penghapusan field tersebut.
+          </div>
+        </div>
+      </section>
+
+      <section id="operations">
+        <div class="section-head">
+          <h3>Operasional</h3>
+          <p>Menjalankan project, environment, dan proses pendukung.</p>
+        </div>
+        <div class="content">
+          <div class="grid cols-3">
+            <div class="card">
+              <h4>Dev App</h4>
+              <p>Script aplikasi utama: <code>npm run dev</code> menjalankan Next.js di port <code>3011</code>.</p>
+            </div>
+            <div class="card">
+              <h4>Production App</h4>
+              <p><code>npm run build</code> lalu <code>npm start</code>. Script start memakai port <code>5511</code>.</p>
+            </div>
+            <div class="card">
+              <h4>WA Sender</h4>
+              <p>Di folder WA service: <code>npm run dev</code> untuk nodemon, <code>npm start</code> untuk node server.</p>
+            </div>
+            <div class="card">
+              <h4>Database</h4>
+              <p>Set <code>DATABASE_URL</code> MySQL/MariaDB, jalankan migration Prisma sesuai prosedur release.</p>
+            </div>
+            <div class="card">
+              <h4>Upload</h4>
+              <p>File bukti bayar dan kwitansi berada di <code>public/uploads</code>. Backup folder ini bersama database.</p>
+            </div>
+            <div class="card">
+              <h4>Scripts</h4>
+              <p>Tersedia seed, dump pelanggan, backfill, dan resend WA admin payment di folder <code>scripts/</code>.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="roadmap">
+        <div class="section-head">
+          <h3>Rekomendasi Production-Grade</h3>
+          <p>Prioritas perbaikan agar scalable, maintainable, dan aman.</p>
+        </div>
+        <div class="content">
+          <div class="grid cols-2">
+            <div class="card">
+              <h4>1. Konsolidasi API Guard</h4>
+              <p>Buat helper auth/role tunggal untuk route API. Semua endpoint mutasi harus memvalidasi user dari token/session, bukan header client mentah.</p>
+            </div>
+            <div class="card">
+              <h4>2. Service Layer</h4>
+              <p>Pindahkan alur bisnis berat seperti finalisasi tagihan, pelunasan, dan revisi pembayaran ke service module terpisah agar bisa diuji unit/integration.</p>
+            </div>
+            <div class="card">
+              <h4>3. Testing</h4>
+              <p>Tambahkan test untuk payment allocation, carry-over, finalisasi periode, reset meter, dan WA log failure handling.</p>
+            </div>
+            <div class="card">
+              <h4>4. Observability</h4>
+              <p>Tambahkan structured logging, request id, error boundary API, dan alert untuk WA Sender disconnected atau job pengiriman gagal.</p>
+            </div>
+            <div class="card">
+              <h4>5. Data Retention</h4>
+              <p>Definisikan kebijakan backup database, backup upload, arsip PDF/gambar, dan pembersihan log WhatsApp.</p>
+            </div>
+            <div class="card">
+              <h4>6. Dokumentasi Lanjutan</h4>
+              <p>Tambahkan OpenAPI/Swagger atau contract test dari route API agar endpoint selalu sinkron dengan implementasi.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="footer">
+        Dokumentasi Tirtabening - dibuat untuk onboarding programmer, admin sistem, dan pengembangan production.
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const searchInput = document.getElementById("endpointSearch");
+    const endpointRows = Array.from(document.querySelectorAll("#endpointTable tbody tr"));
+    const tabs = Array.from(document.querySelectorAll("#endpointTabs .tab"));
+    let activeFilter = "all";
+
+    function applyEndpointFilter() {
+      const q = (searchInput.value || "").toLowerCase().trim();
+      endpointRows.forEach((row) => {
+        const catOk = activeFilter === "all" || row.dataset.cat === activeFilter;
+        const textOk = !q || row.innerText.toLowerCase().includes(q);
+        row.style.display = catOk && textOk ? "" : "none";
+      });
+    }
+
+    searchInput.addEventListener("input", applyEndpointFilter);
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        tabs.forEach((x) => x.classList.remove("active"));
+        tab.classList.add("active");
+        activeFilter = tab.dataset.filter || "all";
+        applyEndpointFilter();
+      });
+    });
+  </script>
+</body>
+</html>
