@@ -11,6 +11,7 @@
     "dump:pelanggan": "tsx scripts/dump-pelanggan.ts",
     "wa:resend-admin-payment": "tsx scripts/resend-admin-payment-wa.ts",
     "seed:pelanggan": "tsx prisma/seed-pelanggan.ts",
+    "repair:payment-ledger": "tsx scripts/repair-payment-ledger.ts",
     "backfill:info:dry": "DRY_RUN=1 ts-node scripts/backfill-info.ts",
     "backfill:info": "DRY_RUN=0 ts-node scripts/backfill-info.ts"
   },

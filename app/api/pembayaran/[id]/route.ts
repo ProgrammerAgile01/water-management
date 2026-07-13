@@ -446,7 +446,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { MetodeBayar, Prisma } from "@prisma/client";
 import { saveUploadFile } from "@/lib/uploads";
-import { nextMonth } from "@/lib/period";
+import { rebuildPaymentLedger } from "@/lib/payment-ledger";
 import { getAuthUserId } from "@/lib/auth";
 
 // === NEW: kompresi & util file
@@ -846,104 +846,11 @@ export async function PATCH(
         }
       }
 
-      // 4) Hitung overpay (sisa dana setelah isi principal semua periode)
-      const overpay = Math.max(0, dana);
-
-      // 5) Running carry & sisaKurang berbasis snapshot detailPembayaran (anchor → depan)
-      const startIndex = tags.findIndex((x) => x.id === anchor.id);
-      const iterateFrom = startIndex >= 0 ? startIndex : 0;
-
-      // Bangun carry sebelum anchor (read-only)
-      let runningCarry = 0;
-      for (let i = 0; i < iterateFrom; i++) {
-        const t = tags[i];
-        const sumPaid = await sumTerbayarAll(t.id);
-        const totalDue =
-          (runningCarry || 0) + (t.totalTagihan || 0) + (t.denda || 0);
-        runningCarry = totalDue - sumPaid; // bisa negatif (kredit)
-      }
-
-      // Dari anchor → depan: set sisaKurang & statusBayar; apply overpay di anchor
-      for (let i = iterateFrom; i < tags.length; i++) {
-        const t = tags[i];
-        const sumPaid = await sumTerbayarAll(t.id);
-
-        let sisa =
-          (runningCarry || 0) +
-          (t.totalTagihan || 0) +
-          (t.denda || 0) -
-          sumPaid;
-        if (t.id === anchor.id && overpay > 0) sisa -= overpay;
-
-        const belumBayarPrincipal = Math.max(
-          0,
-          (t.totalTagihan || 0) - sumPaid
-        );
-
-        const cleaned = stripManagedTags(t.info);
-        const infoNow = appendInfo(cleaned, [
-          `Dibayar tanggal ${paidAtHuman}`,
-          `[PAID_AT:${paidAtISO}]`,
-          sisa < 0 ? `[CREDIT:${Math.abs(sisa)}]` : undefined,
-        ]);
-
-        await tx.tagihan.update({
-          where: { id: t.id },
-          data: {
-            info: infoNow || null,
-            sisaKurang: sisa,
-            sudahBayar: sumPaid,
-            belumBayar: belumBayarPrincipal,
-            statusBayar: sisa <= 0 ? "PAID" : sumPaid > 0 ? "PAID" : "UNPAID",
-          },
-        });
-
-        runningCarry = sisa;
-      }
-
-      // 6) Bawa carry (kredit/kurang) ke periode setelah anchor lewat tagihanLalu += carry (preserve audit)
-      if (runningCarry !== 0) {
-        const periodeNext = nextMonth(anchor.periode);
-        const nextT = await tx.tagihan.findUnique({
-          where: {
-            pelangganId_periode: {
-              pelangganId: anchor.pelangganId,
-              periode: periodeNext,
-            },
-          },
-          select: {
-            id: true,
-            totalTagihan: true,
-            denda: true,
-            tagihanLalu: true,
-          },
-        });
-        if (nextT) {
-          const paidNextAgg = await tx.detailPembayaran.aggregate({
-            where: { tagihanId: nextT.id },
-            _sum: { jumlahTerbayar: true },
-          });
-          const paidNext = paidNextAgg._sum.jumlahTerbayar || 0;
-
-          const newTagihanLalu = (nextT.tagihanLalu || 0) + runningCarry; // bisa negatif (kredit)
-          const totalTagNext =
-            (newTagihanLalu || 0) +
-            (nextT.totalTagihan || 0) +
-            (nextT.denda || 0);
-          const sisaNext = Math.max(0, totalTagNext - paidNext);
-
-          await tx.tagihan.update({
-            where: { id: nextT.id },
-            data: {
-              tagihanLalu: newTagihanLalu,
-              sudahBayar: paidNext,
-              belumBayar: Math.max(0, (nextT.totalTagihan || 0) - paidNext),
-              sisaKurang: sisaNext,
-              statusBayar: sisaNext <= 0 ? "PAID" : "UNPAID",
-            },
-          });
-        }
-      }
+      // 4) Rebuild saldo efektif dari anchor ke depan.
+      await rebuildPaymentLedger(tx, {
+        pelangganId: anchor.pelangganId,
+        fromPeriode: anchor.periode,
+      });
 
       // 7) Tag PREV_CLEARED di anchor jika ada periode yang ikut lunas karena revisi ini
       if (clearedPeriods.length) {

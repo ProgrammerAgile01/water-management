@@ -74,7 +74,9 @@ export async function GET(req: NextRequest) {
             id: true,
             periode: true,
             totalTagihan: true,
+            tagihanLalu: true,
             denda: true,
+            sisaKurang: true,
             pelangganId: true,
             pelanggan: { select: { id: true, kode: true, nama: true, wa: true } },
           },
@@ -84,18 +86,6 @@ export async function GET(req: NextRequest) {
 
     if (all.length === 0) {
       return NextResponse.json({ ok: true, page, limit, total: 0, items: [] });
-    }
-
-    // agregasi total bayar per tagihan
-    const tagihanIds = Array.from(new Set(all.map((p) => p.tagihanId)));
-    const sumByTagihan = await prisma.pembayaran.groupBy({
-      by: ["tagihanId"],
-      where: { tagihanId: { in: tagihanIds }, deletedAt: null },
-      _sum: { jumlahBayar: true },
-    });
-    const paidMap = new Map<string, number>();
-    for (const g of sumByTagihan) {
-      paidMap.set(g.tagihanId, g._sum.jumlahBayar || 0);
     }
 
     type Item = {
@@ -118,9 +108,10 @@ export async function GET(req: NextRequest) {
 
     const rows: Item[] = all.map((p) => {
       const t = p.tagihan;
-      const totalPlusDenda = (t.totalTagihan || 0) + (t.denda || 0);
-      const paid = paidMap.get(t.id) || 0;
-      const status: "lunas" | "belum_lunas" = paid >= totalPlusDenda ? "lunas" : "belum_lunas";
+      const totalPlusDenda =
+        (t.tagihanLalu || 0) + (t.totalTagihan || 0) + (t.denda || 0);
+      const status: "lunas" | "belum_lunas" =
+        (t.sisaKurang || 0) <= 0 ? "lunas" : "belum_lunas";
       return {
         id: p.id,
         tagihanId: p.tagihanId,

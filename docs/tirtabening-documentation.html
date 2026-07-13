@@ -646,6 +646,14 @@
               Alur pembayaran memakai <code>DetailPembayaran</code> sebagai sumber alokasi. Field <code>sisaKurang</code> dan <code>tagihanLalu</code> berperan sebagai snapshot carry-over antar periode.
             </div>
           </div>
+
+          <div class="note" style="margin-top:18px">
+            <strong>Payment ledger.</strong>
+            Perhitungan bayar pas, kurang bayar, dan lebih bayar dipusatkan di <code>lib/payment-ledger.ts</code>.
+            Rumus efektifnya adalah <code>sisaKurang = tagihanLalu + totalTagihan + denda - sudahBayar - extraCredit</code>.
+            Status lunas ditentukan dari <code>sisaKurang &lt;= 0</code>, bukan dari perbandingan langsung nominal pembayaran terhadap tagihan bulan ini.
+            Dokumentasi teknis lengkap tersedia di <code>docs/payment-ledger.md</code>.
+          </div>
         </div>
       </section>
 

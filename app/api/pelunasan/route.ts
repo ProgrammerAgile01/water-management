@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { MetodeBayar } from "@prisma/client";
 import { getAuthUserId } from "@/lib/auth";
 import { randomToken } from "@/lib/auth-utils";
-import { nextMonth } from "@/lib/period";
+import { rebuildPaymentLedger } from "@/lib/payment-ledger";
 import { saveUploadFile } from "@/lib/uploads";
 
 // === NEW: kompresi & util
@@ -485,121 +485,10 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // --- 4) RECOMPUTE running carry & final sisaKurang per period (ONLY from anchor onward)
-      // compute overpay leftover
-      const overpay = Math.max(0, dana);
-
-      // cari index anchor
-      const startIndex = tags.findIndex((t) => t.id === anchor.id);
-      const iterateFrom = startIndex >= 0 ? startIndex : 0;
-
-      // --- hitung runningCarry yang benar sampai tepat sebelum anchor (read-only) ---
-      let runningCarry = 0;
-      for (let i = 0; i < iterateFrom; i++) {
-        const tPrev = tags[i];
-        const totalDuePrev =
-          (runningCarry || 0) + (tPrev.totalTagihan || 0) + (tPrev.denda || 0);
-
-        const aggPrev = await tx.detailPembayaran.aggregate({
-          where: { tagihanId: tPrev.id },
-          _sum: { jumlahTerbayar: true },
-        });
-        const sumPaidPrev = aggPrev._sum.jumlahTerbayar || 0;
-
-        runningCarry = totalDuePrev - sumPaidPrev;
-      }
-
-      // --- sekarang iterate dari anchor ke depan, tapi TIDAK menimpa tagihanLalu di baris yang ada ---
-      for (let i = iterateFrom; i < tags.length; i++) {
-        const t = tags[i];
-
-        // totalDue = carry-in (runningCarry) + principal + denda
-        const totalDue =
-          (runningCarry || 0) + (t.totalTagihan || 0) + (t.denda || 0);
-
-        // sum payments (detailPembayaran) sumber kebenaran
-        const agg = await tx.detailPembayaran.aggregate({
-          where: { tagihanId: t.id },
-          _sum: { jumlahTerbayar: true },
-        });
-        const sumTerbayar = agg._sum.jumlahTerbayar || 0;
-
-        // sisa = totalDue - yang sudah terbayar
-        let sisa = totalDue - sumTerbayar;
-
-        // jika ini anchor, apply overpay (credit)
-        if (t.id === anchor.id && overpay > 0) {
-          sisa = sisa - overpay;
-        }
-
-        // belumBayar (hanya principal) = totalTagihan - sumTerbayar (untuk UI/per-periode)
-        const belumBayarPrincipal = Math.max(
-          0,
-          (t.totalTagihan || 0) - sumTerbayar
-        );
-
-        // IMPORTANT: jangan set tagihanLalu di sini (jangan timpa audit).
-        // Hanya update fields lain yang perlu.
-        await tx.tagihan.update({
-          where: { id: t.id },
-          data: {
-            // tagihanLalu: <-- TIDAK DISET, biarkan nilai historis tetap
-            sudahBayar: sumTerbayar,
-            belumBayar: belumBayarPrincipal,
-            sisaKurang: sisa,
-            statusBayar:
-              sisa <= 0 ? "PAID" : sumTerbayar > 0 ? "PAID" : "UNPAID",
-            info: appendInfo(t.info, [
-              `Dibayar tanggal ${paidAtHuman}`,
-              `[PAID_AT:${paidAtISO}]`,
-            ]),
-          },
-        });
-
-        // flow carry to next period
-        runningCarry = sisa;
-      }
-
-      // --- jika ada runningCarry (credit/overpay) yang perlu dibawa ke next period,
-      //     tambahkan ke nilai tagihanLalu yang sudah ada di nextT (jgn timpa)
-      if (runningCarry !== 0) {
-        const periodeNext = nextMonth(periodeAktif);
-        const nextT = await tx.tagihan.findUnique({
-          where: { pelangganId_periode: { pelangganId, periode: periodeNext } },
-          select: {
-            id: true,
-            totalTagihan: true,
-            denda: true,
-            tagihanLalu: true,
-          },
-        });
-        if (nextT) {
-          const paidNextAgg = await tx.detailPembayaran.aggregate({
-            where: { tagihanId: nextT.id },
-            _sum: { jumlahTerbayar: true },
-          });
-          const paidNext = paidNextAgg._sum.jumlahTerbayar || 0;
-
-          // tambahkan runningCarry ke tagihanLalu existing (preserve audit)
-          const newTagihanLalu = (nextT.tagihanLalu || 0) + runningCarry; // negative => kredit
-          const totalTagNext =
-            (newTagihanLalu || 0) +
-            (nextT.totalTagihan || 0) +
-            (nextT.denda || 0);
-          const sisaNext = Math.max(0, totalTagNext - paidNext);
-
-          await tx.tagihan.update({
-            where: { id: nextT.id },
-            data: {
-              tagihanLalu: newTagihanLalu,
-              sudahBayar: paidNext,
-              belumBayar: Math.max(0, (nextT.totalTagihan || 0) - paidNext),
-              sisaKurang: sisaNext,
-              statusBayar: sisaNext <= 0 ? "PAID" : "UNPAID",
-            },
-          });
-        }
-      }
+      await rebuildPaymentLedger(tx, {
+        pelangganId,
+        fromPeriode: anchor.periode,
+      });
 
       // 6) append cleared info to anchor if any
       if (clearedPeriods.length) {
