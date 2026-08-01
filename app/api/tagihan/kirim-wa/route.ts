@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import puppeteer from "puppeteer";
 import { randomToken } from "@/lib/auth-utils";
 import { getWaTargets } from "@/lib/wa-targets";
+import { getAuthUserWithRole } from "@/lib/auth-user-server";
+
+export const maxDuration = 300;
 
 /* ============ Helpers ============ */
 function getAppOrigin(req: NextRequest) {
@@ -128,7 +131,7 @@ function waText(p: {
   return sections.map((s) => s.replace(/[ \t]+$/g, "")).join("\n\n");
 }
 
-async function sendWaAndLog(tujuanRaw: string, text: string) {
+async function sendWaAndLog(tujuanRaw: string, text: string): Promise<boolean> {
   const to = tujuanRaw.replace(/\D/g, "").replace(/^0/, "62");
   const base = (process.env.WA_SENDER_URL || "").replace(/\/$/, "");
   const apiKey = process.env.WA_SENDER_API_KEY || "";
@@ -141,7 +144,7 @@ async function sendWaAndLog(tujuanRaw: string, text: string) {
         status: "FAILED",
       },
     });
-    return;
+    return false;
   }
   const url = `${base}/send`;
   const log = await prisma.waLog.create({
@@ -154,35 +157,37 @@ async function sendWaAndLog(tujuanRaw: string, text: string) {
   });
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), 10000);
-  fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(apiKey ? { "x-api-key": apiKey } : {}),
-    },
-    body: JSON.stringify({ to, text }),
-    signal: ac.signal,
-  })
-    .then((r) =>
-      prisma.waLog.update({
-        where: { id: log.id },
-        data: { status: r.ok ? "SENT" : "FAILED" },
-      }),
-    )
-    .catch(() =>
-      prisma.waLog.update({
-        where: { id: log.id },
-        data: { status: "FAILED" },
-      }),
-    )
-    .finally(() => clearTimeout(t));
+  try {
+    const r = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(apiKey ? { "x-api-key": apiKey } : {}),
+      },
+      body: JSON.stringify({ to, text }),
+      signal: ac.signal,
+    });
+    await prisma.waLog.update({
+      where: { id: log.id },
+      data: { status: r.ok ? "SENT" : "FAILED" },
+    });
+    return r.ok;
+  } catch {
+    await prisma.waLog.update({
+      where: { id: log.id },
+      data: { status: "FAILED" },
+    });
+    return false;
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 async function sendWaImageAndLog(
   tujuanRaw: string,
   tagihanId: string,
   caption?: string,
-) {
+): Promise<boolean> {
   const to = tujuanRaw.replace(/\D/g, "").replace(/^0/, "62");
   const base = (process.env.WA_SENDER_URL || "").replace(/\/$/, "");
   const apiKey = process.env.WA_SENDER_API_KEY || "";
@@ -200,7 +205,7 @@ async function sendWaImageAndLog(
         status: "FAILED",
       },
     });
-    return;
+    return false;
   }
   try {
     const browser = await puppeteer.launch({
@@ -242,7 +247,7 @@ async function sendWaImageAndLog(
       },
       body: JSON.stringify({
         to,
-        base64: buffer.toString("base64"),
+        base64: Buffer.from(buffer).toString("base64"),
         filename: `tagihan-${tagihanId}.jpg`,
         caption,
         mimeType: "image/jpeg",
@@ -261,6 +266,7 @@ async function sendWaImageAndLog(
         status: r.ok ? "SENT" : "FAILED",
       },
     });
+    return r.ok;
   } catch (e: any) {
     await prisma.waLog.create({
       data: {
@@ -275,20 +281,20 @@ async function sendWaImageAndLog(
         status: "FAILED",
       },
     });
+    return false;
   }
 }
 
-/* ============ POST: kirim WA tagihan by tagihanId ============ */
-export async function POST(req: NextRequest) {
-  try {
-    const { tagihanId } = await req.json();
-    if (!tagihanId) {
-      return NextResponse.json(
-        { ok: false, message: "tagihanId wajib" },
-        { status: 400 },
-      );
-    }
+type SendResult =
+  | { status: "sent"; tagihanId: string; nama: string }
+  | { status: "skipped"; tagihanId: string; nama: string; reason: string }
+  | { status: "failed"; tagihanId: string; nama: string; reason: string };
 
+async function sendTagihan(
+  req: NextRequest,
+  tagihanId: string,
+): Promise<SendResult> {
+  try {
     const t = await prisma.tagihan.findUnique({
       where: { id: tagihanId },
       include: {
@@ -313,26 +319,32 @@ export async function POST(req: NextRequest) {
       },
     });
     if (!t || t.deletedAt) {
-      return NextResponse.json(
-        { ok: false, message: "Tagihan tidak ditemukan" },
-        { status: 404 },
-      );
+      return {
+        status: "failed",
+        tagihanId,
+        nama: "-",
+        reason: "Tagihan tidak ditemukan",
+      };
     }
 
     const targets = getWaTargets([t.pelanggan?.wa, t.pelanggan?.wa2]);
     if (targets.length === 0) {
-      return NextResponse.json(
-        { ok: false, message: "Nomor WhatsApp pelanggan belum diisi" },
-        { status: 400 },
-      );
+      return {
+        status: "skipped",
+        tagihanId,
+        nama: t.pelanggan.nama,
+        reason: "Nomor WhatsApp pelanggan belum diisi",
+      };
     }
 
     const setting = await prisma.setting.findUnique({ where: { id: 1 } });
     if (!setting) {
-      return NextResponse.json(
-        { ok: false, message: "Setting tidak ditemukan" },
-        { status: 500 },
-      );
+      return {
+        status: "failed",
+        tagihanId,
+        nama: t.pelanggan.nama,
+        reason: "Setting tidak ditemukan",
+      };
     }
 
     // Pastikan ada user WARGA
@@ -408,24 +420,142 @@ export async function POST(req: NextRequest) {
         ? `\n\nUnggah bukti pembayaran dengan aman via tautan berikut:\n${magicUrl}`
         : "");
 
-    // Kirim WA teks + gambar ke semua target
-    (async () => {
-      await Promise.allSettled(targets.map((to) => sendWaAndLog(to, text)));
-      const caption = `Tagihan Air Periode ${new Date(
-        `${t.periode}-01`,
-      ).toLocaleDateString("id-ID", { month: "long", year: "numeric" })} - ${
-        t.pelanggan?.nama
-      }`;
-      await Promise.allSettled(
-        targets.map((to) => sendWaImageAndLog(to, t.id, caption)),
-      );
-    })();
+    const textResults = await Promise.all(
+      targets.map((to) => sendWaAndLog(to, text)),
+    );
+    const caption = `Tagihan Air Periode ${new Date(
+      `${t.periode}-01`,
+    ).toLocaleDateString("id-ID", { month: "long", year: "numeric" })} - ${
+      t.pelanggan?.nama
+    }`;
+    const imageResults = await Promise.all(
+      targets.map((to) => sendWaImageAndLog(to, t.id, caption)),
+    );
+    const sent = textResults.some(Boolean) && imageResults.some(Boolean);
 
-    return NextResponse.json({ ok: true, message: "WA tagihan dikirim" });
-  } catch (e: any) {
+    return sent
+      ? { status: "sent", tagihanId, nama: t.pelanggan.nama }
+      : {
+          status: "failed",
+          tagihanId,
+          nama: t.pelanggan.nama,
+          reason: "Gateway WhatsApp gagal mengirim pesan atau gambar",
+        };
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
     console.error(e);
+    return {
+      status: "failed",
+      tagihanId,
+      nama: "-",
+      reason: message || "Server error",
+    };
+  }
+}
+
+async function mapWithConcurrency<T, R>(
+  values: T[],
+  limit: number,
+  worker: (value: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(values.length);
+  let nextIndex = 0;
+  async function runWorker() {
+    while (nextIndex < values.length) {
+      const index = nextIndex++;
+      results[index] = await worker(values[index]);
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(limit, values.length) }, () => runWorker()),
+  );
+  return results;
+}
+
+/* ============ POST: kirim satu tagihan atau semua tagihan per periode ============ */
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const tagihanId = String(body?.tagihanId || "").trim();
+    const periode = String(body?.periode || "").trim();
+
+    if (tagihanId) {
+      const result = await sendTagihan(req, tagihanId);
+      if (result.status === "sent") {
+        return NextResponse.json({ ok: true, message: "WA tagihan dikirim" });
+      }
+      return NextResponse.json(
+        { ok: false, message: result.reason },
+        { status: result.status === "skipped" ? 400 : 500 },
+      );
+    }
+
+    if (!/^\d{4}-\d{2}$/.test(periode)) {
+      return NextResponse.json(
+        { ok: false, message: "Periode wajib dalam format YYYY-MM" },
+        { status: 400 },
+      );
+    }
+
+    const user = await getAuthUserWithRole(req);
+    if (!user || user.role !== "ADMIN") {
+      return NextResponse.json(
+        { ok: false, message: "Hanya admin yang dapat mengirim WA massal" },
+        { status: 403 },
+      );
+    }
+
+    const tagihans = await prisma.tagihan.findMany({
+      where: {
+        periode,
+        deletedAt: null,
+        sisaKurang: { gt: 0 },
+      },
+      select: { id: true, info: true },
+      orderBy: { createdAt: "asc" },
+    });
+    const unpaidTagihans = tagihans.filter(
+      (tagihan) =>
+        !tagihan.info?.includes("[CLOSED_BY:") &&
+        !tagihan.info?.includes("[PAID_BY:"),
+    );
+
+    if (unpaidTagihans.length === 0) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "Tidak ada tagihan belum lunas pada periode tersebut",
+        },
+        { status: 404 },
+      );
+    }
+
+    const results = await mapWithConcurrency(unpaidTagihans, 2, (tagihan) =>
+      sendTagihan(req, tagihan.id),
+    );
+    const sent = results.filter((result) => result.status === "sent").length;
+    const skipped = results.filter(
+      (result) => result.status === "skipped",
+    ).length;
+    const failed = results.filter((result) => result.status === "failed").length;
+
+    return NextResponse.json({
+      ok: failed === 0,
+      message: `Pengiriman periode ${periode} selesai`,
+      summary: { total: results.length, sent, skipped, failed },
+      issues: results
+        .filter((result) => result.status !== "sent")
+        .map((result) => ({
+          nama: result.nama,
+          status: result.status,
+          reason: result.reason,
+        })),
+    });
+  } catch (e: unknown) {
+    console.error(e);
+    const message = e instanceof Error ? e.message : String(e);
     return NextResponse.json(
-      { ok: false, message: e?.message ?? "Server error" },
+      { ok: false, message: message || "Server error" },
       { status: 500 },
     );
   }

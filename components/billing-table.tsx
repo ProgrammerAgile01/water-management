@@ -7,6 +7,17 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "./ui/alert-dialog";
+import {
   Eye,
   FileText,
   CreditCard,
@@ -192,6 +203,9 @@ type FiltersBarProps = {
   searchQuery: string;
   setSearchQuery: (v: string) => void;
   onRefresh: () => void;
+  canBulkSend?: boolean;
+  isBulkSending?: boolean;
+  onBulkSend?: () => void;
 };
 function FiltersBar(props: FiltersBarProps) {
   const {
@@ -204,6 +218,9 @@ function FiltersBar(props: FiltersBarProps) {
     searchQuery,
     setSearchQuery,
     onRefresh,
+    canBulkSend = false,
+    isBulkSending = false,
+    onBulkSend,
   } = props;
   return (
     <GlassCard className="p-4">
@@ -265,13 +282,59 @@ function FiltersBar(props: FiltersBarProps) {
           <label className="text-sm font-medium text-foreground opacity-0">
             Actions
           </label>
-          <Button
-            onClick={onRefresh}
-            className="w-full bg-transparent"
-            variant="outline"
-          >
-            Refresh Data
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={onRefresh}
+              className="flex-1 bg-transparent"
+              variant="outline"
+              disabled={isBulkSending}
+            >
+              Refresh Data
+            </Button>
+            {canBulkSend && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    className="flex-1 bg-green-600 text-white hover:bg-green-700"
+                    disabled={
+                      isBulkSending ||
+                      !selectedPeriode ||
+                      selectedPeriode === "semua"
+                    }
+                  >
+                    {isBulkSending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <MessageCircle className="h-4 w-4 mr-2" />
+                    )}
+                    {isBulkSending ? "Mengirim..." : "Kirim WA Semua"}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      Kirim tagihan ke semua pelanggan?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Semua tagihan yang belum lunas pada periode{" "}
+                      <strong>{formatPeriode(selectedPeriode)}</strong> akan
+                      dikirim melalui WhatsApp. Pelanggan tanpa nomor WhatsApp
+                      akan dilewati.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Batal</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={onBulkSend}
+                      className="bg-green-600 text-white hover:bg-green-700"
+                    >
+                      Ya, Kirim Semua
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
         </div>
       </div>
     </GlassCard>
@@ -488,6 +551,7 @@ export function BillingTable() {
   const [loadingWAKwitansi, setLoadingWAKwitansi] = useState<Set<string>>(
     new Set(),
   );
+  const [isBulkSending, setIsBulkSending] = useState(false);
 
   function setRowLoading(
     setter: React.Dispatch<React.SetStateAction<Set<string>>>,
@@ -800,6 +864,48 @@ export function BillingTable() {
     }
   }
 
+  async function handleKirimWASemua() {
+    if (!selectedPeriode || selectedPeriode === "semua") return;
+
+    try {
+      setIsBulkSending(true);
+      const res = await fetch("/api/tagihan/kirim-wa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ periode: selectedPeriode }),
+      });
+      const json = await res.json();
+      const summary = json?.summary;
+
+      if (summary) {
+        const description = `${summary.sent} terkirim, ${summary.skipped} dilewati, ${summary.failed} gagal dari ${summary.total} tagihan.`;
+        toast({
+          title:
+            summary.failed > 0
+              ? "Selesai dengan catatan"
+              : "Pengiriman selesai",
+          description,
+          variant: summary.failed > 0 ? "destructive" : "default",
+        });
+      } else {
+        toast({
+          title: res.ok ? "Pengiriman selesai" : "Gagal mengirim",
+          description: json?.message || "Terjadi kesalahan saat mengirim WA.",
+          variant: res.ok ? "default" : "destructive",
+        });
+      }
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast({
+        title: "Error",
+        description: message || "Terjadi kesalahan jaringan/server.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBulkSending(false);
+    }
+  }
+
   // kirim wa Kwitansi (teks + gambar)
   async function handleKirimWAKwitansi(b: BillingItem) {
     try {
@@ -857,6 +963,9 @@ export function BillingTable() {
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
           onRefresh={refreshData}
+          canBulkSend={authUser?.role === "ADMIN"}
+          isBulkSending={isBulkSending}
+          onBulkSend={handleKirimWASemua}
         />
         <GlassCard className="p-6 mt-4">
           <div className="animate-pulse space-y-4">
@@ -885,6 +994,9 @@ export function BillingTable() {
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
           onRefresh={refreshData}
+          canBulkSend={authUser?.role === "ADMIN"}
+          isBulkSending={isBulkSending}
+          onBulkSend={handleKirimWASemua}
         />
         <GlassCard className="p-8 text-center mt-4">
           <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -924,6 +1036,9 @@ export function BillingTable() {
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
           onRefresh={refreshData}
+          canBulkSend={authUser?.role === "ADMIN"}
+          isBulkSending={isBulkSending}
+          onBulkSend={handleKirimWASemua}
         />
 
         {rows.map((b) => {
@@ -1185,6 +1300,9 @@ export function BillingTable() {
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         onRefresh={refreshData}
+        canBulkSend={authUser?.role === "ADMIN"}
+        isBulkSending={isBulkSending}
+        onBulkSend={handleKirimWASemua}
       />
 
       <GlassCard className="overflow-hidden">
